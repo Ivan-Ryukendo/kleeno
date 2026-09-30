@@ -27,8 +27,17 @@ export interface ObligationContext {
   lineAmount: bigint; // net of this obligation's calculation line
   calculationHash: string; // hash stored on the calculation
   approvalCalculationHash: string; // hash the payroll approval bound
-  run: { id: string; companyId: string; mode: RunMode; status: string; payrollApproverId: string };
-  batch: { id: string; companyId: string; status: string; authorizerId: string; planHash: string; plan: PlanInput } | null;
+  approvalApproverId: string; // from the immutable payroll_approvals row (four-eyes reference)
+  run: { id: string; companyId: string; mode: RunMode; status: string };
+  batch: {
+    id: string;
+    companyId: string;
+    status: string;
+    authorizerId: string | null;
+    guardRunKey: string | null;
+    planHash: string;
+    plan: PlanInput;
+  } | null;
   company: { id: string; livePaymentsEnabled: boolean; perPaymentCeiling: bigint };
   network: string;
   attemptExistsForKey: boolean;
@@ -64,6 +73,10 @@ export interface GuardEntry {
   committed: boolean;
   runOpen: boolean;
   paid: boolean;
+  /** What the guard itself will pay: the gate checks these against the DB before any money moves. */
+  runKey: string;
+  recipient: string;
+  amount: bigint;
 }
 
 export interface ChainReceipt {

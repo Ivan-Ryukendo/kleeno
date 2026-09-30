@@ -40,7 +40,8 @@ export async function runGate(obligationId: string, repo: PaymentsRepo, chain: C
     ["NOT_IN_BATCH", !!batch && batch.id === o.batchId && BATCH_PAYABLE.has(batch.status)],
     ["PLAN_HASH_MISMATCH", !!batch && computePlanHash(batch.plan) === batch.planHash],
     ["NOT_IN_PLAN", !!batch && batch.plan.obligations.some((p) => p.id === o.id && p.amount === o.amount && p.recipient === o.recipient)],
-    ["SAME_USER_APPROVAL", !!batch && batch.authorizerId !== run.payrollApproverId],
+    ["AUTHORIZER_MISSING", !!batch && !!batch.authorizerId],
+    ["SAME_USER_APPROVAL", !!batch && !!batch.authorizerId && batch.authorizerId !== ctx.approvalApproverId],
     ["RUN_NOT_LIVE", run.mode === "LIVE_TESTNET"],
     ["RUN_NOT_APPROVED", RUN_APPROVED_OR_LATER.has(run.status)],
     ["LIVE_PAYMENTS_OFF", company.livePaymentsEnabled],
@@ -53,6 +54,10 @@ export async function runGate(obligationId: string, repo: PaymentsRepo, chain: C
     ["OVER_CEILING", o.amount <= company.perPaymentCeiling],
     ["NOT_COMMITTED_ON_GUARD", guard.committed && guard.runOpen],
     ["ALREADY_PAID_ON_GUARD", !guard.paid],
+    // The guard pays what was committed, so what was committed must be what the DB approved.
+    ["GUARD_RECIPIENT_MISMATCH", guard.recipient.toLowerCase() === o.recipient.toLowerCase()],
+    ["GUARD_AMOUNT_MISMATCH", guard.amount === o.amount],
+    ["GUARD_RUN_MISMATCH", !!batch?.guardRunKey && guard.runKey.toLowerCase() === batch.guardRunKey.toLowerCase()],
   ];
   const failures = checks.filter(([, pass]) => !pass).map(([code]) => code);
   if (failures.length) return { ok: false, failures };
