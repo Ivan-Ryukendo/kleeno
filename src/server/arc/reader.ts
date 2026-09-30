@@ -1,5 +1,5 @@
 import "server-only";
-import { createPublicClient, decodeEventLog, http, parseAbiItem, type Address, type Hex } from "viem";
+import { createPublicClient, decodeEventLog, http, parseAbiItem, TransactionReceiptNotFoundError, type Address, type Hex } from "viem";
 import { arcTestnet } from "viem/chains";
 import type { ChainReader, ChainReceipt } from "@/core/ports";
 import { guardAbi } from "./guard-abi";
@@ -29,11 +29,10 @@ export function arcChainReader(guardAddress: string, client = arcClient()): Chai
   return {
     async guardEntry(onchainKey) {
       await assertArcChain(client);
-      const [runKey, , , paid] = (await read("entries", [onchainKey as Hex])) as [Hex, Address, bigint, boolean];
-      const zero = /^0x0+$/.test(runKey);
-      if (zero) return { committed: false, runOpen: false, paid: false };
+      const [runKey, recipient, amount, paid] = (await read("entries", [onchainKey as Hex])) as [Hex, Address, bigint, boolean];
+      if (/^0x0+$/.test(runKey)) return { committed: false, runOpen: false, paid: false, runKey, recipient, amount };
       const [, open] = (await read("runs", [runKey])) as [boolean, boolean, bigint];
-      return { committed: true, runOpen: open, paid };
+      return { committed: true, runOpen: open, paid, runKey, recipient, amount };
     },
     async isPaid(onchainKey) {
       return (await read("isPaid", [onchainKey as Hex])) as boolean;
@@ -43,8 +42,9 @@ export function arcChainReader(guardAddress: string, client = arcClient()): Chai
       let r;
       try {
         r = await client.getTransactionReceipt({ hash: txHash as Hex });
-      } catch {
-        return null; // not found yet
+      } catch (e) {
+        if (e instanceof TransactionReceiptNotFoundError) return null; // not indexed yet
+        throw e; // an RPC failure is not "no receipt"; the agent keeps polling
       }
       const guardEvents: ChainReceipt["guardEvents"] = [];
       const usdcTransfers: ChainReceipt["usdcTransfers"] = [];

@@ -87,6 +87,32 @@ describe("payment flow", () => {
   });
 });
 
+describe("S30 receipt lag is not a mismatch", () => {
+  it("Circle COMPLETE but the receipt is not indexed yet: keeps polling and settles once it appears", async () => {
+    const t = run("OK");
+    const origSubmit = t.rail.submit.bind(t.rail);
+    let polls = 0;
+    t.rail.submit = async (p, id) => {
+      const r = await origSubmit(p, id);
+      t.chain.receipts.delete("0xtx1"); // not indexed yet
+      return r;
+    };
+    const sleeps = { ...clock, sleep: async () => { if (++polls === 2) t.chain.goodReceipt("0xtx1"); } };
+    const out = await payObligation("ob-1", { repo: t.repo, chain: t.chain, rail: t.rail, clock: sleeps, expect: expectChain });
+    expect(out).toEqual({ status: "SETTLED", txHash: "0xtx1" });
+    expect(t.repo.status).toBe("SETTLED");
+  });
+
+  it("an RPC error reading the receipt is not a mismatch; the obligation stays PAYING", async () => {
+    const t = run("OK");
+    t.chain.receipt = async () => { throw new Error("rpc down"); };
+    const out = await payObligation("ob-1", { repo: t.repo, chain: t.chain, rail: t.rail, clock, expect: expectChain, maxPolls: 3 });
+    expect(out.status).toBe("PENDING");
+    expect(t.repo.status).toBe("PAYING");
+    expect(t.repo.exception).toBeUndefined();
+  });
+});
+
 describe("S30 settlement matching", () => {
   const exp = { ...expectChain, onchainKey: KEY, recipient: RECIPIENT, amount: 100_000_000n };
   const good = () => ({

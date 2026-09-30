@@ -18,6 +18,7 @@ export const GUARD = "0x00000000000000000000000000000000000000a1";
 export const USDC = "0x3600000000000000000000000000000000000000";
 export const RECIPIENT = "0x00000000000000000000000000000000000000b2";
 export const KEY = "0x" + "11".repeat(32);
+export const RUN_KEY = "0x" + "22".repeat(32);
 
 export function baseContext(): ObligationContext {
   const plan: PlanInput = {
@@ -42,12 +43,14 @@ export function baseContext(): ObligationContext {
     lineAmount: 100_000_000n,
     calculationHash: "hash-a",
     approvalCalculationHash: "hash-a",
-    run: { id: "run-1", companyId: "co-1", mode: "LIVE_TESTNET", status: "APPROVED", payrollApproverId: "user-payroll" },
+    approvalApproverId: "user-payroll",
+    run: { id: "run-1", companyId: "co-1", mode: "LIVE_TESTNET", status: "APPROVED" },
     batch: {
       id: "batch-1",
       companyId: "co-1",
       status: "OPEN",
       authorizerId: "user-payment",
+      guardRunKey: RUN_KEY,
       planHash: computePlanHash(plan),
       plan,
     },
@@ -101,7 +104,7 @@ export class FakeRepo implements PaymentsRepo {
 }
 
 export class FakeChain implements ChainReader {
-  entry: GuardEntry = { committed: true, runOpen: true, paid: false };
+  entry: GuardEntry = { committed: true, runOpen: true, paid: false, runKey: RUN_KEY, recipient: RECIPIENT, amount: 100_000_000n };
   paid = false;
   receipts = new Map<string, ChainReceipt>();
   async guardEntry() {

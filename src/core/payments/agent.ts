@@ -63,7 +63,19 @@ export async function payObligation(obligationId: string, d: AgentDeps): Promise
       return { status: "FAILED" };
     }
     if (status.state === "CONFIRMED" && status.txHash) {
-      const reasons = matchSettlement(await d.chain.receipt(status.txHash), {
+      // Circle COMPLETE but no readable Arc receipt yet (RPC lag or error): not a mismatch, keep polling.
+      // If the budget runs out the obligation stays PAYING for recovery (P4); the money may already have moved.
+      let receipt;
+      try {
+        receipt = await d.chain.receipt(status.txHash);
+      } catch {
+        receipt = null;
+      }
+      if (!receipt) {
+        await d.clock.sleep(d.pollMs ?? 2000);
+        continue;
+      }
+      const reasons = matchSettlement(receipt, {
         ...d.expect,
         onchainKey: pass.onchainKey,
         recipient: pass.recipient,

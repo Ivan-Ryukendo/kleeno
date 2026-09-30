@@ -24,7 +24,7 @@ export function paymentsRepo(): PaymentsRepo {
         o.batch_id ? db().from("payment_batches").select("*").eq("id", o.batch_id).maybeSingle() : Promise.resolve({ data: null }),
         db().from("calculation_lines").select("net, calculation_id").eq("id", o.calculation_line_id).maybeSingle(),
         db().from("companies").select("id, live_payments_enabled, per_payment_ceiling").eq("id", cid).maybeSingle(),
-        db().from("payroll_approvals").select("calculation_hash").eq("id", o.approval_id).maybeSingle(),
+        db().from("payroll_approvals").select("calculation_hash, approver_id").eq("id", o.approval_id).maybeSingle(),
         db().from("workers").select("wallet_address").eq("id", o.worker_id).maybeSingle(),
         db().from("payment_attempts").select("id", { count: "exact", head: true }).eq("idempotency_key", o.idempotency_key),
       ]);
@@ -50,12 +50,14 @@ export function paymentsRepo(): PaymentsRepo {
         lineAmount: big(line.data.net),
         calculationHash: calc.calculation_hash,
         approvalCalculationHash: approval.data.calculation_hash,
-        run: { id: run.data.id, companyId: run.data.company_id, mode: run.data.mode, status: run.data.status, payrollApproverId: run.data.payroll_approver_id },
+        approvalApproverId: approval.data.approver_id,
+        run: { id: run.data.id, companyId: run.data.company_id, mode: run.data.mode, status: run.data.status },
         batch: b && {
           id: b.id,
           companyId: b.company_id,
           status: b.status,
           authorizerId: b.authorizer_id,
+          guardRunKey: b.guard_run_key,
           planHash: b.plan_hash,
           plan: {
             ...b.plan,
