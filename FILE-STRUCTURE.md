@@ -44,7 +44,7 @@ Kleeno/                                  repo root = Next.js app root
 │  ├─ foundry.toml                  Arc testnet RPC profile
 │  ├─ src/PayrollGuard.sol          openRun per batch commits obligations; pay(obligationKey) once each; ObligationPaid (indexed keys)
 │  ├─ test/PayrollGuard.t.sol       PROTECTED: guard rules proven (roles, key reuse, input checks; S01–S03)
-│  └─ script/DeployPayrollGuard.s.sol  owner = approver wallet, operator = agent wallet; encrypted keystore
+│  └─ (no forge deploy script: scripts/deploy-guard.ts deploys from the approver wallet through Circle, so no raw deployer key exists)
 │
 ├─ supabase/
 │  ├─ config.toml                   [P0] Supabase CLI config (CLI via npx)
@@ -55,10 +55,14 @@ Kleeno/                                  repo root = Next.js app root
 │  ├─ setup-wallets.ts              [P1] wallet sets + approver/agent wallets (idempotent)
 │  ├─ create-users.ts               [P1] approver and demo users from env; no passwords in the repo
 │  ├─ check-balances.ts             [P1] treasury/agent USDC balances on Arc
+│  ├─ deploy-guard.ts               [P1] deploy PayrollGuard from the approver wallet via Circle; saves companies.guard_address
+│  ├─ live-payments.ts              [P1] kill switch on/off (P4 adds `--close-open-runs`)
+│  ├─ seed-run.ts                   [P1] one synthetic LIVE_TESTNET run + authorized batch + on-chain openRun
+│  ├─ pay-obligation.ts             [P1] run the payment agent for one obligation ID (scripts only until P2)
+│  ├─ _lib.ts                       [P1] shared script helpers (dev company ID)
 │  ├─ export-guard-abi.ts           [P1] copy ABI from contracts/out to src/server/arc/
 │  ├─ delete-company.ts             [P3] delete all data and the wrapped data key of one company on request
 │  ├─ rotate-data-key.ts            [P2] re-wrap company data keys under a new DATA_ENCRYPTION_KEY version
-│  ├─ live-payments.ts              [P4] kill switch: on/off per company (only way to turn ON); `off --close-open-runs` = emergency stop; audited
 │  ├─ seed-demo.ts                  [P5] 6-worker demo cast + prior settled run (synthetic, labelled)
 │  └─ model-eval.ts                 [P5] run fixtures across OpenRouter models
 │
