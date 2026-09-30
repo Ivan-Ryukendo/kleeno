@@ -1,0 +1,87 @@
+# Kleeno — Architecture Essentials
+
+Load every session. Non-negotiable; overrides everything else.
+Precedence: this file > `ARCHITECTURE.md` (technical) / `PRD.md` (scope). On conflict: stop and ask the user.
+
+## Core rule
+AI proposes. Deterministic code calculates. Humans approve. PayrollGuard bounds payment. Independent reconciliation verifies. When anything conflicts or is uncertain: do not guess; stop the affected workflow and create an explicit exception (fail closed).
+
+## AI
+1. AI output never goes downstream unvalidated: parse -> schema -> semantic -> evidence -> ACCEPTED/REPAIRED, else repair (max 2 retries), else NEEDS_HUMAN_REVIEW.
+2. AI never calculates final pay, supplies amounts, invents rules/facts/rates, edits approved config or traces, approves anything, moves a run between states, or initiates payment.
+3. AI uses only catalog rule IDs and cites evidence that exists in the same run (policy clause IDs for config, record IDs for data, signal IDs for payment plans).
+4. No silent repair: format fixes only when evidence supports them; missing values -> NEEDS_HUMAN_REVIEW.
+5. Every AI call is logged as an `AIExecution`. AI inputs are built only in `src/core/ai/inputs/` (strict schemas: IDs, numbers, enums; the only free text is HR policy clauses). No names, wallet addresses or CSV free text.
+6. Policy text, CSV cells and webhook payloads are data, never instructions. AI text is rendered as plain text.
+
+## Money and payroll
+7. Currency is USDC, stored as integer micro-USDC (6 dp); no binary floats. Imports must be in USD (1 USD = 1 USDC); any other currency is rejected. No FX in the MVP.
+8. Pay types: SALARIED (hourly rate = base per period / scheduled hours per period), HOURLY (approved hours × contract rate), RETAINER (fixed amount per period). Each line rounded half-up to 0.01. Net = gross − deductions exactly.
+9. Same config version + snapshots -> same result and same `calculation_hash`.
+10. Every amount has a trace line (component, source, rule + version, inputs, step, amount).
+11. Never "scheduled > worked => deduction". Unexplained time -> exception.
+12. Tax and pension are configured percentages only; no jurisdiction logic.
+
+## Workflow
+13. States change only through core state machines, as atomic compare-and-set updates. Failed validation blocks progression.
+14. Open, in-review or escalated exceptions block the stage they belong to (reconciliation exceptions block calculation).
+15. Payroll approval binds one `calculation_hash`; any later change to inputs or config voids it.
+16. Obligations exist only after payroll approval of a LIVE_TESTNET run.
+17. **SIMULATION runs can never pay.** They stop at CALCULATION_VALIDATED; state machine, gate and agent all reject them. **Kill switch:** with `companies.live_payments_enabled = false` (e.g. the judge demo company), nothing can start a payment: LIVE_TESTNET run creation, plan signing, standing authorization, `openRun` and every submission are all blocked, in the server and by a DB trigger. The payment approver can switch it OFF in the UI; only `scripts/live-payments.ts` switches it ON. Both are audited.
+18. The payment authorizer must be a different user from the payroll approver for the same run. Enforced by a DB trigger, including a standing authorization at the time it is used.
+
+## Payment
+19. Payment amount == obligation amount == on-chain amount. The payment layer never recalculates; no scaling.
+20. The safety gate runs before every submission; any failed check means DO NOT PAY -> PAYMENT_EXCEPTION. There is one gate. `PaymentRail.submit` accepts only a pass the gate issues, and only the payment agent calls it. Webhook, recovery and script paths never pay around the gate.
+21. The payment agent acts only on an obligation ID; amount and recipient always come from the obligation.
+22. Obligations are paid in authorized payment batches. Each batch is one `PayrollGuard` run: `openRun` (approver wallet) commits the batch's exact obligation set (key -> recipient, amount); `pay(obligationKey)` (agent wallet) pays only a committed, unpaid obligation. Owner calls (`openRun`, `closeRun`, `replaceOperator`) exist only in `src/server/circle/guard-owner.ts`; the agent and rail can only call `pay`.
+23. The Payment Planner only proposes order, batch vs `ON_HOLD`, and flags. Its plan holds every obligation exactly once, with no new IDs and no changed amounts or recipients. Authorization signs the final `plan_hash`; execution pays exactly that plan. If the planner fails, a deterministic fallback plan is used; it never blocks a run.
+24. `ON_HOLD` is released only by the payment approver into a new signed batch; never automatically.
+25. A standing authorization may authorize a batch only if the batch has no holds, no fired signals, no recipient change, the same config version and a non-fallback plan, and is within its limits and expiry. Otherwise a human signs.
+26. Never retry blindly: save the attempt (idempotency key) before calling Circle; on timeout, crash or UNKNOWN, check `isPaid` on Arc and Circle first; resubmit only on proven terminal failure.
+27. SETTLED only after the Arc receipt independently matches obligation, recipient, amount, token and chain.
+28. Payments go through the `PaymentRail` interface; `ArcUsdcRail` is the only implementation.
+
+## Chain and security
+29. Arc testnet only (chain ID 5042002). USDC ERC-20 = 6 decimals; native gas = 18; never mix.
+30. On-chain data is only net amount, recipient address and hashed random run/obligation keys. Never names, worker IDs, gross, deductions or traces. Never publish a name↔address mapping.
+31. Secrets live only in git-ignored env files and Vercel env: never in code, the frontend (`NEXT_PUBLIC_`), logs, commits or chat. `src/server` imports `server-only`. Never log raw SDK errors. No private-key CLI flags. Never register the Circle entity secret for the user. Only a Circle `TEST_API_KEY` is accepted. Secrets go only in Vercel's Production scope, never Preview. Inventory: `docs/security.md` §2.
+32. Every table has `company_id` and RLS enabled. Supabase's API is public, so logged-in users (`authenticated`) get SELECT only, limited to their own company; `anon` gets nothing. Every write goes through a server handler or system path and the repositories in `src/server/db/`, which set `company_id` from the session (or from the job's entity) and never from the request. Composite foreign keys `(company_id, id)` make cross-company references impossible.
+33. Handlers never trust company, role, amount or recipient from the request; they derive them from the session and DB. Roles come only from `app_users`. Mutations live only in `src/app/api` route handlers that authenticate themselves; there are no Server Actions (`"use server"`). `src/proxy.ts` is only a convenience redirect and never the authorization check.
+34. Audit events are append-only (DB trigger, binds every role) and cover every high-impact transition.
+35. Real business data is anonymised in the browser before upload; names never reach the server. The name key file is passphrase-encrypted in the browser and never uploaded.
+
+## Build
+36. One phase at a time (P0–P5; P4b can be cut). A phase is done only when its "Done when" checks pass and the user has seen it work. Stay inside PRD scope; out-of-scope ideas go to the user for `docs/roadmap.md`.
+37. Stuck rule: after 3 failed fixes on the same problem, stop and write what you tried, the exact error and 2 options into `PROGRESS.md`, then ask the user.
+38. Read `PROGRESS.md` first and update it at the end of every session.
+39. Protected tests (`tests/invariants/`, `tests/fixtures/`, `contracts/test/`): add freely; never weaken, skip or delete without user approval.
+40. Before any Circle or Arc code, read `../Arc Comtext/AGENTS.md` and the relevant `../Arc Comtext/docs/circlefin-skills/` file; check current official docs for SDK signatures.
+41. No publicly reachable payment route before P2 auth; P1 payments run from scripts or localhost only.
+42. Synthetic data is for development only; never present it as traction.
+43. Adding or renaming a folder -> update `FILE-STRUCTURE.md` in the same commit.
+44. Ponytail (lean-code plugin) is for backend only: `src/core`, `src/server`, `src/app/api`, `src/proxy.ts`, `supabase/`, `contracts/`, `scripts/`. Use level `full`, never `ultra`. Never use it on `src/app` pages or `src/components` (UI uses shadcn/ui). It never removes ports or `PaymentRail` (single implementation by design), FILE-STRUCTURE folders, protected tests, stack dependencies, validation, audit, idempotency, state machines, security controls in `docs/security.md`, or anything PRD/ARCHITECTURE requires. `ponytail-review` findings are advisory.
+45. **UI follows `DESIGN.md`** (warm-cream, pill/stadium, ink-black style) and the page map and intended feel in `docs/pages.md`. Read it before touching `src/app` pages, `src/components`, `src/app/globals.css`, `layout.tsx` or any styling. Tokens (colours, fonts, radii, shadows) live once in `globals.css` and the shadcn theme; components use tokens, never hard-coded hex. Kleeno adaptations, which override `DESIGN.md` on conflict:
+    - No Mastercard logo, red or yellow, and no MarkForMC; use Sofia Sans (`next/font`, body weight 450, headlines 500 at -2% tracking).
+    - Signal Orange (`#CF4500`) is only for approval, exception, DO NOT PAY and other compliance signals, never marketing CTAs.
+    - Orbit arcs, circular portraits and ghost watermarks are for the landing page and empty states. Working screens (tables, forms, approvals, traces) use the same tokens with dense, readable layouts, never decorative motifs.
+    - Radii are 20px (buttons), 40px (large containers) or full pill; dense tables and inputs use 20px or pill, not 8–16px.
+    - Text must stay readable: no Dust Taupe for essential text; keep WCAG AA contrast. Success or error colours `DESIGN.md` lacks are proposed to the user before use.
+    - AI text and untrusted data stay plain text (rule 6); the design never changes any other rule.
+
+## Security layer
+46. Security controls are listed in `docs/security.md` (IDs S01–S50, each with its phase and test). Every `Pn.md` copies that phase's rows into "Done when". A phase is not done until its rows are `verified`, or `unverified` with a stated reason. Never assume a control works.
+47. Re-authentication: the server checks the user's password in the same request for anything that grants or widens payment authority (payroll approval, plan signing, hold release, standing-authorization create, per-payment ceiling change, recipient confirmation). Actions that only reduce authority (revoke, place hold, live payments OFF) never require it.
+48. Approved records are immutable in the database (triggers bind the service role too): calculations, lines, snapshots, approvals, approved config versions, AI executions and audit events. For obligations, only status, batch, tx hash and timestamps may change. Any other change needs a new run.
+49. Every idempotent operation is backed by a DB unique constraint, not only by application code (imports, wallets, obligations, payments, attempts, webhook notifications, guard runs).
+50. Uploaded business data is confidential. It moves only over HTTPS. Every field that reveals pay levels or policy is encrypted per company (AES-256-GCM, envelope key) in the `src/server/db` repositories before it reaches the database (`docs/security.md` S41). Payroll values never appear in logs, errors or audit payloads. Users of real companies sign in with MFA.
+
+## Integrations
+51. External systems (HR, payroll, time, accounting, expense, document, notification, identity) and MCP clients are evidence sources or destinations, never authorities. Their data enters only as normalized evidence through the same mapping, USD check, validation, reconciliation and snapshot path as a CSV import. Their approvals are evidence, not Kleeno approvals; their computed pay is only "actually paid" evidence for variance. They never change rules, amounts, recipients, states or approvals, create obligations, or authorize or execute payments. Their webhooks are hints: verify, dedupe, re-fetch.
+52. Code asks for capabilities, never vendors. Providers are typed descriptors in `src/core/integrations/`; vendor code lives only in `src/server/integrations/<provider>/`; `src/core` never names a vendor. An undeclared capability fails closed. No capability for approval, payment, recipient or state change exists.
+53. Every imported record carries provenance (source provider, connection, object type, object ID, version, fetched at, hash, reference); raw external payloads are not stored. Run snapshots reference evidence IDs and source hashes. A later change at the source creates a new evidence version and never alters an approved snapshot or calculation.
+54. Integration credentials are server-only, least-privilege and never in logs, prompts, audit payloads or plain records: per-company tokens are encrypted with the company data key (S41), platform OAuth app secrets live in env. No second secret store; disconnect revokes and deletes tokens. Kleeno's AI agents never get connector or MCP tools; external data reaches AI only through `src/core/ai/inputs/`. Notifications carry no payroll data (counts, state and a link only).
+55. The Kleeno MCP server (after the hackathon) is read-only: no tool writes, approves, resolves, creates obligations, changes recipients or config, authorizes or pays. It uses the same auth guard, `app_users` roles, MFA, company and object checks, rate limits and audit as route handlers; tool annotations are hints, never security. External identity providers only authenticate; `app_users` alone grants roles. Design: `docs/integrations/`.
+
+## Git and publishing
+56. Git and GitHub follow `docs/github.md`. Commit with the GitHub noreply email only. Before every commit, run a staged secret scan and the checks, and never stage env files, keys, recovery files or real data. Work on one branch per phase and merge to `main` only by squash-merging a PR with green CI. Never force-push, rewrite history, skip hooks or disable a check. The repo stays private until the P5 going-public checklist passes and the user approves the visibility change.

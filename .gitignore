@@ -1,0 +1,30 @@
+# secrets
+.env*
+!.env.example
+*.pem
+*-recovery-file.json
+*.keystore
+keystore/
+
+# local tooling (kept inside the project, not on C:)
+.npm-cache/
+.tools/
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# contracts
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# supabase local
+supabase/.temp/
+supabase/.branches/
+
+# local agent settings
+.claude/settings.local.json
+.dev.log
