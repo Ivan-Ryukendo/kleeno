@@ -12,7 +12,7 @@ How agents commit, push, merge and publish. Read before any commit, push, PR, me
 ## 2. Branches and deploys
 - One branch per phase: `p1-thin-slice`, `p2-foundation`, … Small fixes between phases use `fix-<topic>`. Never work directly on `main`. Only exception: the P0 first commit, which creates `main`.
 - `main` = production: from P2 on, every merge to `main` deploys to Vercel production. Only merge code whose CI is green and which the user has seen working.
-- Vercel preview deployments stay off for branches, because Preview has no secrets (`docs/security.md` §2) and the app would fail its env check. Set this in P2 when Vercel is linked (project setting or `vercel.json` `git.deploymentEnabled`; check current Vercel docs).
+- Vercel preview deployments stay off for branches, because Preview has no secrets (`docs/security.md` §2) and the app would fail its env check. Done by `vercel.json` `ignoreCommand` (W): Git pushes build only when `VERCEL_ENV=production` (a merge to `main`). Deploy steps: `docs/phases/W-launch.md`.
 
 ## 3. Committing (every commit)
 Commit only at the end of a phase, after the user has seen it working (CLAUDE.md flow), or when the user asks.

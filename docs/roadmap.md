@@ -6,6 +6,7 @@ Out-of-scope ideas land here only after the user approves them.
 Scope in `PRD.md` §5. Arc testnet USDC via `ArcUsdcRail`; SIMULATION + LIVE_TESTNET; pay types SALARIED, HOURLY, RETAINER; Payment Planner; standing authorization. First market (tentative): US firms paying remote contractors.
 
 ## Next — Pilot hardening (weeks after the event)
+- Lead list, after the waitlist (W): researched prospects table, interaction log, structured interview notes, funnel analytics beyond the W metrics, budget-by-role breakdown, launch/confirmation emails with unsubscribe links (needs an email provider), Cloudflare Turnstile if spam gets through
 - Table views for every record list (Excel or Notion style: columns, filters, sort, group, saved views, AI-proposed view definitions); first version in P3, spec in `docs/pages.md` §5
 - Worker profiles, leave ledger and long-term leave, worker self-service with HR-approved change requests, photo/document upload, leave reminders: proposed in `docs/decisions/ADR-worker-profiles.md` (an HR-only page and in-app reminders may fit the hackathon if time allows after P3)
 - Pilot with first users (US firms paying remote contractors); real, consented data in `docs/traction.md`

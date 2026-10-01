@@ -23,6 +23,11 @@ const schema = z.object({
   // Model and fallback are config, not code, so they can change freely (ARCHITECTURE 7).
   OPENROUTER_MODEL: z.string().min(1).default("z-ai/glm-5.3-flash"),
   OPENROUTER_FALLBACK_MODEL: z.string().min(1).optional(),
+  // Waitlist (docs/phases/W.md). WAITLIST_SECRET keys the IP hashes for rate limits (S55): >= 32 random characters.
+  WAITLIST_SECRET: z.string().min(32),
+  SITE_URL: z.string().url().default("http://localhost:3000"), // canonical URL for SEO (e.g. https://kleeno.orclide.com)
+  CONTACT_EMAIL: z.string().email().optional(), // shown on /privacy for deletion requests
+  // SITE_MODE and ADMIN_PATH are read in src/server/site.ts and src/proxy.ts (fail closed when missing).
 });
 
 const parsed = schema.safeParse(process.env);
