@@ -1,0 +1,17 @@
+# Never upload these with `vercel deploy` (docs/phases/W-launch.md). Mirrors .gitignore for secrets and local tooling.
+.env*
+.vercel
+.git
+.next
+node_modules
+.npm-cache
+.tools
+.agents
+.claude
+contracts/lib
+contracts/out
+contracts/cache
+coverage
+tsconfig.tsbuildinfo
+*.pem
+*-recovery-file.json

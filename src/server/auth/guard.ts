@@ -6,15 +6,19 @@ import { newCorrelationId } from "@/core/audit";
 import { TransitionError } from "@/core/domain/machines";
 import { WorkflowError, type Role } from "@/core/workflow";
 import { logError } from "@/server/log";
+import { adminGateOk, siteMode } from "@/server/site";
+import { authenticateAdmin, type AdminActor } from "./admin";
 import { AuthError, authenticate, jarFromRequest, type Actor, type CookieJar, type PendingCookie } from "./session";
 
 // Every route handler goes through `guarded` (authenticated) or `openRoute` (login only; allowlisted by the S15 test).
 // Steps: correlation ID -> Origin check on mutations (S17) -> session -> role from app_users -> strict body (S14) -> handler.
 export interface Handled<B, P> {
-  actor: Actor;
+  actor: Actor; // company routes only
+  admin: AdminActor; // scope "admin" only
   client: SupabaseClient; // user-scoped: reads run under RLS
   body: B;
   params: P;
+  request: Request;
   correlationId: string;
   jar: CookieJar;
   cookies: PendingCookie[]; // session cookies the handler wants set on the response
@@ -25,7 +29,18 @@ interface Options<B> {
   roles?: readonly Role[];
   body?: z.ZodType<B>; // use .strict() so unknown fields (company_id, role, amount, state...) are rejected
   allowAal1?: boolean; // account routes a half-signed-in (password only) user needs: MFA verify/enrol, logout
+  // "app" (default): the payroll app; 404 while SITE_MODE is waitlist. "waitlist": the public sign-up routes.
+  // "admin": reachable only through the secret admin path (proxy gate header); a session means a platform admin (S52).
+  scope?: "app" | "waitlist" | "admin";
 }
+
+const parseJson = (raw: string): unknown => {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+};
 
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -53,14 +68,19 @@ function wrap<B, P>(opts: Options<B>, authenticated: boolean, fn: (h: Handled<B,
   return async (request: Request, ctx?: RouteCtx<P>): Promise<Response> => {
     const correlationId = newCorrelationId();
     try {
+      const scope = opts.scope ?? "app";
+      if ((scope === "app" && siteMode() === "waitlist") || (scope === "admin" && !adminGateOk(request.headers))) return fail(404, "NOT_FOUND", "not found", correlationId);
       if (!originOk(request)) throw new AuthError(403, "FORBIDDEN", "cross-origin request refused");
       const jar = jarFromRequest(request);
       const cookies: PendingCookie[] = [];
-      const auth = authenticated ? await authenticate(jar, { allowAal1: opts.allowAal1, sink: cookies }) : null;
+      const asAdmin = authenticated && scope === "admin" ? await authenticateAdmin(jar, { allowAal1: opts.allowAal1, sink: cookies }) : null;
+      const auth = authenticated && !asAdmin ? await authenticate(jar, { allowAal1: opts.allowAal1, sink: cookies }) : null;
       if (auth && opts.roles && !opts.roles.includes(auth.actor.role)) throw new AuthError(403, "FORBIDDEN", "your role cannot do this");
-      const body = (opts.body ? opts.body.parse(await request.json().catch(() => ({}))) : undefined) as B;
+      const raw = opts.body ? await request.text() : "";
+      if (scope !== "app" && raw.length > 8192) return fail(413, "TOO_LARGE", "request too large", correlationId); // public + admin bodies are small (S53)
+      const body = (opts.body ? opts.body.parse(parseJson(raw)) : undefined) as B;
       const params = (ctx ? await ctx.params : {}) as P;
-      const result = await fn({ actor: auth?.actor as Actor, client: auth?.client as SupabaseClient, body, params, correlationId, jar, cookies });
+      const result = await fn({ actor: auth?.actor as Actor, admin: asAdmin?.admin as AdminActor, client: (auth ?? asAdmin)?.client as SupabaseClient, body, params, request, correlationId, jar, cookies });
       const res = result instanceof Response ? result : NextResponse.json(result ?? { ok: true });
       res.headers.set("x-correlation-id", correlationId);
       for (const c of cookies) (res as NextResponse).cookies?.set(c.name, c.value, { ...c.options, httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" });
@@ -72,4 +92,4 @@ function wrap<B, P>(opts: Options<B>, authenticated: boolean, fn: (h: Handled<B,
 }
 
 export const guarded = <B = undefined, P = Record<string, string>>(opts: Options<B>, fn: (h: Handled<B, P>) => Promise<unknown>) => wrap<B, P>(opts, true, fn);
-export const openRoute = <B = undefined>(opts: Pick<Options<B>, "body">, fn: (h: Handled<B, Record<string, string>>) => Promise<unknown>) => wrap<B, Record<string, string>>(opts, false, fn);
+export const openRoute = <B = undefined>(opts: Pick<Options<B>, "body" | "scope">, fn: (h: Handled<B, Record<string, string>>) => Promise<unknown>) => wrap<B, Record<string, string>>(opts, false, fn);

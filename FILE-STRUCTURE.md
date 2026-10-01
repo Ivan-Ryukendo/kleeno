@@ -6,7 +6,7 @@ Rules:
 - `src/core/` never imports `src/server/`, `src/app/`, Next.js, Supabase, Circle, viem or OpenRouter. `src/core/validation/` never imports `src/core/ai/`. Everything in `src/server/` imports `server-only`.
 - Backend (Ponytail allowed): `src/core`, `src/server`, `src/app/api`, `src/proxy.ts`, `supabase/`, `contracts/`, `scripts/`. UI (no Ponytail): the other `src/app` folders and `src/components`.
 - UI (pages, `src/components`, `globals.css`) follows `DESIGN.md` (ESSENTIALS rule 45); design tokens are defined only in `src/app/globals.css`.
-- Security controls (S01–S50) name the file their test lives in: `docs/security.md` §3.
+- Security controls (S01–S58) name the file their test lives in: `docs/security.md` §3.
 - Background notes (old decisions, original spec, planning answers) live outside the repo in `../Kleeno-notes/`; agents do not read them.
 
 ```text
@@ -26,12 +26,13 @@ Kleeno/                                  repo root = Next.js app root
 ├─ tsconfig.json / next.config.ts   [P0] TS strict mode, Next.js config; security headers (CSP, frame-ancestors, Referrer-Policy) [P2]
 ├─ vitest.config.ts                 [P0] unit + invariant runner
 ├─ playwright.config.ts             [P5] e2e runner (Chromium)
+├─ vercel.json + .vercelignore     [W] build only Production on Git pushes (no Preview deploys); never upload .env*/tooling with `vercel deploy`
 ├─ .github/workflows/ci.yml         [P0] lint, typecheck, vitest, forge test, DB tests (local Supabase), npm audit, gitleaks; no secrets
 │
 ├─ docs/
 │  ├─ roadmap.md                    Now / Next / Later; out-of-scope ideas go here (user approves)
 │  ├─ pages.md                      page map (13 pages), landing page, UX intent per page
-│  ├─ security.md                   security plan: data protection model, secret inventory, emergency stop, controls S01–S50 by phase + test, deferred, accepted risks, status
+│  ├─ security.md                   security plan: data protection model, secret inventory, emergency stop, controls S01–S58 by phase + test, deferred, accepted risks, status
 │  ├─ github.md                     git/GitHub workflow: commit checks, phase branches, PR + CI + squash-merge, going public (P5), hosting checks
 │  ├─ integrations/                 integration design: README (boundary, capabilities, provenance, lifecycle), provider matrix, hris-payroll, accounting, expenses, documents, notifications, identity, mcp
 │  ├─ decisions/                    ADRs: integration abstraction, HRIS unified API, accounting unified API, Kleeno MCP
@@ -63,11 +64,13 @@ Kleeno/                                  repo root = Next.js app root
 │  ├─ export-guard-abi.ts           [P1] copy ABI from contracts/out to src/server/arc/
 │  ├─ delete-company.ts             [P3] delete all data and the wrapped data key of one company on request
 │  ├─ rotate-data-key.ts            [P2] re-wrap company data keys under a new DATA_ENCRYPTION_KEY version
+│  ├─ add-platform-admin.ts         [W] grant/revoke access to the private lead list (growth.platform_admins); --prod, --remove, --reset-password, --reset-mfa
+│  ├─ probe-site.ts                 [W] lockdown probe: public pages 200, guessed URLs 404, admin path -> login (path never printed)
 │  ├─ seed-demo.ts                  [P5] 6-worker demo cast + prior settled run (synthetic, labelled)
 │  └─ model-eval.ts                 [P5] run fixtures across OpenRouter models
 │
 ├─ src/
-│  ├─ proxy.ts                      [P2] Next 16 proxy (was middleware): session refresh, redirects only; not authorization (excludes receipt + Circle webhook)
+│  ├─ proxy.ts                      [P2] Next 16 proxy (was middleware): session refresh, redirects only; not authorization (excludes receipt + Circle webhook). [W] site lockdown: SITE_MODE allowlist, secret ADMIN_PATH rewrite + gate header
 │  ├─ core/                         pure domain, no I/O
 │  │  ├─ money/                     [P1] micro-USDC type, decimal ops, half-up rounding
 │  │  ├─ domain/                    [P2] entities; run/config/exception/obligation/batch/payment state machines (compare-and-set)
@@ -86,11 +89,13 @@ Kleeno/                                  repo root = Next.js app root
 │  │  │  ├─ batches/                [P4] batch lifecycle, plan hash, fallback plan, holds, standing authorization
 │  │  │  ├─ signals/                [P4] deterministic payment signals
 │  │  │  └─ planner/                [P4b] PaymentPlanner intake + validation
-│  │  └─ audit/                     [P2] audit event builder, correlation IDs
+│  │  ├─ audit/                     [P2] audit event builder, correlation IDs
+│  │  └─ growth/                    [W] waitlist + lead list: enums/labels, request schemas, lead actions, metrics, CSV escaping
 │  │
 │  ├─ server/                       adapters implementing core ports
 │  │  ├─ env.ts                     [P0] Zod-validated server env
 │  │  ├─ log.ts                     [P1] redacting logger (never raw SDK errors)
+│  │  ├─ site.ts                    [W] SITE_MODE (fail closed to waitlist), ADMIN_PATH, admin gate header check
 │  │  ├─ crypto/                    [P2] field encryption: AES-256-GCM, per-company data keys wrapped by DATA_ENCRYPTION_KEY; called only by db/
 │  │  ├─ db/                        [P1] Supabase clients (user-scoped for reads; service role for all writes), repositories that set company_id from context
 │  │  ├─ auth/                      [P2] session, auth guard for every handler, role lookup from app_users, re-auth (password in same request)
@@ -102,8 +107,10 @@ Kleeno/                                  repo root = Next.js app root
 │  │  └─ mcp/                       [Next] read-only Kleeno MCP tool handlers (docs/integrations/mcp.md)
 │  │
 │  ├─ app/                          Next.js App Router
-│  │  ├─ page.tsx                   [P5] landing page (docs/pages.md §3); placeholder until then
-│  │  ├─ privacy/                   [P3] public data and security note
+│  │  ├─ (public)/                  [W] public pages + Vercel Web Analytics: page.tsx landing + waitlist (docs/pages.md §3), privacy/ data note
+│  │  ├─ (app)/                     [W] route group for every payroll page below; its layout returns 404 while SITE_MODE is waitlist
+│  │  ├─ admin/                     [W] private lead list, served only via /<ADMIN_PATH> (login + MFA, list + metrics, contacts/[id])
+│  │  ├─ not-found.tsx, robots.ts, sitemap.ts, opengraph-image.tsx, icon.svg   [W] one 404 for everything; SEO files (public pages only)
 │  │  ├─ login/                     [P2] Supabase auth (sign-up disabled), MFA challenge
 │  │  ├─ account/                   [P2] password change, MFA enrolment
 │  │  ├─ dashboard/                 [P1] crude in P1, full in P5
@@ -116,7 +123,7 @@ Kleeno/                                  repo root = Next.js app root
 │  │  ├─ audit/                     [P5] audit timeline
 │  │  ├─ settings/integrations/     [Next] connection cards: status, capabilities, last sync, reauthorize, disconnect
 │  │  ├─ receipt/[token]/           [P4] public read-only receipt (signed, expiring, noindex)
-│  │  └─ api/                       [P1+] thin handlers (the only mutation surface; no Server Actions): config, imports, runs, exceptions, payments (incl. recover), circle/webhook; mcp [Next]
+│  │  └─ api/                       [P1+] thin handlers (the only mutation surface; no Server Actions): config, imports, runs, exceptions, payments (incl. recover), circle/webhook; mcp [Next]; waitlist/ (public) + admin/ (gate + platform admin) [W]
 │  │
 │  └─ components/                   [P1+] shared UI (shadcn/ui)
 │
@@ -138,4 +145,5 @@ Second-agent review: P1, P2, P4 only. Cut order and minimum demo: `PRD.md` §12.
 - **P3 Data + AI** (Oct 4–5): validators, AI inputs module, OpenRouter adapter (fallback model), repair pipeline, AIExecution log, configuration screen; in-browser anonymise + mapping + USD check + dedupe + actual-paid import; reconciliation (4 types) + AI classification + exceptions UI; variance report; delete-company script; integration foundation (provenance + capabilities, `docs/integrations/` §5). SIMULATION works end to end. Security: S21–S25, S41 (policy + actual-paid), S42, S44, S46–S48; `/privacy` page.
 - **P4 Payments** (Oct 6–7): full run flow, payroll approval + re-auth, recipient-change confirmation, obligations, signals, batches (fallback plan, holds, signing, plan hash), standing authorization, full gate, retry + crash recovery (fixtures), webhook verification, settlement reconciliation, receipt page, `live-payments.ts` + OFF switch. Security: S05–S09 full, S16, S27–S31, S33, S36 limits.
 - **P4b Payment Planner** (Oct 7, can be cut): PaymentPlanner, plan validation + protected payment-plan invariant, flags/holds/rationale in the settlement UI. Security: S21–S23 for the planner.
+- **W Waitlist** (side phase, Oct 1): `growth` schema (server-only), public landing + waitlist + survey, `/privacy`, site lockdown (`SITE_MODE`), secret admin lead list with MFA, CSV export, SEO files, Vercel Web Analytics. Security: S51–S58. Spec: `docs/phases/W.md`.
 - **P5 Demo + submission** (Oct 8–10, feature freeze): dashboard, audit timeline, e2e smoke, demo company + seed + rate limits, model eval, backend `ponytail-audit` + `ponytail-debt`, README, traction, demo script, `demo-freeze` tag, DB backup, deploy, going-public checklist + hosting checks (`docs/github.md` §5–6), video, submit. Landing page (`docs/pages.md`). Security: S36 rate limits, gitleaks full history before the repo goes public, final status in `docs/security.md` §6.

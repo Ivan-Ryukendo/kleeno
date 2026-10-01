@@ -30,11 +30,15 @@ Tone of copy: short, precise, warm. We say "Arc testnet USDC, no real funds" whe
 | 12 | `/settlement` | payment approver | payments | Plan with flags and holds, signing (re-auth), standing authorization, **live payments OFF** switch, payment status, Arc reconciliation | "Money moves only exactly as I signed, and I can stop it instantly." | P4 |
 | 13 | `/audit` | signed in | both roles, judges | Timeline: policy -> data -> exception -> calculation -> approval -> obligation -> plan -> transaction | "Every step is on record." | P5 |
 
+**Waitlist mode (W, from 2026-10-01 until P5):** the public site is only `/` (landing + waitlist + survey), `/privacy` and a branded 404. Every other page returns the same 404 until `SITE_MODE=app` is set at P5. The private lead list lives at a secret path (`/<ADMIN_PATH>`: login with MFA, list + metrics, contact detail). Spec: `docs/phases/W.md`.
+
 Navigation (signed in): Dashboard · Runs · Exceptions · Workers · Settlement · more menu (Configuration, Import, Audit, Account). That is at most six top-level links (DESIGN.md). Role decides which actions show; the server still checks every action (rule 33).
 
 Later (not one of the 13): `/settings/integrations`. It has small cards per category showing connected or not, capabilities, last sync, data types, reauthorize, disconnect and errors. It never shows secrets or raw API detail (`docs/integrations/README.md`).
 
 ## 3. Landing page (`/`)
+**Built in W as a waitlist page** (2026-10-01): hero "AI payroll reconciliation for teams that pay contractors." with the waitlist form beside it, problem cards, How it works (Policy -> Check -> Approve -> Pay), Who it's for (US businesses paying contractors, payroll/finance leads, payroll bureaus and accounting firms, founders), principles, FAQ (also FAQPage structured data), closing CTA, ink footer. SEO targets: AI payroll, payroll reconciliation, contractor payments, payroll audit trail. At P5 add the "Try the live demo" CTA and the Arc/USDC safety section below as the second CTA; the plan that follows is the P5 target.
+
 Goal: in 30 seconds a visitor understands the problem, the safety model and how to try it. Editorial style from `DESIGN.md` (cream canvas, orbit arcs, pill CTAs); no real names or faces of workers.
 
 1. **Nav pill:** Kleeno · How it works · Security · Demo · Log in.

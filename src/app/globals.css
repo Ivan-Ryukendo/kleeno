@@ -8,6 +8,9 @@
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
     --color-signal: var(--signal);
+    --color-orbit: var(--orbit);
+    --color-ghost: var(--ghost);
+    --color-ink: var(--ink);
     --shadow-card: var(--shadow-card);
     --shadow-nav: var(--shadow-nav);
     --color-sidebar-ring: var(--sidebar-ring);
@@ -68,6 +71,9 @@
     --accent-foreground: #141413;
     --destructive: #CF4500;           /* Signal Orange: exceptions, DO NOT PAY, compliance only */
     --signal: #CF4500;
+    --orbit: #F37338;                 /* Light Signal Orange: decorative orbit arcs only (landing page, empty states) */
+    --ghost: #E8E2DA;                 /* cream-on-cream ghost watermark text */
+    --ink: #141413;                   /* Ink Black surfaces (footer) */
     --border: rgb(20 20 19 / 18%);
     --input: rgb(20 20 19 / 18%);
     --ring: #141413;

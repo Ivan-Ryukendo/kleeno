@@ -18,7 +18,13 @@ const src = files("src");
 const routes = src.filter((f) => f.startsWith("src/app/api/") && f.endsWith("/route.ts"));
 
 /** Routes that may skip the session check. Each one must use `openRoute` and is listed here on purpose. */
-const OPEN_ROUTES = ["src/app/api/auth/login/route.ts"]; // + Circle webhook and receipt in P4 (own signature/token checks)
+const OPEN_ROUTES = [
+  "src/app/api/auth/login/route.ts",
+  // W: public waitlist (rate-limited, S53–S55) and the admin password step (behind the secret-path gate, S52)
+  "src/app/api/waitlist/route.ts",
+  "src/app/api/waitlist/survey/route.ts",
+  "src/app/api/admin/login/route.ts",
+]; // + Circle webhook and receipt in P4 (own signature/token checks)
 
 describe("S15 handlers", () => {
   it("there are route handlers to check", () => {
@@ -30,6 +36,14 @@ describe("S15 handlers", () => {
       const text = read(f);
       const open = OPEN_ROUTES.includes(f);
       expect(open ? /openRoute\(/.test(text) : /guarded[<(]/.test(text) && !/openRoute\(/.test(text), f).toBe(true);
+    }
+  });
+
+  it("S52: admin routes are scoped to the admin gate; waitlist routes are the only other non-app scope", () => {
+    for (const f of routes) {
+      const scope = read(f).match(/scope: "(\w+)"/)?.[1] ?? "app";
+      const expected = f.startsWith("src/app/api/admin/") ? "admin" : f.startsWith("src/app/api/waitlist/") || f === "src/app/api/waitlist/route.ts" ? "waitlist" : "app";
+      expect(scope, f).toBe(expected);
     }
   });
 

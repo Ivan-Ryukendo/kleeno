@@ -71,5 +71,7 @@ jobs:
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(grep '^ANON_KEY=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
             echo "DATA_ENCRYPTION_KEY=$(openssl rand -base64 48)"
             echo "OPENROUTER_API_KEY=unused-in-db-tests"
+            echo "WAITLIST_SECRET=$(openssl rand -base64 32)"
+            echo "SITE_MODE=app"
           } >> "$GITHUB_ENV"
       - run: npm run test:db
