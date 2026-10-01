@@ -22,3 +22,31 @@ export function roundHalfUpToCent(value: MicroUsdc): MicroUsdc {
   if (value < 0n) throw new Error("negative amount");
   return ((value + CENT / 2n) / CENT) * CENT;
 }
+
+// Exact rational arithmetic on bigint: rates like base / hours stay exact until the line is rounded (rules 7-9).
+export interface Ratio {
+  n: bigint;
+  d: bigint; // always > 0
+}
+
+export const ratio = (n: bigint, d = 1n): Ratio => {
+  if (d === 0n) throw new Error("division by zero");
+  return d < 0n ? { n: -n, d: -d } : { n, d };
+};
+export const mul = (a: Ratio, b: Ratio) => ratio(a.n * b.n, a.d * b.d);
+export const div = (a: Ratio, b: Ratio) => ratio(a.n * b.d, a.d * b.n);
+
+/** "1.5" / "8" -> exact ratio. Decimal text only; no exponents, no signs. */
+export function parseDecimal(text: string): Ratio {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(text);
+  if (!m) throw new Error("invalid decimal");
+  const frac = m[2] ?? "";
+  return ratio(BigInt(m[1] + frac), 10n ** BigInt(frac.length));
+}
+
+/** Micro-USDC ratio -> whole micro-USDC rounded half-up to 0.01 (rule 8). Negative values are a bug upstream. */
+export function roundRatioToCent(r: Ratio): MicroUsdc {
+  if (r.n < 0n) throw new Error("negative amount");
+  const unit = r.d * CENT;
+  return ((2n * r.n + unit) / (2n * unit)) * CENT;
+}

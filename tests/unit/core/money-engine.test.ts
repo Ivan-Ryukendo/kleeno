@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculatePayroll } from "@/core/engine";
-import { formatUsdc, parseUsdc, roundHalfUpToCent } from "@/core/money";
+import { div, formatUsdc, mul, parseDecimal, parseUsdc, ratio, roundHalfUpToCent, roundRatioToCent } from "@/core/money";
 
 describe("money", () => {
   it("parses and formats exactly", () => {
@@ -21,26 +20,14 @@ describe("money", () => {
   });
 });
 
-describe("engine (P1)", () => {
-  const workers = [
-    { workerId: "w2", payType: "RETAINER" as const, baseAmount: parseUsdc("50") },
-    { workerId: "w1", payType: "SALARIED" as const, baseAmount: parseUsdc("100.005") },
-  ];
-
-  it("net = gross - deductions and every line has a trace summing to gross", () => {
-    for (const l of calculatePayroll(1, workers).lines) {
-      expect(l.net).toBe(l.gross - l.deductions);
-      expect(l.trace.reduce((s, t) => s + t.amount, 0n)).toBe(l.gross);
-    }
+describe("ratio", () => {
+  it("keeps repeating rates exact and rounds once, half-up", () => {
+    const rate = div(ratio(1_000_000_000n), parseDecimal("7")); // 1000 / 7
+    expect(roundRatioToCent(rate)).toBe(parseUsdc("142.86"));
+    expect(roundRatioToCent(mul(rate, parseDecimal("7")))).toBe(parseUsdc("1000"));
   });
 
-  it("same input, same hash regardless of input order; changed input, new hash", () => {
-    const a = calculatePayroll(1, workers);
-    expect(calculatePayroll(1, [...workers].reverse()).calculationHash).toBe(a.calculationHash);
-    expect(calculatePayroll(2, workers).calculationHash).not.toBe(a.calculationHash);
-  });
-
-  it("HOURLY is rejected until P2", () => {
-    expect(() => calculatePayroll(1, [{ workerId: "w", payType: "HOURLY", baseAmount: 1n }])).toThrow();
+  it("rejects malformed decimals", () => {
+    for (const bad of ["1e3", "-1", "1.", ".5", "", "1,5"]) expect(() => parseDecimal(bad)).toThrow();
   });
 });

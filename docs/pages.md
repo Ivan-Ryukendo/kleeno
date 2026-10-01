@@ -52,3 +52,10 @@ Goal: in 30 seconds a visitor understands the problem, the safety model and how 
 - Working screens are dense and readable; decorative motifs stay on the landing page and empty states (rule 45).
 - AI text and uploaded data render as plain text (rule 6).
 - Every approval-type action shows what it will do before it does it (amount, recipient, network, token) and asks for re-auth where rule 47 requires it.
+
+## 5. Table views (direction set by the user, 2026-10-01)
+Every list of records (workers, run lines, exceptions, obligations, payments, audit) should become a dynamic table view like Excel or Notion, so HR can see who is being paid and what has been done in a familiar layout. P2's `/workers` table is deliberately static; this replaces it from P3.
+- **Behaviour:** user-chosen columns (show, hide, reorder, resize), sort, filter (by status, pay type, active or left, date, amount range), group, saved named views, and a search box. Rows and columns vary by page and by role.
+- **AI part:** the user asks in plain words ("who has unpaid obligations this period", "contractors paid over 2,000") and the AI proposes a *view definition* (columns, filters, sort, grouping) as strict structured data. It never writes SQL and never changes records. The user sees the view and can edit it; saving it is a human action.
+- **Safety:** view definitions are validated against a per-table allow-list of columns and operators. Filtering and sorting run on the server through the same repositories, scoped by session company and role (RLS applies); encrypted fields are decrypted on the server only for the columns a role may see, then filtered in memory (no plaintext in SQL). Row actions (change pay, mark as left, approve) remain the existing guarded routes. Audit records who saw or exported what only where `docs/security.md` already requires it.
+- **Build order:** P3 builds one reusable table view component and a view-definition schema, starts with workers and import results, and the AI "describe the view" step. Other pages adopt it as they are built. Cut order if time runs short: AI view proposals first, saved views second; manual column and filter controls stay.

@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:invariants": "vitest run tests/invariants --passWithNoTests",
-    "test:db": "vitest run tests/db --passWithNoTests",
+    "test:db": "vitest run --config vitest.db.config.ts",
     "script": "tsx --conditions=react-server --env-file=.env",
     "test:e2e": "echo \"e2e arrives in P5\""
   },
@@ -18,6 +18,7 @@
     "@base-ui/react": "^1.8.0",
     "@circle-fin/developer-controlled-wallets": "^10.8.1",
     "@circle-fin/smart-contract-platform": "^10.8.1",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",

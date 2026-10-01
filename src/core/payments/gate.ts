@@ -1,3 +1,4 @@
+import { RUN_APPROVED_OR_LATER as RUN_APPROVED_OR_LATER_STATES } from "../domain/machines";
 import type { ChainReader, PaymentsRepo } from "../ports";
 import { computePlanHash } from "./plan-hash";
 
@@ -23,7 +24,7 @@ export function assertGatePass(pass: GatePass): void {
 
 export type GateResult = { ok: true; pass: GatePass } | { ok: false; failures: string[] };
 
-const RUN_APPROVED_OR_LATER = new Set(["APPROVED", "PAYING", "PAID", "RECONCILED"]);
+const RUN_APPROVED_OR_LATER = new Set<string>(RUN_APPROVED_OR_LATER_STATES);
 const BATCH_PAYABLE = new Set(["AUTHORIZED", "OPEN"]);
 
 /** The single safety gate. Re-reads everything by obligation ID; any failed check = DO NOT PAY. */
