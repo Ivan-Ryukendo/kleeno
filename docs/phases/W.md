@@ -1,6 +1,6 @@
 # W — Public waitlist + private lead list (side phase, before P3)
 
-Status: built 2026-10-01 on branch `w-waitlist`, not committed. Approved by the user ("let's build this"); P3 keeps its Oct 4–5 slot.
+Status: built and deployed 2026-10-01 (PR #4); live at https://kleeno.orclide.com. Approved by the user ("let's build this"); P3 keeps its Oct 4–5 slot.
 
 ## Goal
 A public, SEO-friendly landing page that explains Kleeno honestly and collects waitlist sign-ups with a short survey (pain point, budget, call opt-in). Every unfinished page stays unreachable. A private admin area (team only) shows the leads, metrics, status, notes and follow-ups, and exports CSV. Purpose: find out who would pay, how much, and who to call; email them at launch with pricing and an early-access offer.
