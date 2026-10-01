@@ -14,6 +14,7 @@ export const metadata: Metadata = {
   applicationName: "Kleeno",
   openGraph: { siteName: "Kleeno", type: "website", locale: "en_US" },
   twitter: { card: "summary_large_image" },
+  verification: { google: "Z6g9_5j76JCHMObkCJVeXytmUDyKtjP6Ho_YMIO4OoA" }, // Search Console ownership: keep it, removing it un-verifies the site
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
