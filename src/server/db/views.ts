@@ -1,37 +1,38 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatUsdc } from "@/core/money";
 import { EXPLORER_TX } from "@/server/arc/reader";
-import { db, must } from "./client";
+import { must } from "./client";
+import { loadLines } from "./calculations";
 
-// P1 read models for the crude pages. localhost only: the pages 404 in production (no auth before P2, rule 41).
-// P2 replaces DEV_COMPANY_ID with the company from the session.
-export const DEV_COMPANY_ID = "00000000-0000-4000-8000-000000000002";
+// Read models for pages. They read through the user-scoped client, so RLS is the second wall behind the company filter (S11).
+const usd = (n: number | bigint) => formatUsdc(BigInt(n));
 
-export async function dashboardView() {
-  const company = must(await db().from("companies").select("name, live_payments_enabled, guard_address").eq("id", DEV_COMPANY_ID).single(), "company");
-  const runs = must(await db().from("payroll_runs").select("id, mode, status, config_version, created_at").eq("company_id", DEV_COMPANY_ID).order("created_at", { ascending: false }).limit(20), "runs");
+export async function dashboardView(client: SupabaseClient, companyId: string) {
+  const company = must(await client.from("companies").select("name, live_payments_enabled, guard_address, mfa_required").eq("id", companyId).single(), "company");
+  const runs = must(await client.from("payroll_runs").select("id, mode, status, config_version, period_start, period_end, created_at").eq("company_id", companyId).order("created_at", { ascending: false }).limit(20), "runs");
   return { company, runs };
 }
 
-export async function runView(runId: string) {
-  const { data: run } = await db().from("payroll_runs").select("*").eq("id", runId).eq("company_id", DEV_COMPANY_ID).maybeSingle();
+/** Null when the run is not in the caller's company (the page answers 404, S13). */
+export async function runView(client: SupabaseClient, companyId: string, runId: string) {
+  const { data: run } = await client.from("payroll_runs").select("*").eq("id", runId).eq("company_id", companyId).maybeSingle();
   if (!run) return null;
-  const calc = (await db().from("calculations").select("id, calculation_hash").eq("run_id", runId).maybeSingle()).data;
-  const lines = calc ? must(await db().from("calculation_lines").select("id, worker_id, gross, deductions, net, trace").eq("calculation_id", calc.id), "lines") : [];
-  const workers = must(await db().from("workers").select("id, pseudonym").eq("company_id", DEV_COMPANY_ID), "workers");
-  const obligations = must(await db().from("obligations").select("id, worker_id, calculation_line_id, amount, recipient, status, tx_hash, exception_code, exception_reasons").eq("run_id", runId), "obligations");
+  const calc = (await client.from("calculations").select("id, calculation_hash").eq("run_id", runId).eq("company_id", companyId).maybeSingle()).data;
+  const lines = calc ? await loadLines(client, companyId, calc.id) : [];
+  const workers = must(await client.from("workers").select("id, pseudonym").eq("company_id", companyId), "workers");
+  const obligations = must(await client.from("obligations").select("id, worker_id, amount, recipient, status, tx_hash, exception_code, exception_reasons").eq("run_id", runId).eq("company_id", companyId), "obligations");
   const name = (id: string) => workers.find((w) => w.id === id)?.pseudonym ?? "unknown";
-  const usd = (n: number) => formatUsdc(BigInt(n));
   return {
     run,
     calculationHash: calc?.calculation_hash ?? null,
     lines: lines.map((l) => ({
       id: l.id,
-      worker: name(l.worker_id),
+      worker: name(l.workerId),
       gross: usd(l.gross),
       deductions: usd(l.deductions),
       net: usd(l.net),
-      trace: (l.trace as { component: string; rule: string; ruleVersion: number; step: number; amount: string }[]).map((t) => ({ ...t, amount: usd(Number(t.amount)) })),
+      trace: l.trace.map((t) => ({ component: t.component, rule: t.rule, ruleVersion: t.ruleVersion, step: t.step, amount: usd(t.amount) })),
     })),
     obligations: obligations.map((o) => ({
       id: o.id,

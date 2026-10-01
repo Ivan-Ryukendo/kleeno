@@ -2,16 +2,17 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { AppNav } from "@/components/app-nav";
 import { StatusPill } from "@/components/status-pill";
+import { pageSession } from "@/server/auth/page-session";
 import { runView } from "@/server/db/views";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
   await connection();
-  if (process.env.NODE_ENV === "production") notFound(); // no auth before P2 (rule 41)
+  const { actor, client } = await pageSession();
   const { runId } = await params;
   if (!UUID.test(runId)) notFound();
-  const view = await runView(runId);
+  const view = await runView(client, actor.companyId, runId);
   if (!view) notFound();
   const { run, lines, obligations, calculationHash } = view;
 

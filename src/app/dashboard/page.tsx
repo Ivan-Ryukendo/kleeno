@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { AppNav } from "@/components/app-nav";
 import { StatusPill } from "@/components/status-pill";
+import { pageSession } from "@/server/auth/page-session";
 import { dashboardView } from "@/server/db/views";
 
 export default async function DashboardPage() {
   await connection();
-  if (process.env.NODE_ENV === "production") notFound(); // no auth before P2 (rule 41)
-  const { company, runs } = await dashboardView();
+  const { actor, client } = await pageSession();
+  const { company, runs } = await dashboardView(client, actor.companyId);
 
   return (
     <>
@@ -30,7 +30,7 @@ export default async function DashboardPage() {
         <section className="mt-12 rounded-[2.5rem] bg-card p-10 shadow-card">
           <h2 className="text-2xl">Payroll runs</h2>
           {runs.length === 0 ? (
-            <p className="mt-6 text-muted-foreground">No runs yet. Seed one with scripts/seed-run.ts.</p>
+            <p className="mt-6 text-muted-foreground">No runs yet.</p>
           ) : (
             <ul className="mt-6 divide-y divide-border">
               {runs.map((r) => (

@@ -21,7 +21,7 @@ async function main() {
       if (created.error || !created.data.user) throw new Error("create user failed");
       id = created.data.user.id;
     }
-    must(await db().from("app_users").upsert({ id, company_id: COMPANY_ID, role: u.role }, { onConflict: "id" }).select("id"), "app_users save");
+    must(await db().from("app_users").upsert({ id, company_id: COMPANY_ID, role: u.role, email: u.email!.toLowerCase() }, { onConflict: "id" }).select("id"), "app_users save");
     console.log(`${u.role}: ${u.email} ready`);
   }
 }
