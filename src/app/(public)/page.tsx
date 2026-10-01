@@ -5,7 +5,9 @@ import { env } from "@/server/env";
 export const metadata: Metadata = {
   title: { absolute: "Kleeno · AI payroll reconciliation for teams that pay contractors" },
   alternates: { canonical: "/" },
-  openGraph: { url: "/" },
+  // A page-level openGraph replaces the layout's, so repeat the site fields and name the share card (app/opengraph-image.tsx) here.
+  openGraph: { url: "/", siteName: "Kleeno", type: "website", locale: "en_US", images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Kleeno: AI payroll reconciliation for teams that pay contractors" }] },
+  twitter: { card: "summary_large_image", images: ["/opengraph-image"] },
 };
 
 const problems = [
