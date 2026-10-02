@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { escapeCell } from "../ingest/csv";
 import { formatUsdc, parseUsdc } from "../money";
-import type { Role } from "../workflow";
+import { hasRole, type Role } from "../tenancy";
 
 // Table views (docs/pages.md section 5). A view is validated DATA against a per-table allow-list of columns and operators (S59):
 // never SQL, never a column the table does not define. Filtering, sorting, totals and export run on the server over rows the
@@ -144,12 +144,12 @@ export interface TableResult {
 
 export class ViewError extends Error {}
 
-export const columnsFor = (table: TableId, role: Role): ColumnDef[] => (TABLES[table].columns as readonly ColumnDef[]).filter((c) => !c.roles || c.roles.includes(role));
-export const defaultView = (table: TableId, role: Role): ViewDef => ({ table, columns: TABLES[table].defaults.filter((id) => columnsFor(table, role).some((c) => c.id === id)), filters: [], sort: null, search: "" });
+export const columnsFor = (table: TableId, roles: readonly Role[]): ColumnDef[] => (TABLES[table].columns as readonly ColumnDef[]).filter((c) => !c.roles || hasRole(roles, ...c.roles));
+export const defaultView = (table: TableId, roles: readonly Role[]): ViewDef => ({ table, columns: TABLES[table].defaults.filter((id) => columnsFor(table, roles).some((c) => c.id === id)), filters: [], sort: null, search: "" });
 
 /** The allow-list check (S59). Throws on any column the role cannot see, an operator the column type does not have, or an unparsable value. */
-export function validateView(def: ViewDef, role: Role): ViewDef {
-  const cols = new Map(columnsFor(def.table, role).map((c) => [c.id, c]));
+export function validateView(def: ViewDef, roles: readonly Role[]): ViewDef {
+  const cols = new Map(columnsFor(def.table, roles).map((c) => [c.id, c]));
   const known = (id: string) => cols.get(id) ?? (() => { throw new ViewError(`unknown column: ${id}`); })();
   def.columns.forEach(known);
   for (const f of def.filters) {
@@ -215,8 +215,8 @@ export function totalsFor(rows: Row[], def: ViewDef): Record<string, string> {
 }
 
 /** CSV of the view: only the columns the role may see, every cell escaped against spreadsheet formulas (S25, S60). */
-export function toCsv(rows: Row[], def: ViewDef, role: Role): string {
-  const cols = columnsFor(def.table, role).filter((c) => def.columns.includes(c.id));
+export function toCsv(rows: Row[], def: ViewDef, roles: readonly Role[]): string {
+  const cols = columnsFor(def.table, roles).filter((c) => def.columns.includes(c.id));
   const quote = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v);
   return [cols.map((c) => quote(escapeCell(c.label))).join(","), ...rows.map((r) => cols.map((c) => quote(escapeCell(String(r[c.id] ?? "")))).join(","))].join("\r\n") + "\r\n";
 }

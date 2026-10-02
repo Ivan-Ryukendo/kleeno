@@ -19,7 +19,7 @@ import { admin, makeCompany, type TestCompany } from "./helpers";
 
 let a: TestCompany;
 let b: TestCompany;
-const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, role: c.payroll.role, correlationId: randomUUID() });
+const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles, correlationId: randomUUID() });
 const DAYS = ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"];
 const NOTE = "checked with the team lead";
 const noAdvice: AiProvider = { name: "fake", complete: async () => { throw new Error("off"); } }; // suggestions are not under test here
@@ -117,7 +117,7 @@ describe("calculate", () => {
   });
 
   it("a payment-side user cannot calculate", async () => {
-    await expect(calculateRun({ ...who(a), role: "PAYMENT_APPROVER" }, runId)).rejects.toBeInstanceOf(WorkflowError);
+    await expect(calculateRun({ ...who(a), roles: ["PAYMENT_APPROVER"] }, runId)).rejects.toBeInstanceOf(WorkflowError);
   });
 });
 

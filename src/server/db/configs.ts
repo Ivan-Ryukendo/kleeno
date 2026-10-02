@@ -15,7 +15,7 @@ const store = dbStore<ConfigState>("payroll_configurations");
 interface Who {
   companyId: string;
   userId: string;
-  role: Role;
+  roles: readonly Role[];
   correlationId?: string;
 }
 
@@ -25,7 +25,7 @@ export async function createConfigDraft(who: Who, input: { params: ConfigParams;
   const clauses = ClausesSchema.parse(input.clauses);
   const problems = configProblems(params, clauses);
   if (problems.length) throw new WorkflowError("FORBIDDEN", problems.join("; "));
-  if (!isPayrollRole(who.role)) throw new WorkflowError("FORBIDDEN", "only the payroll side edits configuration");
+  if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side edits configuration");
   const last = (await db().from("payroll_configurations").select("version").eq("company_id", who.companyId).order("version", { ascending: false }).limit(1).maybeSingle()).data;
   const id = randomUUID();
   const version = (last?.version ?? 0) + 1; // unique (company, version): a concurrent draft fails instead of overwriting
@@ -45,7 +45,7 @@ export async function advanceAiConfig(who: Who, id: string) {
 
 /** Lifecycle step by action name. `approve` records the approver first; `activate` supersedes the current ACTIVE version first. */
 export async function configAction(who: Who, id: string, action: string, opts: { confirmFlags?: boolean } = {}): Promise<ConfigState> {
-  if (!isPayrollRole(who.role)) throw new WorkflowError("FORBIDDEN", "only the payroll side manages configuration");
+  if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side manages configuration");
   const correlationId = who.correlationId ?? newCorrelationId();
   const req = { id, companyId: who.companyId, action, actor: who.userId, actorType: "user" as const, correlationId };
   if (action === "approve") {

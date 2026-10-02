@@ -8,5 +8,5 @@ import { isoDate } from "@/server/schemas";
 const Body = z.object({ mode: z.enum(["SIMULATION", "LIVE_TESTNET"]).default("SIMULATION"), periodStart: isoDate, periodEnd: isoDate }).strict();
 
 export const POST = guarded({ roles: ["PAYROLL_APPROVER", "HR_APPROVER"], body: Body }, async ({ actor, body, correlationId }) =>
-  createRun(runDeps, { companyId: actor.companyId, userId: actor.userId, role: actor.role, correlationId }, body),
+  createRun(runDeps, { companyId: actor.companyId, userId: actor.userId, roles: actor.roles, correlationId }, body),
 );

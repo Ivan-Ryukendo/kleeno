@@ -6,5 +6,5 @@ import { proposeConfig } from "@/server/ai/policy";
 const Body = z.object({ policyText: z.string().min(1).max(40_000) }).strict();
 
 export const POST = guarded({ roles: ["PAYROLL_APPROVER", "HR_APPROVER"], body: Body }, async ({ actor, body, correlationId }) =>
-  proposeConfig({ companyId: actor.companyId, userId: actor.userId, role: actor.role, correlationId }, body.policyText),
+  proposeConfig({ companyId: actor.companyId, userId: actor.userId, roles: actor.roles, correlationId }, body.policyText),
 );

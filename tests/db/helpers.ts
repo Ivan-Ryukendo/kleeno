@@ -33,7 +33,7 @@ export interface TestUser {
   id: string;
   email: string;
   password: string;
-  role: Role;
+  roles: Role[];
   companyId: string;
 }
 export interface TestCompany {
@@ -45,21 +45,28 @@ export interface TestCompany {
 export async function makeCompany(opts: { live?: boolean; mfa?: boolean } = {}): Promise<TestCompany> {
   const { data, error } = await admin.from("companies").insert({ name: `dbtest-${uniq()}`, is_demo: false, live_payments_enabled: opts.live ?? false, mfa_required: opts.mfa ?? false }).select("id").single();
   if (error) throw new Error("company insert failed");
-  const mk = async (role: Role): Promise<TestUser> => {
+  const mk = async (roles: Role[]): Promise<TestUser> => {
     const email = `dbtest-${uniq()}@example.com`;
     const password = `pw-${randomUUID()}`;
     const u = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     if (u.error || !u.data.user) throw new Error("user create failed");
-    const row = await admin.from("app_users").insert({ id: u.data.user.id, company_id: data.id, role, email });
-    if (row.error) throw new Error("app_users insert failed");
-    return { id: u.data.user.id, email, password, role, companyId: data.id };
+    const row = await admin.from("memberships").insert({ user_id: u.data.user.id, company_id: data.id, roles, email });
+    if (row.error) throw new Error("membership insert failed");
+    return { id: u.data.user.id, email, password, roles, companyId: data.id };
   };
-  return { id: data.id, payroll: await mk("PAYROLL_APPROVER"), payment: await mk("PAYMENT_APPROVER") };
+  return { id: data.id, payroll: await mk(["OWNER", "PAYROLL_APPROVER"]), payment: await mk(["PAYMENT_APPROVER"]) };
 }
 
-/** A plain supabase-js client signed in as the user (RLS applies). */
-export async function userClient(u: TestUser): Promise<SupabaseClient> {
-  const c = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+/** An existing login joins a company (one login, many companies). */
+export async function joinCompany(u: TestUser, companyId: string, roles: Role[]) {
+  const row = await admin.from("memberships").insert({ user_id: u.id, company_id: companyId, roles, email: u.email });
+  if (row.error) throw new Error("membership insert failed");
+}
+
+/** A plain supabase-js client signed in as the user (RLS applies). `company` sets the active-company header the server sends. */
+
+export async function userClient(u: TestUser, company?: string): Promise<SupabaseClient> {
+  const c = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false }, global: company ? { headers: { "x-kleeno-company": company } } : undefined });
   const { error } = await c.auth.signInWithPassword({ email: u.email, password: u.password });
   if (error) throw new Error("sign-in failed");
   return c;
@@ -73,10 +80,11 @@ export async function cookieFor(u: TestUser): Promise<{ cookie: string; jar: Pen
   return { cookie: sink.map((c) => `${c.name}=${c.value}`).join("; "), jar: sink };
 }
 
-export function call(handler: (r: Request, ctx?: never) => Promise<Response>, init: { method?: string; cookie?: string; body?: unknown; origin?: string | null; path?: string } = {}, ctx?: unknown) {
+export function call(handler: (r: Request, ctx?: never) => Promise<Response>, init: { method?: string; cookie?: string; body?: unknown; origin?: string | null; path?: string; ip?: string } = {}, ctx?: unknown) {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (init.cookie) headers.cookie = init.cookie;
   if (init.origin !== null) headers.origin = init.origin ?? BASE;
+  if (init.ip) headers["x-real-ip"] = init.ip;
   const req = new Request(`${BASE}${init.path ?? "/api/test"}`, { method: init.method ?? "POST", headers, body: init.body === undefined ? undefined : JSON.stringify(init.body) });
   return (handler as (r: Request, c?: unknown) => Promise<Response>)(req, ctx);
 }
@@ -113,7 +121,7 @@ export const CANARY_CLAUSE = "CANARY-CLAUSE-policy-text-7788";
 export const CANARY_BASE = "1234567.891011";
 
 export async function activeConfig(c: TestCompany) {
-  const who = { companyId: c.id, userId: c.payroll.id, role: c.payroll.role };
+  const who = { companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles };
   const draft = await createConfigDraft(who, { params: CONFIG_PARAMS, clauses: [{ id: "C1", text: CANARY_CLAUSE }] });
   for (const a of ["validate", "request_review", "approve", "activate"]) await configAction(who, draft.id, a);
   return { ...draft, config: (await loadConfig(c.id, draft.version))!.config };

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describeFacts } from "@/core/reconciliation";
 import { formatUsdc } from "@/core/money";
 import { applyView, columnsFor, defaultView, totalsFor, validateView, ViewError, TABLES, type Row, type TableId, type TableResult, type ViewDef } from "@/core/views";
-import type { Role } from "@/core/workflow";
+import type { Role } from "@/core/tenancy";
 import { openField } from "@/server/crypto";
 import { loadLines } from "./calculations";
 import { must } from "./client";
@@ -46,10 +46,10 @@ async function loadRows(client: SupabaseClient, companyId: string, table: TableI
 }
 
 /** Validate the view against the allow-list, filter/sort on the server, total exactly, and return only the columns this role may see. */
-export async function queryTable(client: SupabaseClient, companyId: string, role: Role, def: ViewDef, runId: string | null, opts: { all?: boolean } = {}): Promise<TableResult> {
-  validateView(def, role);
+export async function queryTable(client: SupabaseClient, companyId: string, roles: readonly Role[], def: ViewDef, runId: string | null, opts: { all?: boolean } = {}): Promise<TableResult> {
+  validateView(def, roles);
   const matched = applyView(await loadRows(client, companyId, def.table, runId), def);
-  const visible = columnsFor(def.table, role);
+  const visible = columnsFor(def.table, roles);
   const columns = def.columns.map((id) => visible.find((c) => c.id === id)!);
   const project = (r: Row) => Object.fromEntries(columns.map((c) => [c.id, r[c.id] ?? null]));
   const shown = opts.all ? matched : matched.slice(0, MAX_ROWS);
@@ -57,8 +57,8 @@ export async function queryTable(client: SupabaseClient, companyId: string, role
 }
 
 /** Everything a page needs to render a TableView with its default view already loaded. */
-export async function initialTable(client: SupabaseClient, companyId: string, role: Role, table: TableId, runId: string | null) {
-  const view = defaultView(table, role);
-  return { table, runId, columns: columnsFor(table, role), initialView: view, initial: await queryTable(client, companyId, role, view, runId) };
+export async function initialTable(client: SupabaseClient, companyId: string, roles: readonly Role[], table: TableId, runId: string | null) {
+  const view = defaultView(table, roles);
+  return { table, runId, columns: columnsFor(table, roles), initialView: view, initial: await queryTable(client, companyId, roles, view, runId) };
 }
 

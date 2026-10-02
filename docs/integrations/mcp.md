@@ -19,7 +19,7 @@ Lets a user's own AI assistant (Claude, ChatGPT, Copilot, an agent framework) as
 
 ## Controls
 - **Auth:** the MCP server is an OAuth 2.1 resource server per the MCP authorization spec (Protected Resource Metadata, RFC 9728). Supabase Auth's OAuth 2.1 server issues the tokens, so there is no second identity system ([MCP spec](https://modelcontextprotocol.io/specification/latest/basic/authorization), [Supabase](https://supabase.com/docs/guides/auth/oauth-server/mcp-authentication)). Tokens are audience-bound to the Kleeno MCP resource; the server never passes a client token on to other APIs.
-- **Same guard as the app:** the same auth guard as route handlers (`src/server/auth`): user from the token; company and role from `app_users`; MFA (`aal2`) required on MFA companies; reads through the same RLS-scoped access; object-level checks on every ID; cross-company IDs return "not found".
+- **Same guard as the app:** the same auth guard as route handlers (`src/server/auth`): user from the token; company and role from `memberships`; MFA (`aal2`) required on MFA companies; reads through the same RLS-scoped access; object-level checks on every ID; cross-company IDs return "not found".
 - **Opt-in:** off per company by default (`companies.mcp_enabled`); the payment approver or an admin turns it on. The demo company may enable it for judges' read-only exploration later.
 - **Minimal data:** worker codes only, never names or wallet addresses. Amounts only in `get_calculation_trace`, `explain_payroll` and `get_variance_report`, and only for the roles that can see them in the UI. Policy text only if a tool explicitly needs it, returned as data.
 - **Rate limits** per user and per company; bounded page sizes.

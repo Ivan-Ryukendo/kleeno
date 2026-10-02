@@ -14,8 +14,8 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const keyOf = (value: string) => createHmac("sha256", env.WAITLIST_SECRET).update(value).digest("hex");
 
 /** The caller's IP as a rate-limit key. Vercel sets x-real-ip / x-forwarded-for itself. */
-export const clientKey = (request: Request) =>
-  keyOf(request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown");
+export const keyFromHeaders = (h: Headers) => keyOf(h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown");
+export const clientKey = (request: Request) => keyFromHeaders(request.headers);
 
 /** Fixed-window limit in the DB (serverless instances share nothing). True = allowed. */
 export async function allow(bucket: string, key: string, windowSeconds: number, max: number) {

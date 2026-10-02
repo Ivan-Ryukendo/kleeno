@@ -28,6 +28,9 @@ const schema = z.object({
   WAITLIST_SECRET: z.string().min(32),
   SITE_URL: z.string().url().default("http://localhost:3000"), // canonical URL for SEO (e.g. https://kleeno.orclide.com)
   CONTACT_EMAIL: z.string().email().optional(), // shown on /privacy for deletion requests
+  // Invite emails (P3b, S62). Optional: without them the sender copies the invite link.
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(3).optional(), // e.g. "Kleeno <invites@orclide.com>"
   // SITE_MODE and ADMIN_PATH are read in src/server/site.ts and src/proxy.ts (fail closed when missing).
 });
 

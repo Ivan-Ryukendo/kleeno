@@ -6,7 +6,7 @@ import { CalculateButton } from "@/components/run-actions";
 import { TableView } from "@/components/table-view";
 import { StatusPill } from "@/components/status-pill";
 import { isPayrollRole } from "@/core/workflow";
-import { pageSession } from "@/server/auth/page-session";
+import { navFor, pageSession } from "@/server/auth/page-session";
 import { initialTable } from "@/server/db/table-views";
 import { runView } from "@/server/db/views";
 
@@ -14,19 +14,20 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
   await connection();
-  const { actor, client } = await pageSession();
+  const session = await pageSession();
+  const { actor, client } = session;
   const { runId } = await params;
   if (!UUID.test(runId)) notFound();
   const view = await runView(client, actor.companyId, runId);
   if (!view) notFound();
   const { run, lines, obligations, calculationHash, variance } = view;
-  const canEdit = isPayrollRole(actor.role);
-  const summary = lines.length ? await initialTable(client, actor.companyId, actor.role, "lines", run.id) : null;
+  const canEdit = isPayrollRole(actor.roles);
+  const summary = lines.length ? await initialTable(client, actor.companyId, actor.roles, "lines", run.id) : null;
   const link = "underline underline-offset-4";
 
   return (
     <>
-      <AppNav />
+      <AppNav {...navFor(session)} />
       <main className="mx-auto max-w-5xl px-6 py-16">
         <p className="text-sm font-bold uppercase tracking-[0.04em]">
           <span className="mr-2 inline-block size-2 rounded-full bg-signal align-middle" />

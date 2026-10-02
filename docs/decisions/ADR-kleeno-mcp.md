@@ -7,8 +7,8 @@ Customers' AI assistants and agents should be able to ask Kleeno about runs, exc
 
 ## Decision
 1. **Read-only first.** Tools and controls in `docs/integrations/mcp.md`. No write, approval, resolution, obligation, recipient, config, authorization or payment tool exists. Adding any write tool needs a new ADR and user approval, and could only ever *propose* (like the AI agents), never approve or pay.
-2. **One identity system.** The MCP server is an OAuth 2.1 resource server (MCP authorization spec); Supabase Auth's OAuth 2.1 server issues tokens. Roles still come from `app_users`; MFA still applies.
-3. **Same authorization path** as route handlers: auth guard, company from `app_users`, object-level checks, rate limits, one audit event per call.
+2. **One identity system.** The MCP server is an OAuth 2.1 resource server (MCP authorization spec); Supabase Auth's OAuth 2.1 server issues tokens. Roles still come from `memberships`; MFA still applies.
+3. **Same authorization path** as route handlers: auth guard, company from `memberships`, object-level checks, rate limits, one audit event per call.
 4. **Annotations are hints.** Tools declare `readOnlyHint: true` etc., but security never depends on them.
 5. **Facts come from Kleeno.** Explanations are built from stored traces, rule IDs and evidence IDs; an external LLM can only rephrase them.
 6. **Per-company opt-in**, off by default.

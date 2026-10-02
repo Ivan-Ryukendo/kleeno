@@ -12,13 +12,13 @@ import { defaultProvider } from "./provider";
 interface Who {
   companyId: string;
   userId: string;
-  role: Role;
+  roles: readonly Role[];
   correlationId: string;
 }
 
 /** Policy text -> clauses -> AI proposal -> validate/repair -> AIExecution -> config in HUMAN_REVIEW (never approved by AI, rule 2). */
 export async function proposeConfig(who: Who, policyText: string, provider: AiProvider = defaultProvider()) {
-  if (!isPayrollRole(who.role)) throw new WorkflowError("FORBIDDEN", "only the payroll side edits configuration");
+  if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side edits configuration");
   const clauses = splitPolicy(policyText);
   const ref = canonicalHash(clauses);
   const result = await runValidated(provider, policySpec(clauses), policyInput(clauses, ref));

@@ -4,8 +4,8 @@ import { db, must } from "@/server/db/client";
 import { COMPANY_ID, fail } from "./_lib";
 
 const users = [
-  { role: "PAYROLL_APPROVER", email: process.env.PAYROLL_APPROVER_EMAIL, password: process.env.PAYROLL_APPROVER_PASSWORD },
-  { role: "PAYMENT_APPROVER", email: process.env.PAYMENT_APPROVER_EMAIL, password: process.env.PAYMENT_APPROVER_PASSWORD },
+  { role: "PAYROLL_APPROVER", roles: ["OWNER", "PAYROLL_APPROVER"], email: process.env.PAYROLL_APPROVER_EMAIL, password: process.env.PAYROLL_APPROVER_PASSWORD },
+  { role: "PAYMENT_APPROVER", roles: ["PAYMENT_APPROVER"], email: process.env.PAYMENT_APPROVER_EMAIL, password: process.env.PAYMENT_APPROVER_PASSWORD },
 ];
 
 async function main() {
@@ -21,7 +21,7 @@ async function main() {
       if (created.error || !created.data.user) throw new Error("create user failed");
       id = created.data.user.id;
     }
-    must(await db().from("app_users").upsert({ id, company_id: COMPANY_ID, role: u.role, email: u.email!.toLowerCase() }, { onConflict: "id" }).select("id"), "app_users save");
+    must(await db().from("memberships").upsert({ user_id: id, company_id: COMPANY_ID, roles: u.roles, email: u.email!.toLowerCase(), removed_at: null }, { onConflict: "user_id,company_id" }).select("user_id"), "membership save");
     console.log(`${u.role}: ${u.email} ready`);
   }
 }

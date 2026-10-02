@@ -7,7 +7,7 @@ Each worker gets a personal page: HR uploads details and documents, workers uplo
 
 ## Conflicts with the current rules
 1. **Rule 35 / S25 ("names never reach the server").** Workers are W001-style codes on purpose. A profile with name, contact, photo or documents is personal data on the server. This ADR proposes an **opt-in per company** exception (below). Without approval, profile data stays out and only pseudonymous fields exist.
-2. **Workers are not users.** Only approvers have accounts (`app_users`, rule 33). Workers uploading their own data needs a new `WORKER` role that sees only its own page.
+2. **Workers are not users.** Only approvers have accounts (`memberships`, rule 33). Workers uploading their own data needs a new `WORKER` role that sees only its own page.
 3. **Scope and time.** 9 days remain (deadline Oct 10) and P3, P4, P5 are open. Leave balances, notifications and wider RBAC are in the PRD out-of-scope list.
 
 ## Decisions proposed

@@ -10,7 +10,7 @@ import { admin, makeCompany, type TestCompany } from "./helpers";
 
 let a: TestCompany;
 let b: TestCompany;
-const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, role: c.payroll.role, correlationId: randomUUID() });
+const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles, correlationId: randomUUID() });
 const guessed = { ...GOOD, params: { ...GOOD.params!, overtimeMultiplier: "2" } };
 
 beforeAll(async () => {
@@ -44,7 +44,7 @@ describe("proposeConfig", () => {
   });
 
   it("a non-payroll role cannot propose", async () => {
-    await expect(proposeConfig({ ...who(a), role: "PAYMENT_APPROVER" }, POLICY_TEXT, scripted([GOOD]))).rejects.toBeInstanceOf(WorkflowError);
+    await expect(proposeConfig({ ...who(a), roles: ["PAYMENT_APPROVER"] }, POLICY_TEXT, scripted([GOOD]))).rejects.toBeInstanceOf(WorkflowError);
   });
 });
 

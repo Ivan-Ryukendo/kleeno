@@ -16,7 +16,7 @@ export default function LoginPage() {
         <div className="mt-8 rounded-[2.5rem] bg-card p-10 shadow-card">
           <p className="text-muted-foreground">Payroll is confidential. Sign in to see your company&apos;s runs.</p>
           <LoginForm />
-          <p className="mt-6 text-sm text-muted-foreground">Accounts are created by Kleeno. Arc testnet · no real funds.</p>
+          <p className="mt-6 text-sm text-muted-foreground">Join by invitation: request access on the home page. Arc testnet · no real funds.</p>
         </div>
       </main>
     </>

@@ -44,7 +44,8 @@ Also fixed (user-approved 2026-09-29):
 - The per-payment ceiling and standing authorization are owned by the payment approver, not the HR config (§12). Judges use a SIMULATION-only demo company (§5, §19).
 - Ponytail is a build-time, backend-only lean-code plugin, not part of the runtime (ESSENTIALS, Build).
 - The whole UI follows `DESIGN.md` with the Kleeno adaptations in ESSENTIALS rule 45; theme tokens live once in `src/app/globals.css`.
-- Defaults: AI statuses `ACCEPTED | REPAIRED | NEEDS_HUMAN_REVIEW`; max 2 repairs; 6-worker demo cast (PRD §7); no Gateway, Paymaster or CCTP.
+- Defaults: AI statuses `ACCEPTED | REPAIRED | NEEDS_HUMAN_REVIEW`; max 2 repairs; 6-worker demo cast (PRD §7); no Paymaster or CCTP. Gateway only for payroll top-up and x402 only for Kleeno Verify (user, 2026-10-02; §14.10–14.11).
+- Companies are workspaces: invite-approved sign-up, many companies per login, Owner + several roles per member (user, 2026-10-02; §25).
 
 ## 3. Trust boundaries
 
@@ -63,7 +64,7 @@ Execution and validation paths are separate modules. Validators never import AI 
 
 - `src/core/`: pure TypeScript domain; no I/O, framework or network. Reaches the outside only through ports (repositories, AI provider, payment rail, chain reader, clock, IDs).
 - `src/server/`: adapters implementing the ports (Supabase repositories, OpenRouter, Circle wallets, Arc reader via viem, `ArcUsdcRail`, auth, redacting logger). `env.ts` validates the server env with Zod; everything here imports `server-only`.
-- `src/app/`: App Router pages and thin route handlers: authenticate -> role from `app_users` -> load entities by ID inside the session's company (never trust company, role, amount or recipient from the request) -> core service -> compare-and-set persist -> audit event. Mutating handlers check `Origin`. Mutations only in `src/app/api` route handlers; no Server Actions. `src/proxy.ts` (Next 16's name for middleware) only refreshes the session and redirects; every handler and data-reading page authenticates on its own.
+- `src/app/`: App Router pages and thin route handlers: authenticate -> role from `memberships` (active company re-checked) -> load entities by ID inside the session's company (never trust company, role, amount or recipient from the request) -> core service -> compare-and-set persist -> audit event. Mutating handlers check `Origin`. Mutations only in `src/app/api` route handlers; no Server Actions. `src/proxy.ts` (Next 16's name for middleware) only refreshes the session and redirects; every handler and data-reading page authenticates on its own.
 - Supabase access: the public API only reads. `authenticated` has SELECT under RLS (own company); `anon` has no table rights. Pages may read with the user-scoped client. Every write, from user handlers and system paths (webhook, payment agent, standing authorization, settlement, recovery, scripts) alike, goes through `src/server/db/` repositories on the service-role client. Those repositories take the company from the session or job entity and add `company_id` to every statement. DB triggers (four-eyes, append-only, immutability, kill switch) bind the service role too.
 - `contracts/`: Foundry project with `PayrollGuard`.
 - Hosting: Vercel + Supabase cloud (§21). No long-running workers: Circle webhook plus on-demand polling and recovery routes. The payment loop handles each obligation independently, so a function timeout leaves recoverable state (§14.6).
@@ -83,7 +84,9 @@ Execution and validation paths are separate modules. Validators never import AI 
 - Pay types (per worker): `SALARIED`, `HOURLY`, `RETAINER`.
 - Rule catalog (MVP): `BASE_SALARY`, `HOURLY_RATE`, `FIXED_RETAINER`, `OVERTIME` (salaried: hours above the weekly threshold; hourly: approved hours above the contracted cap), `PAID_LEAVE`, `UNPAID_LEAVE`, `PERCENT_DEDUCTION` (tax, pension or other, as percentages of gross). Extensible in code only; AI cannot add types or formulas.
 - Parameters: pay period, scheduled hours per period (salaried), weekly overtime threshold or contracted hours cap + multiplier (default 1.0 for hourly), leave treatment, deduction percentages, variance tolerance (default 0.01). Per-worker rate or retainer amount lives on the worker's compensation record. The per-payment ceiling is not config (§12).
-- Policy text is stored as numbered clauses; every proposed rule cites the clause IDs it comes from.
+- Policy text is stored as numbered clauses; every proposed rule cites the clause IDs it comes from. From P4c, a company's policy set can hold several documents (PDF, Word, TXT, Markdown, read in the browser; S69); each clause keeps its document ID and content hash.
+- **Scope (P4c, S71).** Every rule has `applies_to`: everyone, a pay type, a worker type (employee or contractor), a department, a tag (custom, HR-defined, several per worker) or listed workers. Code derives the category: company (everyone), group (one field value or one tag), multi-group (two or more), personal (listed workers). Resolution per worker and rule type: the most specific wins (personal > group > multi-group > company). Every override is listed ("W004: personal 2x replaces company 1.5x") and HR ticks it before the set can be approved; two rules at the same level that clash block approval. The trace records the winning and the overridden rule. The configuration page shows counts per category, a per-worker coverage view, duplicates (same rule, same scope), and workers no rule covers.
+- **Additions (P4c, S73).** Catalog adds `ONE_OFF_ADDITION` (kind BONUS, COMMISSION or REIMBURSEMENT; per worker per run, HR-entered amount + reason), `FIXED_DEDUCTION` (amount per period, e.g. advance repayment) and `PRORATION` (part-period pay for SALARIED and RETAINER from start or leave dates; method set in config, decided in `docs/phases/P4c.md`). Policy may define percentages or rates for these; one-off amounts come only from HR (rule 2).
 - Rule IDs are versioned (e.g. `overtime_weekly_v2`); an approved version is immutable.
 - Lifecycle: `DRAFT -> AI_PROPOSED -> VALIDATED -> HUMAN_REVIEW -> APPROVED -> ACTIVE -> SUPERSEDED | ARCHIVED`. HR approver approves; one ACTIVE version per company; every run references one exact version.
 - Market presets (starting configs per country or worker type) are roadmap; every company configures its own rules today.
@@ -107,6 +110,8 @@ LLM -> parse -> schema (Zod) -> semantic -> evidence/reference
 - Injection: policy text and data go into prompts as delimited data, never as instructions. The schema fixes the output shape. AI text is rendered as plain text (no HTML).
 - OpenRouter: `response_format` JSON schema + `provider.require_parameters`; our validation is still mandatory. Account opted out of training; per-request no-retention providers; `:free` models only with fake data; $5 spend cap on the key.
 - Model choice: run the fixtures 3 times on 3 cheap models; default = the cheapest with 100% final ACCEPTED/REPAIRED and ≥ 90% first try; the runner-up is the fallback.
+- Cache (P4c, S72): before calling the model, the server looks up an earlier `AIExecution` with the same company, clause-set hash, model, prompt version and schema version. A hit reuses that output (still validated, still HR-approved); a change to any part misses. Per company only. The approved, immutable config version is what every calculation reads; documents are never re-read at calculation time.
+- Similarity (P4c): an exact rule check (same rule type, overlapping scope) decides clashes; text matching inside the company's own data (exact hash, then near-identical wording) only adds duplicate warnings for HR. AI embeddings come after the hackathon, behind the same adapter, not LangChain.
 - Outage: fallback model, then `NEEDS_HUMAN_REVIEW`. The judge demo company is seeded with an approved config and finished runs, so it works with the AI down.
 
 ## 8. Data ingestion
@@ -114,6 +119,8 @@ LLM -> parse -> schema (Zod) -> semantic -> evidence/reference
 - CSV parsed in the browser (limits in `docs/security.md` S25, safe parser, no formula evaluation) -> column mapping (human-confirmed; AI suggestions see headers only) -> anonymise: only mapped columns are uploaded, worker names become pseudonymous IDs (W001…), and the name key downloads to the user's own PC, encrypted with their passphrase (re-opened locally on the next import to keep codes stable) -> server normalization -> validation -> import batch. Names and bank details never reach the server.
 - The server re-checks the same limits and accepts only mapped, typed fields (worker ref `^W\d{3,}$`, numbers, dates, enums); browser checks are UX, server checks are security. Import request bodies are never logged.
 - Import types: workers/compensation, schedules, timesheets, leave records, amounts actually paid (for variance).
+- Excel (.xlsx, P4c, S70) follows the same browser path: values only, formulas never evaluated. Worker tables inside PDF or Word files come after the hackathon.
+- Names on screen (P4c): after the user unlocks the name key file in the browser, the UI swaps W-codes for names locally. Nothing is sent or stored; other users and the server still see W-codes (rule 35).
 - Currency: USD only; any other currency is rejected.
 - Duplicates are detected by natural key (worker + date/period + source type) and by content hash; re-importing the same data is idempotent.
 - Each batch keeps the content hash, mapping, row counts and rejected rows. The raw file is not stored.
@@ -173,7 +180,8 @@ PARTIALLY_SETTLED | PAYMENT_FAILED -> PAYMENT_IN_PROGRESS (new batch authorized,
 ## 12. Roles and approvals
 
 - `HR_APPROVER`: config, imports, exceptions, payroll approval. `PAYMENT_APPROVER`: payment plan signing, hold release, standing authorization, per-payment ceiling, confirming recipient changes. Both can view everything in their company.
-- Roles are read only from `app_users` (never user-editable auth metadata; users cannot write their own row). Public sign-up is disabled; users are created by `scripts/create-users.ts`.
+- `OWNER` (P3b): company details, members, invites, roles, requesting live payments and switching them ON (§14.9). `VIEWER`: read only. A member may hold several roles.
+- Roles are read only from `memberships` (per company; never user-editable auth metadata; users cannot write their own row). Public sign-up stays disabled in Supabase; accounts are created by the server when an invite is accepted (§25), and by `scripts/create-users.ts` for the demo company.
 - Accounts: Supabase Auth, passwords ≥ 12 chars. Companies with `mfa_required` (every real pilot company) require TOTP MFA (`aal2`), checked by the server auth guard and by RLS; enrolment on `/account`. The judge demo company is exempt (synthetic data, cannot pay).
 - Four-eyes: a run's payment authorizer must differ from its payroll approver. A DB trigger on batch authorization enforces it (for a standing authorization, against its creator at use time); audited. Limitation: one person holding two accounts defeats it, so user provisioning is admin-only.
 - Payroll approval records the `calculation_hash` it approved.
@@ -197,7 +205,8 @@ States: `CREATED -> AUTHORIZED | ON_HOLD`; `ON_HOLD -> AUTHORIZED` (only via a n
 - **Approver wallet**: company treasury; owns `PayrollGuard`; funds batches. Holds at most the next batch plus gas; the reserve stays in a wallet the user holds outside Circle.
 - **Agent wallet**: guard operator; holds only a small USDC gas balance (Arc gas is paid in USDC).
 - **Worker wallets**: one per worker in a worker wallet set, created at onboarding with an idempotency key; only wallet ID + address are stored. Alternative: a worker-supplied address, confirmed by the other role (§12).
-- Funding: Circle faucet first; TestMint (up to $10k testnet USDC) as a bonus. The demo LIVE run is ≤ 100 USDC total. Testnet only.
+- Funding: Circle faucet first; TestMint (up to $10k testnet USDC) as a bonus; from P4 also a Gateway top-up from another testnet chain (§14.10). The demo LIVE run is ≤ 100 USDC total. Testnet only.
+- Provisioning (P4): today `scripts/setup-wallets.ts` and `scripts/deploy-guard.ts`; from P4 the same steps run as an idempotent server job after the platform admin approves a company's live payments (§14.9).
 
 ### 14.2 PayrollGuard contract (Solidity, Foundry)
 - Constructor: USDC address, owner (approver wallet), operator (agent wallet); rejects zero addresses and owner = operator. The deployer key has no role after deployment. No upgrade path, no arbitrary withdraw; no function edits a committed entry.
@@ -245,6 +254,15 @@ A capability-limited service, not a free-roaming LLM. Its tools accept only an o
 - Applied by the system path right after a valid plan exists, only if: no holds, no fired signals, no recipient change, same config version as the previous run, non-fallback plan, not revoked, same company, batch total and every payment within its limits and the company ceiling, before expiry, and its creator ≠ the run's payroll approver (DB trigger). Each condition has a negative test (`docs/security.md` S09).
 - The batch is recorded as authorization type `STANDING` with the rule ID; everything else needs a human signature (`HUMAN`). Payroll approval always stays human.
 
+### 14.9 Live-payments activation (P4, S66)
+`live_status`: `NOT_REQUESTED -> REQUESTED -> APPROVED -> PROVISIONED`, plus `REJECTED`. The Owner requests from `/settlement`. The platform admin approves in the admin area (MFA). Approval queues an idempotent provisioning job: approver + agent wallets (unique per company and role), then guard deployment (one per company), with each step stored so a retry resumes. Once `PROVISIONED`, the Owner can switch live payments ON with re-auth + TOTP, if the company has at least two members holding `PAYROLL_APPROVER` and `PAYMENT_APPROVER` on different people. OFF works as before (rule 17). Demo and sandbox companies are blocked at `REQUESTED` by a DB CHECK.
+
+### 14.10 Payroll top-up through Circle Gateway (P4, S67)
+For companies whose USDC sits on another chain. The approver wallet deposits to the Gateway Wallet contract on the source testnet chain; a burn intent (source domain → Arc testnet domain 26, recipient = the company's approver wallet read from the DB) is signed through Circle wallets and sent to the Gateway API; the attestation is minted on Arc. Re-auth, per-request cap, idempotency key per step, audited. It only adds funds to the approver wallet; batches still fund PayrollGuard through `openRun`. Gateway code can't reach `pay`, `openRun` or obligations. Read `../Arc Comtext/docs/circlefin-skills/use-gateway.md` before building.
+
+### 14.11 Kleeno Verify via x402 (P4, S68)
+A read-only paid API for agents (auditors, accountants, workers' tools): `GET /api/x402/verify?receipt=<token>` or `?obligation=<keyHash>`. Without payment it returns `402 Payment Required` with the price ($0.01 testnet USDC), the network (Arc testnet, `eip155:5042002`) and the platform's receive-only address. With a valid `PAYMENT-SIGNATURE`, the server settles through the Gateway facilitator (`BatchFacilitatorClient`, no Express middleware needed in Next.js), then answers: settled or not, net amount, tx hash, chain, and whether it matches the approved obligation. No names, worker IDs, gross, deductions or company. It never writes payroll data. Buyers pay from their Gateway balance (deposit first). Docs: `../Arc Comtext/docs/developers.circle.com/gateway/nanopayments/`. Open check for P4: Circle's buyer samples sign with a raw private key; any Kleeno-side signing must use Circle wallet typed-data signing instead (rule 31).
+
 ## 15. Settlement reconciliation
 
 Independent of Circle status. Read the receipt from Arc RPC (viem) and match:
@@ -260,7 +278,7 @@ Import the amounts the business actually paid and compare them per worker to eng
 
 ## 17. Data model (Supabase Postgres, every row carries `company_id`)
 
-`companies` (live_payments_enabled, mfa_required, per-payment ceiling), `company_keys` (wrapped data key, key version), `app_users` (role), `payroll_configurations` (+ policy clauses), `payroll_rules`, `workers` (pseudonymous code, pay type, wallet ID, address, wallet source CIRCLE|EXTERNAL, confirmed by), `compensations` (base, rate or retainer), `schedules`, `import_batches` (source provider, content hash), `timesheets`, `leave_records`, `actual_payments`, `payroll_runs` (mode, config version, approvers), `reconciliation_results`, `exceptions`, `payroll_calculations` + `calculation_lines` + snapshots, `approvals` (calculation_hash), `payroll_obligations`, `payment_batches` (plan, plan_hash, signals, planner AIExecution or FALLBACK, authorization type HUMAN|STANDING, authorized by, guard run key), `standing_authorizations`, `payments` + `payment_attempts`, `variance_findings`, `ai_executions`, `webhook_notifications` (provider + notification ID unique; Circle is the first provider), `audit_events`.
+`companies` (live_payments_enabled, mfa_required, per-payment ceiling; P3b: country, time zone, size range, industry, pay frequency, usual pay day, is_sandbox; P4: live_status), `company_keys` (wrapped data key, key version), `memberships` (user, company, roles[]; replaces `app_users` in P3b), `invites` (kind, email, company, roles, token hash, expiry, used, revoked; P3b), `worker_tags` (P4c), `policy_documents` (document ID, name, content hash; P4c), `pay_additions` (run, worker, kind, amount, reason; P4c), `gateway_transfers` (P4), `x402_payments` (payer, amount, settlement reference; P4), `payroll_configurations` (+ policy clauses), `payroll_rules`, `workers` (pseudonymous code, pay type, wallet ID, address, wallet source CIRCLE|EXTERNAL, confirmed by), `compensations` (base, rate or retainer), `schedules`, `import_batches` (source provider, content hash), `timesheets`, `leave_records`, `actual_payments`, `payroll_runs` (mode, config version, approvers), `reconciliation_results`, `exceptions`, `payroll_calculations` + `calculation_lines` + snapshots, `approvals` (calculation_hash), `payroll_obligations`, `payment_batches` (plan, plan_hash, signals, planner AIExecution or FALLBACK, authorization type HUMAN|STANDING, authorized by, guard run key), `standing_authorizations`, `payments` + `payment_attempts`, `variance_findings`, `ai_executions`, `webhook_notifications` (provider + notification ID unique; Circle is the first provider), `audit_events`.
 
 Key relations: config has versions and rules; a run references one config version; a calculation references config + snapshots; an obligation references one approved calculation line and at most one batch; a payment references one obligation. Money columns are integer micro-USDC; fields that reveal pay levels or policy are stored encrypted (§17.1). Foreign keys are composite `(company_id, id)`, so a row can never reference another company's row. Import-derived rows (workers/compensations, schedules, timesheets, leave records, actual payments) carry provenance columns (§8). CHECK constraints and unique indexes back the invariants and idempotency (`docs/security.md` S26, S35).
 
@@ -342,10 +360,23 @@ Controls described elsewhere are referenced by section; only controls that live 
 - Market confirmation (US contractors first) and real pilot data: in progress outside the build.
 - Owner key held by the payment approver instead of the server: post-hackathon.
 - Names from server-side HRIS connectors vs rule 35: decided before the first HRIS connector (`docs/integrations/README.md` §3.10).
+- x402 signing through Circle developer-controlled wallets (typed data) instead of a raw key: verify at the start of P4 (§14.11).
+- Part-period method (calendar days or working days): decided in `docs/phases/P4c.md`.
+- Owner inviting a second account of their own weakens four-eyes: accepted for pilots (`docs/security.md` §5).
 
 ## 24. Integrations and MCP (designed; mostly built after the hackathon)
 
 - Design: `docs/integrations/`; decisions: `docs/decisions/`; rules 51–55; security rows S46–S50.
 - External systems are evidence sources or destinations. A connector produces the same normalized evidence as the CSV import (§8), with provenance, then follows the same validation, reconciliation and snapshot path. Code asks for capabilities, not vendors; vendor code lives only in `src/server/integrations/<provider>/`.
 - MVP (P3): capability and category types, provider descriptor registry with `csv_upload`, `requireCapability`, provenance columns, snapshot evidence references.
-- Later: `integration_connections` (lifecycle, tokens encrypted per company), `integration_sync_runs`, webhooks through `webhook_notifications`, ports `EmploymentEvidenceSource`, `AccountingDestination`, `DocumentSource`, `Notifier`. Also: the read-only Kleeno MCP (Supabase OAuth 2.1, same guard as handlers), a deterministic journal export with explicit account mapping, and SSO through Supabase Auth with roles only from `app_users`.
+- Later: `integration_connections` (lifecycle, tokens encrypted per company), `integration_sync_runs`, webhooks through `webhook_notifications`, ports `EmploymentEvidenceSource`, `AccountingDestination`, `DocumentSource`, `Notifier`. Also: the read-only Kleeno MCP (Supabase OAuth 2.1, same guard as handlers), a deterministic journal export with explicit account mapping, and SSO through Supabase Auth with roles only from `memberships`.
+
+## 25. Companies, workspaces and onboarding (P3b; user, 2026-10-02)
+
+- **Model:** a company is a workspace. `memberships (user_id, company_id, roles[])` links a login to many companies; roles are per company and a member may hold several. The active company sits in a signed httpOnly cookie and is re-checked against `memberships` on every request (S61); the nav has a company switcher.
+- **Joining:** invite only. A business asks via the waitlist; the platform admin approves it in the admin area, which creates a platform invite. Accepting it creates the account on the server (Supabase sign-up stays off) and a company with that user as Owner. Owners invite team members with roles (company invites). Links: one-time, 7 days, bound to one email (S62). Delivery: copy link; email through Resend when `RESEND_API_KEY` is set (`src/server/email`).
+- **Onboarding:** 3 screens (password + TOTP for real companies; company basics: name, country, time zone, size range, industry; pay schedule: frequency, usual pay day). Then a setup checklist on the dashboard, computed from data: team invited, workers added, policy approved, live payments requested, first run.
+- **Team vs workforce:** the team are memberships (people who log in); the workforce are `workers` (people who get paid, pseudonymous; P4c adds job title, department, worker type, tags and start date).
+- **More companies:** an approved user can create another company from the switcher (≤ 5 per day, S64). It starts in SIMULATION and needs its own live-payments approval (§14.9).
+- **Sandboxes:** judge invites create `is_sandbox` companies that can never request or switch on live payments.
+- **Later:** legal entity name, address, tax ID (encrypted, Owner-only), logo, custom roles, open sign-up, SSO.

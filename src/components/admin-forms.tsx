@@ -208,3 +208,73 @@ export function ContactActions({ base, id, status, notes, nextActionAt, isTest }
     </div>
   );
 }
+
+/** Approve a waitlist entry into a company with a one-time Owner invite link (S64). The link is shown once; only its hash is stored. */
+export function AccessApproval({ base, id, invites }: { base: string; id: string; invites: { id: string; status: string; createdAt: string }[] }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sandbox, setSandbox] = useState(false);
+  const [issued, setIssued] = useState<{ link: string; emailed: boolean } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const active = invites.some((i) => i.status === "PENDING" || i.status === "USED");
+
+  return (
+    <section aria-labelledby="access-title" className="space-y-4">
+      <h2 id="access-title" className="text-xl font-medium">Platform access</h2>
+      <p className="text-sm text-muted-foreground">Approving creates a company for this contact and a one-time invite link for them as its Owner (7 days, works once, only for their email). It starts in simulation; live payments stay off.</p>
+      {invites.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {invites.map((i) => (
+            <li key={i.id}>
+              {new Date(i.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}: invite {i.status.toLowerCase()}
+            </li>
+          ))}
+        </ul>
+      )}
+      {!active && (
+        <div className="flex flex-wrap items-center gap-6">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={sandbox} onChange={(e) => setSandbox(e.target.checked)} className="size-5 accent-primary" />
+            Sandbox for a judge (simulation only, never live payments)
+          </label>
+          <button
+            type="button"
+            disabled={busy}
+            className={ink}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              const r = await postJson<{ link: string; emailed: boolean }>(`${base}/api/contacts/${id}`, { action: "APPROVE_ACCESS", sandbox });
+              setBusy(false);
+              if (!r.ok || !r.data) return setError(r.error ?? "Could not approve");
+              setIssued(r.data);
+              router.refresh();
+            }}
+          >
+            Approve access
+          </button>
+        </div>
+      )}
+      <ErrorText error={error} />
+      {issued && (
+        <div className="rounded-[1.25rem] border border-primary/30 bg-white p-5" role="status">
+          <p className="text-sm font-medium">{issued.emailed ? "Emailed to the contact. This link is shown only now:" : "Send this link to the contact. It is shown only now:"}</p>
+          <div className="mt-3 flex gap-3">
+            <Input readOnly value={issued.link} aria-label="Invite link" onFocus={(e) => e.currentTarget.select()} />
+            <button
+              type="button"
+              className={outline}
+              onClick={async () => {
+                await navigator.clipboard.writeText(issued.link);
+                setCopied(true);
+              }}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

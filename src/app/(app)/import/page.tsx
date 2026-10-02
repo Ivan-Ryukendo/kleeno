@@ -2,15 +2,16 @@ import { connection } from "next/server";
 import { AppNav } from "@/components/app-nav";
 import { ImportWizard } from "@/components/import-wizard";
 import { isPayrollRole } from "@/core/workflow";
-import { pageSession } from "@/server/auth/page-session";
+import { navFor, pageSession } from "@/server/auth/page-session";
 import { must } from "@/server/db/client";
 
 export const metadata = { title: "Import · Kleeno" };
 
 export default async function ImportPage() {
   await connection();
-  const { actor, client } = await pageSession();
-  const canEdit = isPayrollRole(actor.role);
+  const session = await pageSession();
+  const { actor, client } = session;
+  const canEdit = isPayrollRole(actor.roles);
 
   const runs = must(await client.from("payroll_runs").select("id, mode, status, period_start, period_end").eq("company_id", actor.companyId).in("status", ["DRAFT", "DATA_IMPORTED"]).order("created_at", { ascending: false }), "runs read");
   const workers = must(await client.from("workers").select("pseudonym").eq("company_id", actor.companyId), "workers read");
@@ -20,7 +21,7 @@ export default async function ImportPage() {
 
   return (
     <>
-      <AppNav />
+      <AppNav {...navFor(session)} />
       <main className="mx-auto max-w-5xl px-6 py-16">
         <p className="text-sm font-bold uppercase tracking-[0.04em]">
           <span className="mr-2 inline-block size-2 rounded-full bg-signal align-middle" />

@@ -14,7 +14,7 @@ import { runStore } from "./runs";
 interface Who {
   companyId: string;
   userId: string;
-  role: Role;
+  roles: readonly Role[];
   correlationId?: string;
 }
 
@@ -35,7 +35,7 @@ export interface ImportResult {
  * checked against the company's workers and the run's period, fingerprinted, and stored with provenance in one transaction.
  */
 export async function importRows(who: Who, input: { runId: string; type: ImportType; mapping: Record<string, number>; items: RowItem[] }): Promise<ImportResult> {
-  if (!isPayrollRole(who.role)) throw new WorkflowError("FORBIDDEN", "only the payroll side imports data");
+  if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side imports data");
   const known = new Set(FIELDS[input.type].map((f) => f.name));
   if (Object.keys(input.mapping).some((k) => !known.has(k))) throw new WorkflowError("FORBIDDEN", "unknown field in the column mapping");
 
