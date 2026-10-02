@@ -1,9 +1,11 @@
 import { connection } from "next/server";
 import { AppNav } from "@/components/app-nav";
+import { TableView } from "@/components/table-view";
 import { AddWorkerForm, WorkerRow, type WorkerView } from "@/components/worker-forms";
 import { formatUsdc } from "@/core/money";
 import { isPayrollRole } from "@/core/workflow";
 import { pageSession } from "@/server/auth/page-session";
+import { initialTable } from "@/server/db/table-views";
 import { listWorkers, type WorkerRow as Worker } from "@/server/db/workers";
 
 export const metadata = { title: "Workers · Kleeno" };
@@ -54,6 +56,7 @@ export default async function WorkersPage() {
   const current = workers.filter((w) => w.active);
   const former = workers.filter((w) => !w.active);
   const canEdit = isPayrollRole(actor.role);
+  const overview = await initialTable(client, actor.companyId, actor.role, "workers", null);
 
   return (
     <>
@@ -74,6 +77,12 @@ export default async function WorkersPage() {
             <WorkerTable workers={current} canEdit={canEdit} />
           )}
           <p className="mt-6 text-sm text-muted-foreground">Custodial wallets managed by the company. Arc testnet USDC, no real funds. Changing where a worker is paid needs re-authentication and arrives with payments (P4).</p>
+        </section>
+
+        <section className="mt-8 rounded-[2.5rem] bg-card p-10 shadow-card">
+          <h2 className="text-2xl">Table view</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Everyone in one table: choose columns, filter, sort, see totals and export. Changes to pay are made in the list above.</p>
+          <TableView {...overview} empty="No workers yet." />
         </section>
 
         {former.length > 0 && (

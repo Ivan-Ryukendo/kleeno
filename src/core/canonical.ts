@@ -14,6 +14,8 @@ function canon(value: unknown): unknown {
   return value;
 }
 
+export const canonicalString = (value: unknown): string => JSON.stringify(canon(value));
+
 export function canonicalHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canon(value))).digest("hex");
+  return createHash("sha256").update(canonicalString(value)).digest("hex");
 }

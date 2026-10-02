@@ -31,6 +31,7 @@ In scope (demo path):
 - Payment batches; Payment Planner (order, hold, flag, explain); standing authorization for clean batches.
 - Circle dev-controlled wallets (approver, agent, one per worker), PayrollGuard contract, idempotent USDC payment, crash recovery, settlement reconciliation from Arc receipts.
 - Audit timeline; worker receipt page; dashboard.
+- Table views for record lists (`docs/pages.md` §5): columns, filters, sort, match status with auto-match count, bulk resolve with a note, row side panel, totals row, CSV export of the view; AI proposes view definitions only.
 - Integration-ready foundation: every imported record carries provenance; capability-based source registry with the CSV upload as the first source. No connectors in the MVP (`docs/integrations/`).
 
 Out of scope (see `docs/roadmap.md`): FX/non-USD imports, market presets, bonuses/allowances, holiday rules, leave balances, mid-period join/termination, full RBAC, multi-company features, PDF payslips, rich reporting, jurisdiction tax packs, fiat/mobile-money rails, mainnet, Gateway/CCTP/Paymaster, on-chain payroll data, tokenomics, unrestricted autonomous agents, HR/payroll/accounting/expense/document/notification/SSO connectors, the Kleeno MCP server, accounting journal export (all designed in `docs/integrations/`).

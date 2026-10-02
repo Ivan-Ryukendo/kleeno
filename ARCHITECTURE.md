@@ -130,6 +130,9 @@ LLM -> parse -> schema (Zod) -> semantic -> evidence/reference
 - States: `OPEN -> IN_REVIEW -> RESOLVED | REJECTED | ESCALATED`. An AI suggestion is never a resolution.
 - Unresolved exceptions block their own stage: reconciliation categories block calculation; `PAYMENT_EXCEPTION` and `SETTLEMENT_MISMATCH` block `RECONCILED` and `closeRun`.
 - "Why was this flagged?" is answered from stored evidence, not from an LLM.
+- Match status per imported record: `AUTO_MATCHED` (no check fired), `MATCHED_AFTER_REVIEW` (its exceptions resolved), `EXCEPTION` (open). The auto-match count is computed from it, never estimated.
+- Bulk resolve: one category, one required note, all-or-nothing, one resolution + audit event per exception (`docs/security.md` S60). Approvals stay one at a time.
+- Table views (`docs/pages.md` §5): a view definition is validated data (allow-listed columns and operators per table); filter, sort, totals and export run on the server in the scoped repositories (S59).
 
 ## 10. Payroll engine and trace
 
