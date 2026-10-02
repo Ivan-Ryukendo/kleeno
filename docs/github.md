@@ -53,7 +53,7 @@ The hackathon requires a public repo link. Do these in order; the visibility fli
 2. **Tracked files:** `git ls-files`. No env files, keys, recovery files, real pilot data, names, or screenshots with data. Demo data is synthetic and labelled.
 3. **Author emails:** `git log --format='%ae' | sort -u` shows only noreply addresses.
 4. **README:** honest framing (Arc testnet, custodial wallets, no real funds, net amounts public on-chain). Demo logins go in the submission form, not in the README.
-5. **License (user decides):** default is none, so the README says "All rights reserved". People may read the code but not reuse it.
+5. **License (user decided 2026-10-02):** all rights reserved, in `LICENSE` and the README. People may read the code but not reuse it. Repo description, homepage and topics are set on GitHub.
 6. **Flip:** `gh repo edit --visibility public --accept-visibility-change-consequences`.
 7. **Right after:** enable secret scanning + push protection, Dependabot alerts, and a ruleset on `main` (require CI checks, block force-push and deletion).
 8. Keep the repo public until judging ends. Afterwards the user may continue product work in a new private repo; forks and clones of the public one can't be recalled.
