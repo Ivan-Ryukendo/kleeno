@@ -2,7 +2,7 @@ import { connection } from "next/server";
 import { AppNav } from "@/components/app-nav";
 import { ConfigCard, PolicyForm, type ConfigCardView } from "@/components/config-forms";
 import { isPayrollRole } from "@/core/workflow";
-import { pageSession } from "@/server/auth/page-session";
+import { navFor, pageSession } from "@/server/auth/page-session";
 import { listConfigs, type ConfigView } from "@/server/db/configs";
 
 export const metadata = { title: "Configuration · Kleeno" };
@@ -32,13 +32,14 @@ const view = (c: ConfigView): ConfigCardView => {
 
 export default async function ConfigurationPage() {
   await connection();
-  const { actor, client } = await pageSession();
+  const session = await pageSession();
+  const { actor, client } = session;
   const configs = (await listConfigs(client, actor.companyId)).map(view);
-  const canEdit = isPayrollRole(actor.role);
+  const canEdit = isPayrollRole(actor.roles);
 
   return (
     <>
-      <AppNav />
+      <AppNav {...navFor(session)} />
       <main className="mx-auto max-w-5xl px-6 py-16">
         <p className="text-sm font-bold uppercase tracking-[0.04em]">
           <span className="mr-2 inline-block size-2 rounded-full bg-signal align-middle" />

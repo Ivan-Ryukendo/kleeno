@@ -54,7 +54,7 @@ describe("run creation and workflow guards", () => {
       ...over,
     };
   };
-  const ctx: Ctx = { companyId: "co", userId: "u1", role: "PAYROLL_APPROVER", correlationId: "c" };
+  const ctx: Ctx = { companyId: "co", userId: "u1", roles: ["PAYROLL_APPROVER"], correlationId: "c" };
   const input = { mode: "LIVE_TESTNET" as const, periodStart: "2026-10-01", periodEnd: "2026-10-31" };
 
   it("creates a run pinned to the active config and audits it once", async () => {
@@ -72,8 +72,8 @@ describe("run creation and workflow guards", () => {
 
   it("refuses without an active config and for roles outside the payroll side", async () => {
     await expect(createRun(deps({ activeConfigVersion: async () => null }), ctx, input)).rejects.toMatchObject({ code: "NO_ACTIVE_CONFIG" });
-    await expect(createRun(deps(), { ...ctx, role: "PAYMENT_APPROVER" }, input)).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(createRun(deps(), { ...ctx, role: "VIEWER" }, input)).rejects.toBeInstanceOf(WorkflowError);
+    await expect(createRun(deps(), { ...ctx, roles: ["PAYMENT_APPROVER"] }, input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(createRun(deps(), { ...ctx, roles: ["VIEWER"] }, input)).rejects.toBeInstanceOf(WorkflowError);
   });
 
   it("four-eyes: the same user cannot be both", () => {

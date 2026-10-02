@@ -43,7 +43,7 @@ async function step<S extends string>(store: StateStore<S>, m: Machine<S>, id: s
 async function ensureActiveConfig(payroll: string) {
   const active = (await db().from("payroll_configurations").select("version").eq("company_id", COMPANY_ID).eq("status", "ACTIVE").maybeSingle()).data;
   if (active) return (await loadConfig(COMPANY_ID, active.version))!.config;
-  const who = { companyId: COMPANY_ID, userId: payroll, role: "PAYROLL_APPROVER" as const, correlationId };
+  const who = { companyId: COMPANY_ID, userId: payroll, roles: ["PAYROLL_APPROVER" as const], correlationId };
   const draft = await createConfigDraft(who, { params: PARAMS, clauses: [{ id: "C1", text: "Salaried workers receive their base amount each period. (synthetic)" }] });
   for (const a of ["validate", "request_review", "approve", "activate"]) await configAction(who, draft.id, a);
   return (await loadConfig(COMPANY_ID, draft.version))!.config;
@@ -69,15 +69,15 @@ async function main() {
   if (!co.guard_address) fail("deploy the guard first");
   const { approver } = await wallets();
   if (!approver) fail("run setup-wallets first");
-  const users = must(await db().from("app_users").select("id, role").eq("company_id", COMPANY_ID), "users read");
-  const payroll = users.find((u) => u.role === "PAYROLL_APPROVER")?.id;
-  const payment = users.find((u) => u.role === "PAYMENT_APPROVER")?.id;
+  const users = must(await db().from("memberships").select("user_id, roles").eq("company_id", COMPANY_ID).is("removed_at", null), "users read");
+  const payroll = users.find((u) => u.roles.includes("PAYROLL_APPROVER"))?.user_id;
+  const payment = users.find((u) => u.roles.includes("PAYMENT_APPROVER"))?.user_id;
   if (!payroll || !payment) fail("run create-users first");
 
   const config = await ensureActiveConfig(payroll!);
   const worker = await ensureWorker(payroll!);
   const today = new Date().toISOString().slice(0, 10);
-  const { id: runId } = await createRun(runDeps, { companyId: COMPANY_ID, userId: payroll!, role: "PAYROLL_APPROVER", correlationId }, { mode: "LIVE_TESTNET", periodStart: today, periodEnd: today });
+  const { id: runId } = await createRun(runDeps, { companyId: COMPANY_ID, userId: payroll!, roles: ["PAYROLL_APPROVER"], correlationId }, { mode: "LIVE_TESTNET", periodStart: today, periodEnd: today });
 
   await step<RunState>(runStore, runMachine, runId, ["import_data", "start_reconciliation", "finish_reconciliation", "calculate"]);
   const entries = [{ worker: { workerId: worker.id, payType: "SALARIED" as const, baseAmount: AMOUNT, hourlyRate: 0n }, input: { workedHours: "160" } }];

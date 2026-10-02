@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { LEAD_ACTIONS, type LeadAction } from "@/core/growth";
 import { guarded } from "@/server/auth/guard";
+import { approveAccess } from "@/server/db/access";
 import { applyLeadAction, deleteContact, updateContact } from "@/server/db/growth";
 
 const leadActions = Object.keys(LEAD_ACTIONS) as [LeadAction, ...LeadAction[]];
@@ -16,13 +17,15 @@ const Body = z.discriminatedUnion("action", [
     })
     .strict(),
   z.object({ action: z.literal("DELETE"), confirm: z.literal("DELETE") }).strict(),
+  z.object({ action: z.literal("APPROVE_ACCESS"), sandbox: z.boolean() }).strict(), // P3b: company + one-time Owner invite (S64)
 ]);
 
 const notFound = () => NextResponse.json({ error: { code: "NOT_FOUND", message: "contact not found" } }, { status: 404 });
 
 // Admin changes to one contact (S52): named actions only; every status change is recorded in growth.contact_events.
-export const POST = guarded<z.infer<typeof Body>, { id: string }>({ scope: "admin", body: Body }, async ({ admin, body, params }) => {
+export const POST = guarded<z.infer<typeof Body>, { id: string }>({ scope: "admin", body: Body }, async ({ admin, body, params, correlationId }) => {
   if (!z.uuid().safeParse(params.id).success) return notFound();
+  if (body.action === "APPROVE_ACCESS") return (await approveAccess(params.id, admin.userId, body.sandbox, correlationId)) ?? notFound();
   if (body.action === "DELETE") return (await deleteContact(params.id, admin.userId)) ? { ok: true } : notFound();
   if (body.action === "SAVE")
     return (await updateContact(params.id, { notes: body.notes || null, nextActionAt: body.nextActionAt, isTest: body.isTest })) ? { ok: true } : notFound();

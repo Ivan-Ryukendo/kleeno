@@ -6,7 +6,7 @@ import { RecordTabs } from "@/components/record-tabs";
 import { StatusPill } from "@/components/status-pill";
 import { RECON_CATEGORIES } from "@/core/reconciliation";
 import { isPayrollRole } from "@/core/workflow";
-import { pageSession } from "@/server/auth/page-session";
+import { navFor, pageSession } from "@/server/auth/page-session";
 import { must } from "@/server/db/client";
 import { listExceptions, matchSummary } from "@/server/db/reconciliation";
 import { initialTable } from "@/server/db/table-views";
@@ -15,18 +15,19 @@ export const metadata = { title: "Exceptions · Kleeno" };
 
 export default async function ExceptionsPage({ searchParams }: { searchParams: Promise<{ run?: string }> }) {
   await connection();
-  const { actor, client } = await pageSession();
-  const canEdit = isPayrollRole(actor.role);
+  const session = await pageSession();
+  const { actor, client } = session;
+  const canEdit = isPayrollRole(actor.roles);
   const runs = must(await client.from("payroll_runs").select("id, mode, status, period_start, period_end").eq("company_id", actor.companyId).neq("status", "DRAFT").order("created_at", { ascending: false }).limit(20), "runs read");
   const { run: wanted } = await searchParams;
   const run = runs.find((r) => r.id === wanted) ?? runs[0];
   const rows = run ? await listExceptions(client, actor.companyId, run.id) : [];
   const summary = run && run.status !== "DATA_IMPORTED" ? await matchSummary(client, actor.companyId, run.id) : null;
-  const tables = run ? await Promise.all((["timesheets", "leave", "exceptions"] as const).map((t) => initialTable(client, actor.companyId, actor.role, t, run.id))) : [];
+  const tables = run ? await Promise.all((["timesheets", "leave", "exceptions"] as const).map((t) => initialTable(client, actor.companyId, actor.roles, t, run.id))) : [];
 
   return (
     <>
-      <AppNav />
+      <AppNav {...navFor(session)} />
       <main className="mx-auto max-w-5xl px-6 py-16">
         <p className="text-sm font-bold uppercase tracking-[0.04em]">
           <span className="mr-2 inline-block size-2 rounded-full bg-signal align-middle" />

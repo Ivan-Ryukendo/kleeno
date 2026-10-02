@@ -13,7 +13,7 @@ const GATE = "x-kleeno-admin-gate"; // same name as ADMIN_GATE_HEADER in src/ser
 const WAITLIST_PATHS = new Set(["/", "/privacy", "/api/waitlist", "/api/waitlist/survey", "/robots.txt", "/sitemap.xml", "/icon.svg", "/favicon.ico"]);
 const WAITLIST_PREFIXES = ["/_next/", "/_vercel/", "/opengraph-image"];
 const APP_PUBLIC = ["/", "/login", "/privacy"];
-const isAppPublic = (path: string) => APP_PUBLIC.includes(path) || path.startsWith("/receipt/") || path.startsWith("/api/");
+const isAppPublic = (path: string) => APP_PUBLIC.includes(path) || path.startsWith("/receipt/") || path.startsWith("/invite/") || path.startsWith("/api/");
 
 const adminPath = () => {
   const p = process.env.ADMIN_PATH ?? "";

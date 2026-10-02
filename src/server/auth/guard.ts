@@ -5,16 +5,18 @@ import { z } from "zod";
 import { newCorrelationId } from "@/core/audit";
 import { TransitionError } from "@/core/domain/machines";
 import { ViewError } from "@/core/views";
-import { WorkflowError, type Role } from "@/core/workflow";
+import { hasRole, type Role } from "@/core/tenancy";
+import { WorkflowError } from "@/core/workflow";
 import { logError } from "@/server/log";
 import { adminGateOk, siteMode } from "@/server/site";
 import { authenticateAdmin, type AdminActor } from "./admin";
-import { AuthError, authenticate, jarFromRequest, type Actor, type CookieJar, type PendingCookie } from "./session";
+import { AuthError, authenticate, authenticateUser, jarFromRequest, type Actor, type CookieJar, type Membership, type PendingCookie } from "./session";
 
 // Every route handler goes through `guarded` (authenticated) or `openRoute` (login only; allowlisted by the S15 test).
-// Steps: correlation ID -> Origin check on mutations (S17) -> session -> role from app_users -> strict body (S14) -> handler.
+// Steps: correlation ID -> Origin check on mutations (S17) -> session -> company + roles from memberships -> strict body (S14) -> handler.
 export interface Handled<B, P> {
   actor: Actor; // company routes only
+  user: { userId: string; companies: Membership[] }; // `noCompany` routes only (company chooser and switch)
   admin: AdminActor; // scope "admin" only
   client: SupabaseClient; // user-scoped: reads run under RLS
   body: B;
@@ -27,7 +29,8 @@ export interface Handled<B, P> {
 
 type RouteCtx<P> = { params: Promise<P> };
 interface Options<B> {
-  roles?: readonly Role[];
+  roles?: readonly Role[]; // the member needs at least one of these
+  noCompany?: boolean; // signed in, no company chosen yet: only the company chooser and switch routes
   body?: z.ZodType<B>; // use .strict() so unknown fields (company_id, role, amount, state...) are rejected
   allowAal1?: boolean; // account routes a half-signed-in (password only) user needs: MFA verify/enrol, logout
   // "app" (default): the payroll app; 404 while SITE_MODE is waitlist. "waitlist": the public sign-up routes.
@@ -76,13 +79,15 @@ function wrap<B, P>(opts: Options<B>, authenticated: boolean, fn: (h: Handled<B,
       const jar = jarFromRequest(request);
       const cookies: PendingCookie[] = [];
       const asAdmin = authenticated && scope === "admin" ? await authenticateAdmin(jar, { allowAal1: opts.allowAal1, sink: cookies }) : null;
-      const auth = authenticated && !asAdmin ? await authenticate(jar, { allowAal1: opts.allowAal1, sink: cookies }) : null;
-      if (auth && opts.roles && !opts.roles.includes(auth.actor.role)) throw new AuthError(403, "FORBIDDEN", "your role cannot do this");
+      const bare = authenticated && !asAdmin && opts.noCompany ? await authenticateUser(jar, { sink: cookies }) : null;
+      if (bare && bare.nextLevel === "aal2" && bare.aal !== "aal2") throw new AuthError(401, "MFA_REQUIRED", "multi-factor sign-in required");
+      const auth = authenticated && !asAdmin && !bare ? await authenticate(jar, { allowAal1: opts.allowAal1, sink: cookies }) : null;
+      if (auth && opts.roles && !hasRole(auth.actor.roles, ...opts.roles)) throw new AuthError(403, "FORBIDDEN", "your role cannot do this");
       const raw = opts.body ? await request.text() : "";
       if (scope !== "app" && raw.length > 8192) return fail(413, "TOO_LARGE", "request too large", correlationId); // public + admin bodies are small (S53)
       const body = (opts.body ? opts.body.parse(parseJson(raw)) : undefined) as B;
       const params = (ctx ? await ctx.params : {}) as P;
-      const result = await fn({ actor: auth?.actor as Actor, admin: asAdmin?.admin as AdminActor, client: (auth ?? asAdmin)?.client as SupabaseClient, body, params, request, correlationId, jar, cookies });
+      const result = await fn({ actor: auth?.actor as Actor, user: bare as Handled<B, P>["user"], admin: asAdmin?.admin as AdminActor, client: (auth ?? bare ?? asAdmin)?.client as SupabaseClient, body, params, request, correlationId, jar, cookies });
       const res = result instanceof Response ? result : NextResponse.json(result ?? { ok: true });
       res.headers.set("x-correlation-id", correlationId);
       for (const c of cookies) (res as NextResponse).cookies?.set(c.name, c.value, { ...c.options, httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" });

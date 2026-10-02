@@ -21,11 +21,11 @@ const OPEN_STATES = ["OPEN", "IN_REVIEW", "ESCALATED"];
 interface Who {
   companyId: string;
   userId: string;
-  role: Role;
+  roles: readonly Role[];
   correlationId?: string;
 }
 const need = (who: Who) => {
-  if (!isPayrollRole(who.role)) throw new WorkflowError("FORBIDDEN", "only the payroll side reconciles and resolves");
+  if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side reconciles and resolves");
   return who.correlationId ?? newCorrelationId();
 };
 

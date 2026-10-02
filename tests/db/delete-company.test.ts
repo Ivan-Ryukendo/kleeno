@@ -10,7 +10,7 @@ import { admin, makeCompany, userClient, type TestCompany } from "./helpers";
 
 let a: TestCompany;
 let b: TestCompany;
-const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, role: c.payroll.role, correlationId: randomUUID() });
+const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles, correlationId: randomUUID() });
 const off = { name: "fake", complete: async () => { throw new Error("off"); } };
 
 async function populate(c: TestCompany) {

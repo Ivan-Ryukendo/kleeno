@@ -4,6 +4,7 @@ Out-of-scope ideas land here only after the user approves them.
 
 ## Now — Hackathon MVP (by Oct 10, 2026)
 Scope in `PRD.md` §5. Arc testnet USDC via `ArcUsdcRail`; SIMULATION + LIVE_TESTNET; pay types SALARIED, HOURLY, RETAINER; Payment Planner; standing authorization. First market (tentative): US firms paying remote contractors.
+Added by the user on 2026-10-02: company system and workspaces (P3b); live-payments activation, Gateway top-up and Kleeno Verify via x402 (P4); policy documents, rule scopes and categories, Excel import, bonuses, commissions, reimbursements, fixed deductions, part-period pay (P4c); dashboard and motion (P4d).
 
 ## Next — Pilot hardening (weeks after the event)
 - Lead list, after the waitlist (W): researched prospects table, interaction log, structured interview notes, funnel analytics beyond the W metrics, budget-by-role breakdown, launch/confirmation emails with unsubscribe links (needs an email provider), Cloudflare Turnstile if spam gets through
@@ -13,8 +14,13 @@ Scope in `PRD.md` §5. Arc testnet USDC via `ArcUsdcRail`; SIMULATION + LIVE_TES
 - Pilot with first users (US firms paying remote contractors); real, consented data in `docs/traction.md`
 - FX at import (non-USD sheets), with an approved rate
 - Market presets: starting configs per country and worker type (e.g. US contractors)
-- Bonuses, allowances, holiday rules, leave balances, mid-period join/termination
-- Full RBAC and multi-company features
+- Allowances, holiday rules, leave balances; pay frequency per worker; year-to-date totals and the year-end 1099 contractor summary; correction and off-cycle runs (some overlap with "Close and reporting")
+- Custom roles (full RBAC); open sign-up with spam protection; SSO
+- Company legal details (legal name, address, tax ID encrypted, Owner-only) and logo
+- Invite and notification emails beyond invites (Resend), once the domain mail is fixed
+- Worker tables inside PDF or Word files (needs reliable table extraction in the browser)
+- AI embeddings for policy similarity (pgvector, behind our AI adapter) when long handbooks need it
+- x402 beyond Kleeno Verify: Kleeno's agents buying services with a price preview and hard caps; per-run or per-worker pricing paid through x402
 - Payslip PDFs, reporting, variance analytics
 - Wider model evaluation across open models
 - First connector for the first pilot's HR/payroll system: read-only shadow run (actual paid + timesheets), with the connection model (`docs/integrations/`)
@@ -25,7 +31,7 @@ Scope in `PRD.md` §5. Arc testnet USDC via `ArcUsdcRail`; SIMULATION + LIVE_TES
 - Global rollout market by market, each configured through the AI config
 - Second `PaymentRail`: fiat/mobile-money payout via a licensed partner
 - Jurisdiction rule packs (tax, pension) as approved, versioned configuration
-- Other Circle services: Gateway, CCTP, Paymaster
+- Other Circle services: CCTP, Paymaster, Gateway beyond payroll top-up
 - Owner key held by the payment approver, not the server
 - Security assurance (deferred list in `docs/security.md` §4): KMS/HSM, external immutable log sink, penetration test, SOC 2 / ISO 27001 mapping, incident-response runbook, backup restore drill, MFA for approvers, session policy
 - Audit anchor: hash of approved artifacts on-chain (optional)

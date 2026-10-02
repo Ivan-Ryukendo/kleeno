@@ -61,8 +61,8 @@ describe("rule 18 four-eyes and role trigger", () => {
     expect(born.error).not.toBeNull();
     const none = await proposedBatch(c, run, null);
     await expect(step(batches, batchMachine, c, none, ["authorize"])).rejects.toThrow();
-    const otherPayroll = await admin.from("app_users").insert({ id: (await admin.auth.admin.createUser({ email: `dbtest-${randomUUID()}@example.com`, password: `pw-${randomUUID()}`, email_confirm: true })).data.user!.id, company_id: c.id, role: "HR_APPROVER" }).select("id").single();
-    const wrongRole = await proposedBatch(c, run, otherPayroll.data!.id);
+    const otherPayroll = await admin.from("memberships").insert({ user_id: (await admin.auth.admin.createUser({ email: `dbtest-${randomUUID()}@example.com`, password: `pw-${randomUUID()}`, email_confirm: true })).data.user!.id, company_id: c.id, roles: ["HR_APPROVER"] }).select("user_id").single();
+    const wrongRole = await proposedBatch(c, run, otherPayroll.data!.user_id);
     await expect(step(batches, batchMachine, c, wrongRole, ["authorize"])).rejects.toThrow();
   });
 });

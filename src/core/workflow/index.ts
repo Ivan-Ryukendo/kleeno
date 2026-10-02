@@ -3,14 +3,14 @@ import { nextState, runMachine, SIMULATION_STATES, TransitionError, type RunStat
 import { applyTransition, type StateStore, type TransitionRequest } from "../domain/transition";
 import type { RunMode } from "../ports";
 
-// Roles come only from app_users (rule 33). The payroll side and the payment side are different people (rule 18).
-export type Role = "PAYROLL_APPROVER" | "HR_APPROVER" | "PAYMENT_APPROVER" | "VIEWER";
-export const isPayrollRole = (r: Role) => r === "PAYROLL_APPROVER" || r === "HR_APPROVER";
-export const isPaymentRole = (r: Role) => r === "PAYMENT_APPROVER";
+import { isPayrollRole, type Role } from "../tenancy";
+
+// Roles come only from memberships (rule 33). The same person never approves payroll and authorizes payment for one run (rule 18).
+export { isPayrollRole, isPaymentRole, type Role } from "../tenancy";
 
 export class WorkflowError extends Error {
   constructor(
-    readonly code: "FORBIDDEN" | "FLAGS_UNCONFIRMED" | "CALCULATION_BLOCKED" | "LIVE_PAYMENTS_DISABLED" | "NO_ACTIVE_CONFIG" | "FOUR_EYES" | "RUN_FROZEN" | "SIMULATION_CANNOT_PAY",
+    readonly code: "FORBIDDEN" | "CONFLICT" | "FLAGS_UNCONFIRMED" | "CALCULATION_BLOCKED" | "LIVE_PAYMENTS_DISABLED" | "NO_ACTIVE_CONFIG" | "FOUR_EYES" | "RUN_FROZEN" | "SIMULATION_CANNOT_PAY",
     message: string,
   ) {
     super(message);
@@ -38,13 +38,13 @@ export interface RunDeps {
 export interface Ctx {
   companyId: string;
   userId: string;
-  role: Role;
+  roles: readonly Role[];
   correlationId: string;
 }
 
 /** Creates a DRAFT run pinned to the company's ACTIVE config. LIVE_TESTNET is refused while the kill switch is off (rule 17). */
 export async function createRun(deps: RunDeps, ctx: Ctx, input: { mode: RunMode; periodStart: string; periodEnd: string }): Promise<{ id: string }> {
-  if (!isPayrollRole(ctx.role)) throw new WorkflowError("FORBIDDEN", "only the payroll side can create runs");
+  if (!isPayrollRole(ctx.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side can create runs");
   if (input.mode === "LIVE_TESTNET" && !(await deps.liveEnabled(ctx.companyId))) throw new WorkflowError("LIVE_PAYMENTS_DISABLED", "live payments are off for this company");
   const configVersion = await deps.activeConfigVersion(ctx.companyId);
   if (configVersion === null) throw new WorkflowError("NO_ACTIVE_CONFIG", "approve and activate a configuration first");

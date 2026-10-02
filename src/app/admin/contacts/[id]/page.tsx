@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { BUDGET_LABELS, PAIN_LABELS, ROLE_LABELS, SIZE_LABELS, STATUS_LABELS } from "@/core/growth";
-import { ContactActions } from "@/components/admin-forms";
+import { AccessApproval, ContactActions } from "@/components/admin-forms";
 import { adminPageSession } from "@/server/auth/admin";
 import { getContact } from "@/server/db/growth";
+import { leadInvites } from "@/server/db/invites";
 
 const label = (map: Record<string, string>, v: string | null | undefined) => (v ? (map[v] ?? v) : "–");
 const when = (iso: string) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
@@ -16,6 +17,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const c = await getContact(id);
   if (!c) notFound();
+  const invites = await leadInvites(c.id);
 
   const facts: [string, string][] = [
     ["Status", label(STATUS_LABELS, c.status)],
@@ -66,6 +68,10 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
             <p className="mt-4 text-sm text-muted-foreground">Skipped the survey.</p>
           )}
         </section>
+      </div>
+
+      <div className="mt-10 rounded-[2.5rem] bg-card p-8">
+        <AccessApproval base={base} id={c.id} invites={invites.map((i) => ({ id: i.id, status: i.status, createdAt: i.createdAt }))} />
       </div>
 
       <div className="mt-10 rounded-[2.5rem] bg-card p-8">

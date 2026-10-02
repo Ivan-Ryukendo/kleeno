@@ -21,4 +21,15 @@ function Label({ className, ...props }: React.ComponentProps<"label">) {
   return <label data-slot="label" className={cn("mb-2 block text-sm font-medium", className)} {...props} />;
 }
 
-export { Input, Label };
+function Select({ className, ...props }: React.ComponentProps<"select">) {
+  return (
+    <select
+      data-slot="select"
+      suppressHydrationWarning
+      className={cn("h-11 w-full min-w-0 rounded-full border border-primary/50 bg-white px-5 text-base outline-none transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50", className)}
+      {...props}
+    />
+  );
+}
+
+export { Input, Label, Select };

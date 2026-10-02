@@ -4,7 +4,7 @@ import { TableView } from "@/components/table-view";
 import { AddWorkerForm, WorkerRow, type WorkerView } from "@/components/worker-forms";
 import { formatUsdc } from "@/core/money";
 import { isPayrollRole } from "@/core/workflow";
-import { pageSession } from "@/server/auth/page-session";
+import { navFor, pageSession } from "@/server/auth/page-session";
 import { initialTable } from "@/server/db/table-views";
 import { listWorkers, type WorkerRow as Worker } from "@/server/db/workers";
 
@@ -51,16 +51,17 @@ function WorkerTable({ workers, canEdit }: { workers: WorkerView[]; canEdit: boo
 
 export default async function WorkersPage() {
   await connection();
-  const { actor, client } = await pageSession();
+  const session = await pageSession();
+  const { actor, client } = session;
   const workers = (await listWorkers(client, actor.companyId)).map(view);
   const current = workers.filter((w) => w.active);
   const former = workers.filter((w) => !w.active);
-  const canEdit = isPayrollRole(actor.role);
-  const overview = await initialTable(client, actor.companyId, actor.role, "workers", null);
+  const canEdit = isPayrollRole(actor.roles);
+  const overview = await initialTable(client, actor.companyId, actor.roles, "workers", null);
 
   return (
     <>
-      <AppNav />
+      <AppNav {...navFor(session)} />
       <main className="mx-auto max-w-5xl px-6 py-16">
         <p className="text-sm font-bold uppercase tracking-[0.04em]">
           <span className="mr-2 inline-block size-2 rounded-full bg-signal align-middle" />

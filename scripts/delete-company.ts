@@ -13,7 +13,7 @@ async function main() {
   console.log(`project ${new URL(env.SUPABASE_URL).hostname} · company "${company.name}"`);
   if (flag !== "--yes") throw new Error("this deletes everything for that company and cannot be undone: add --yes to proceed");
 
-  const users = must(await db().from("app_users").select("id").eq("company_id", id), "users read").map((u) => u.id as string);
+  const users = must(await db().from("memberships").select("user_id").eq("company_id", id), "users read").map((u) => u.user_id as string);
   const res = await db().rpc("delete_company", { p_company: id });
   if (res.error) throw new Error(`deletion failed (${res.error.code}); nothing was changed`);
   let accounts = 0;

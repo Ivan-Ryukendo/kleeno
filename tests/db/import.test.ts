@@ -12,7 +12,7 @@ import { activeConfig, admin, makeCompany, step, type TestCompany } from "./help
 let a: TestCompany;
 let b: TestCompany;
 let runId: string;
-const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, role: c.payroll.role, correlationId: randomUUID() });
+const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles, correlationId: randomUUID() });
 const ts = (workerRef: string, date: string, hours: string, extra?: Record<string, string>) => ({ workerRef, date, hours, ...extra });
 const items = (rows: object[], from = 2) => rows.map((data, i) => ({ row: from + i, data }));
 const MAP = { workerRef: 0, date: 1, hours: 2 };
@@ -132,6 +132,6 @@ describe("S46 provenance is mandatory; S13 isolation; roles", () => {
 
   it("another company cannot import into this run, and the payment side cannot import", async () => {
     await expect(imp("TIMESHEETS", [ts("W001", "2026-10-01", "8")], runId, b)).rejects.toBeInstanceOf(TransitionError);
-    await expect(importRows({ ...who(a), role: "PAYMENT_APPROVER" }, { runId, type: "TIMESHEETS", mapping: MAP, items: items([ts("W001", "2026-10-01", "8")]) })).rejects.toBeInstanceOf(WorkflowError);
+    await expect(importRows({ ...who(a), roles: ["PAYMENT_APPROVER"] }, { runId, type: "TIMESHEETS", mapping: MAP, items: items([ts("W001", "2026-10-01", "8")]) })).rejects.toBeInstanceOf(WorkflowError);
   });
 });

@@ -363,3 +363,20 @@ When refining existing screens generated with this design system:
 - The exact "whisper" cream tone used for ghost-watermark headlines behind circular portraits reads between `#E8E2DA` and `#D1CDC7` in captures; the precise value varies per section.
 - Third-party consent orange (`#CF4500`) is Mastercard's documented consent signal and should not be confused with any marketing CTA color.
 - The Mastercard logo mark (red `#EB001B` + yellow `#F79E1B`) is a brand asset, not a UI palette entry.
+
+## 10. Motion (Kleeno addition, user 2026-10-02)
+
+The source site barely moves, so this section is Kleeno's own. Motion helps people navigate and notice change; it is never decoration on working screens (ESSENTIALS rule 45).
+
+- **Durations:** 150 ms for hover and press, 200 ms for reveals and panels, 250 ms for progress and number changes. Easing `cubic-bezier(0.2, 0, 0, 1)` (fast start, soft stop). Nothing loops on working screens.
+- **Patterns:**
+  - *Enter:* page sections fade in and rise 8px, staggered 40 ms, once per load.
+  - *Progress:* the period stepper line and the setup checklist bar fill to their new value; a finished checklist item ticks with a short scale (0.96 → 1).
+  - *Numbers:* tiles count to their new value (no counting on first render with large values; show the final number at once if it takes over 250 ms).
+  - *Hover:* cards and table rows lift with the Level 1 shadow and a 1px rise; pressed buttons use the existing inward shrink (§4).
+  - *Panels:* side panels and drawers slide in from the right; dialogs fade and scale from 0.98.
+  - *Loading:* skeletons in Lifted Cream with a slow shimmer, never spinners over amounts.
+  - *Status:* a status pill crossfades when its state changes (e.g. PENDING → SETTLED); a new exception gets a single Signal Orange pulse.
+- **Never:** delay or hide an approval button, an amount or a DO NOT PAY; animate money while a user is deciding; move layout under the pointer; use parallax or orbit animation on working screens (landing page only).
+- **Accessibility:** under `prefers-reduced-motion: reduce`, every transition becomes an instant change and shimmer stops.
+- **Implementation:** CSS transitions and `tw-animate-css` (already installed) first; add the `motion` library only if a pattern above can't be done in CSS. Tokens (durations, easing) live in `globals.css` with the other design tokens.

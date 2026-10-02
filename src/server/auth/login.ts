@@ -21,6 +21,16 @@ export function recordAuthEvent(event: string, companyId: string, userId: string
   return writeAudit(auditEvent({ companyId, event, entityType: "user", entityId: userId, actor: userId, actorType: "user", correlationId }));
 }
 
+/** Re-authentication for actions that grant authority (rule 47): the password is checked in the same request, throttled and audited. */
+export async function requireReauth(actor: { companyId: string; userId: string; email: string | null }, password: string | undefined, correlationId: string) {
+  if (!actor.email || !password) throw new AuthError(401, "UNAUTHENTICATED", "Enter your password to confirm this");
+  await assertNotThrottled(actor.companyId, actor.userId, "REAUTH_FAILED");
+  if (!(await passwordIsValid(actor.email, password))) {
+    await recordAuthEvent("REAUTH_FAILED", actor.companyId, actor.userId, correlationId);
+    throw new AuthError(401, "UNAUTHENTICATED", "That password is not right");
+  }
+}
+
 /** Checks a password without touching the caller's session (password change; P4 re-auth reuses it). */
 export async function passwordIsValid(email: string, password: string): Promise<boolean> {
   const isolated = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });

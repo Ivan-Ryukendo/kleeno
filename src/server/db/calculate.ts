@@ -20,7 +20,7 @@ import { listWorkers } from "./workers";
 interface Who {
   companyId: string;
   userId: string;
-  role: Role;
+  roles: readonly Role[];
   correlationId?: string;
 }
 
@@ -30,7 +30,7 @@ interface Who {
  * Safe to call again after a crash: the calculation is unique per run and only an identical hash is accepted.
  */
 export async function calculateRun(who: Who, runId: string) {
-  if (!isPayrollRole(who.role)) throw new WorkflowError("FORBIDDEN", "only the payroll side calculates");
+  if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side calculates");
   const correlationId = who.correlationId ?? newCorrelationId();
   const run = await loadRun(who.companyId, runId);
   if (!["READY_FOR_CALCULATION", "CALCULATED"].includes(run.status)) throw new TransitionError("INVALID_TRANSITION", `a run is calculated from READY_FOR_CALCULATION, not ${run.status}`);

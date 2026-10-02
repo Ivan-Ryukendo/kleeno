@@ -17,7 +17,7 @@ import { admin, makeCompany, type TestCompany } from "./helpers";
 
 let a: TestCompany;
 let b: TestCompany;
-const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, role: c.payroll.role, correlationId: randomUUID() });
+const who = (c: TestCompany) => ({ companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles, correlationId: randomUUID() });
 const DAYS = ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"];
 const NOTE = "CANARY-NOTE-checked with the manager";
 
@@ -87,7 +87,7 @@ describe("the reconcile flow", () => {
     const [ex] = await exceptionsOf(runId);
     await expect(resolveException(who(a), ex.id, { action: "APPROVE_HOURS", note: NOTE }, firstOption)).rejects.toBeInstanceOf(WorkflowError);
     await expect(resolveException(who(a), ex.id, { action: "KEEP_FIRST", note: " " }, firstOption)).rejects.toBeInstanceOf(WorkflowError);
-    await expect(resolveException({ ...who(a), role: "PAYMENT_APPROVER" }, ex.id, { action: "KEEP_FIRST", note: NOTE }, firstOption)).rejects.toBeInstanceOf(WorkflowError);
+    await expect(resolveException({ ...who(a), roles: ["PAYMENT_APPROVER"] }, ex.id, { action: "KEEP_FIRST", note: NOTE }, firstOption)).rejects.toBeInstanceOf(WorkflowError);
     await expect(resolveException(who(b), ex.id, { action: "KEEP_FIRST", note: NOTE }, firstOption)).rejects.toBeInstanceOf(TransitionError); // S13
     expect((await exceptionsOf(runId))[0].status).toBe("OPEN");
   });
