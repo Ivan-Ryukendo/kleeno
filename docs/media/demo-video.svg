@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="Demo video (placeholder)">
+  <rect width="1280" height="720" rx="40" fill="#FCFBFA"/>
+  <rect x="24" y="24" width="1232" height="672" rx="28" fill="none" stroke="#D1CDC7" stroke-width="3" stroke-dasharray="14 12"/>
+  <circle cx="640" cy="290" r="72" fill="#141413"/><path d="M618 252v76l62-38z" fill="#F3F0EE"/>
+  <text x="640" y="430" text-anchor="middle" font-family="'Sofia Sans', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="44" font-weight="600" fill="#141413">Demo video</text>
+  <text x="640" y="482" text-anchor="middle" font-family="'Sofia Sans', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" fill="#696969">Coming soon · under 3 minutes</text>
+</svg>

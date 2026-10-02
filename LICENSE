@@ -1,0 +1,53 @@
+Kleeno: Proprietary Source-Available Notice (SPDX: LicenseRef-Proprietary)
+
+Copyright (c) 2026 Mirza Gamal Abdel Nasser. All rights reserved.
+
+1. Ownership. This repository and its contents (source code, smart contracts,
+documentation, designs and other materials, the "Materials") are proprietary
+and protected by copyright. They are shown publicly for reference only and are
+not open source. "Copyright holder" includes any successor or assignee.
+
+2. What you may do.
+(a) View and read the Materials on GitHub.
+(b) Organisers, judges and reviewers of the Tameion Agents Hackathon (Canteen x
+    Arc) 2026 may clone, build and run the Materials locally, solely to
+    evaluate the submission.
+(c) Use the rights GitHub's Terms of Service grant for public repositories,
+    including viewing and forking within GitHub. That is the only fork right;
+    a fork carries no other rights and no permission for anything in section 3.
+No other right or license is granted, by implication, estoppel or otherwise.
+
+3. What you may not do without prior written permission.
+- copy, reproduce, modify, adapt or create derivative works of the Materials;
+- publish, distribute, sublicense, sell, rent or otherwise transfer them;
+- host, deploy or offer them, or anything based on them, as a service;
+- use them to train or improve AI models, or to build a competing product;
+- remove or alter this notice or any copyright notice.
+
+4. Third-party components. Dependencies listed in package.json, the
+contracts/lib/forge-std submodule and other third-party material keep their
+own licenses. This notice does not limit the rights those licenses give you.
+
+5. Testnet only; no advice. The Materials are a hackathon prototype built for
+the Arc testnet and test tokens. They are not intended to move real funds or to
+run real payroll, and nothing in them is payroll, tax, legal or financial
+advice.
+
+6. No warranty. THE MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NON-INFRINGEMENT.
+
+7. Limitation of liability. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE
+COPYRIGHT HOLDER IS NOT LIABLE FOR ANY CLAIM, DAMAGES (INCLUDING LOSS OF FUNDS,
+DATA OR PROFITS) OR OTHER LIABILITY, IN CONTRACT, TORT OR OTHERWISE, ARISING
+FROM OR IN CONNECTION WITH THE MATERIALS OR THEIR USE.
+
+8. Names. "Kleeno" is a working product name. No right is granted to use it or
+any other name, logo or mark of the copyright holder.
+
+9. Termination. The permissions in section 2 end automatically if you breach
+this notice. You must then stop using the Materials and delete any copies you
+made.
+
+10. Permission requests. Contact the copyright holder via GitHub:
+https://github.com/Ivan-Ryukendo

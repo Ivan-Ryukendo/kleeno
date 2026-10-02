@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-label="Kleeno: payroll that can't pay the wrong person">
+  <rect width="1280" height="400" rx="40" fill="#F3F0EE"/>
+  <circle cx="1130" cy="380" r="260" fill="none" stroke="#F37338" stroke-width="2" opacity="0.55"/>
+  <circle cx="1130" cy="380" r="190" fill="none" stroke="#F37338" stroke-width="2" opacity="0.35"/>
+  <circle cx="1130" cy="380" r="120" fill="none" stroke="#F37338" stroke-width="2" opacity="0.2"/>
+  <g transform="translate(96 96) scale(1.5)">
+    <circle cx="32" cy="32" r="32" fill="#141413"/>
+    <path d="M23 17v30M23 33l15-16M28 28l12 19" fill="none" stroke="#F3F0EE" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="49" cy="15" r="5" fill="#F37338"/>
+  </g>
+  <text x="216" y="158" font-family="'Sofia Sans', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="64" font-weight="700" fill="#141413">Kleeno</text>
+  <text x="96" y="252" font-family="'Sofia Sans', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="44" font-weight="600" fill="#141413">Payroll that can't pay the wrong person.</text>
+  <text x="96" y="306" font-family="'Sofia Sans', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" fill="#555555">AI proposes · code calculates · humans approve · a smart contract pays</text>
+  <circle cx="104" cy="347" r="6" fill="#CF4500"/>
+  <text x="120" y="354" font-family="'Sofia Sans', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" fill="#696969">USDC on Arc testnet · no real funds</text>
+</svg>

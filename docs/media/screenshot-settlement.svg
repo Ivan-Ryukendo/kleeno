@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="Payment plan and settlement (placeholder)">
+  <rect width="1280" height="720" rx="40" fill="#FCFBFA"/>
+  <rect x="24" y="24" width="1232" height="672" rx="28" fill="none" stroke="#D1CDC7" stroke-width="3" stroke-dasharray="14 12"/>
+  <rect x="520" y="220" width="240" height="150" rx="20" fill="none" stroke="#141413" stroke-width="6"/><circle cx="580" cy="270" r="16" fill="#F37338"/><path d="M540 350l70-60 50 40 40-30 40 50z" fill="#141413"/>
+  <text x="640" y="430" text-anchor="middle" font-family="'Sofia Sans', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="44" font-weight="600" fill="#141413">Payment plan and settlement</text>
+  <text x="640" y="482" text-anchor="middle" font-family="'Sofia Sans', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" fill="#696969">Screenshot coming soon</text>
+</svg>
