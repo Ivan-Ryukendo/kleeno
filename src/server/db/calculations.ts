@@ -10,9 +10,9 @@ import { db, must } from "./client";
  * Stores one calculation: the snapshot (config + compensation + inputs), and per worker gross, deductions and trace,
  * all encrypted (S41). Only net stays plain (public on-chain). Rows are immutable once written (S19, S20).
  */
-export async function saveCalculation(companyId: string, runId: string, config: PayrollConfig, entries: EngineEntry[], calc: PayrollCalculation) {
+export async function saveCalculation(companyId: string, runId: string, config: PayrollConfig, entries: EngineEntry[], calc: PayrollCalculation, extra: Record<string, unknown> = {}) {
   const calcId = randomUUID();
-  const snapshot = await sealJson(companyId, "calculations", "snapshot_enc", calcId, { config, entries });
+  const snapshot = await sealJson(companyId, "calculations", "snapshot_enc", calcId, { config, entries, ...extra }); // extra: evidence references and decisions (S46, S48)
   const lineIds = new Map<string, string>();
   const lines = [];
   for (const l of calc.lines) {

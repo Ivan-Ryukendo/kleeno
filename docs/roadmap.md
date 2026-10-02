@@ -7,7 +7,8 @@ Scope in `PRD.md` §5. Arc testnet USDC via `ArcUsdcRail`; SIMULATION + LIVE_TES
 
 ## Next — Pilot hardening (weeks after the event)
 - Lead list, after the waitlist (W): researched prospects table, interaction log, structured interview notes, funnel analytics beyond the W metrics, budget-by-role breakdown, launch/confirmation emails with unsubscribe links (needs an email provider), Cloudflare Turnstile if spam gets through
-- Table views for every record list (Excel or Notion style: columns, filters, sort, group, saved views, AI-proposed view definitions); first version in P3, spec in `docs/pages.md` §5
+- Table views for every record list (Excel or Notion style: columns, filters, sort, group, saved views, AI-proposed view definitions); first version in P3 with match status, bulk resolve, side panel, totals and export, spec in `docs/pages.md` §5. Advanced next: inline edits as reviewed change requests, conditional highlighting, pivot and chart views, team-shared views, scheduled exports, keyboard navigation
+- Close and reporting (gap review of Tabulera and Woodrow, 2026-10-02): period-end view (approved but unpaid, held, in transit, mismatched); run sign-off package (totals, exceptions + resolutions, approvals, tx hashes + receipt matches, journal lines); open items carried across runs until resolved; year-to-date totals and a year-end per-contractor summary; correction and off-cycle runs that reference the run they fix. Period-end view and sign-off package may move into P4/P5 if time allows (user decides)
 - Worker profiles, leave ledger and long-term leave, worker self-service with HR-approved change requests, photo/document upload, leave reminders: proposed in `docs/decisions/ADR-worker-profiles.md` (an HR-only page and in-app reminders may fit the hackathon if time allows after P3)
 - Pilot with first users (US firms paying remote contractors); real, consented data in `docs/traction.md`
 - FX at import (non-USD sheets), with an approved rate
@@ -35,4 +36,5 @@ Scope in `PRD.md` §5. Arc testnet USDC via `ArcUsdcRail`; SIMULATION + LIVE_TES
 On-chain payroll data, tokenomics, unrestricted autonomous agents.
 
 ## Principles
+Direction (user, 2026-10-02): start simple for the hackathon, then grow into the most advanced payroll app that is still easy to use. Each new feature keeps the rules below.
 Payroll core stays rail-agnostic and vendor-agnostic; external systems are evidence, never authority; AI proposes, deterministic code calculates, humans approve; fail closed.

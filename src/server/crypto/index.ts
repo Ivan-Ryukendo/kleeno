@@ -1,5 +1,6 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
+import { canonicalString } from "@/core/canonical";
 import { db, must } from "@/server/db/client";
 import { env } from "@/server/env";
 import { decrypt, encrypt, fieldAad, open, parseMasterKey, seal } from "./cipher";
@@ -72,4 +73,9 @@ export async function rewrapCompanyKey(companyId: string): Promise<boolean> {
   must(await db().from("company_keys").update({ wrapped_key: wrapped, key_version: current.version }).eq("company_id", companyId).eq("key_version", row.key_version).select("company_id"), "rewrap");
   cache.delete(companyId);
   return true;
+}
+
+/** Keyed hash with the company data key: a stable fingerprint (idempotency, provenance) that cannot be brute-forced from small pay values. */
+export async function fingerprint(companyId: string, value: unknown): Promise<string> {
+  return createHmac("sha256", await companyKey(companyId)).update(`fingerprint|${canonicalString(value)}`).digest("hex");
 }

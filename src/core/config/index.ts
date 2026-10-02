@@ -26,6 +26,12 @@ export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
 export const ClausesSchema = z.array(z.object({ id: z.string().min(1), text: z.string().min(1).max(2000) }).strict()).max(200);
 export type Clauses = z.infer<typeof ClausesSchema>;
 
+/** Policy text -> numbered clauses (C1, C2...), one per non-empty line; a leading "1." or "-" is dropped. Too long or too many -> error. */
+export function splitPolicy(text: string): Clauses {
+  const lines = text.split(/\r?\n/).map((l) => l.replace(/^\s*(?:\d+[.)]|[-*•])\s*/, "").trim()).filter(Boolean);
+  return ClausesSchema.parse(lines.map((t, i) => ({ id: `C${i + 1}`, text: t })));
+}
+
 export interface PayrollConfig extends ConfigParams {
   version: number;
 }

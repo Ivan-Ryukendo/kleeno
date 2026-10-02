@@ -6,7 +6,7 @@ Rules:
 - `src/core/` never imports `src/server/`, `src/app/`, Next.js, Supabase, Circle, viem or OpenRouter. `src/core/validation/` never imports `src/core/ai/`. Everything in `src/server/` imports `server-only`.
 - Backend (Ponytail allowed): `src/core`, `src/server`, `src/app/api`, `src/proxy.ts`, `supabase/`, `contracts/`, `scripts/`. UI (no Ponytail): the other `src/app` folders and `src/components`.
 - UI (pages, `src/components`, `globals.css`) follows `DESIGN.md` (ESSENTIALS rule 45); design tokens are defined only in `src/app/globals.css`.
-- Security controls (S01–S58) name the file their test lives in: `docs/security.md` §3.
+- Security controls (S01–S60) name the file their test lives in: `docs/security.md` §3.
 - Background notes (old decisions, original spec, planning answers) live outside the repo in `../Kleeno-notes/`; agents do not read them.
 
 ```text
@@ -32,7 +32,7 @@ Kleeno/                                  repo root = Next.js app root
 ├─ docs/
 │  ├─ roadmap.md                    Now / Next / Later; out-of-scope ideas go here (user approves)
 │  ├─ pages.md                      page map (13 pages), landing page, UX intent per page
-│  ├─ security.md                   security plan: data protection model, secret inventory, emergency stop, controls S01–S58 by phase + test, deferred, accepted risks, status
+│  ├─ security.md                   security plan: data protection model, secret inventory, emergency stop, controls S01–S60 by phase + test, deferred, accepted risks, status
 │  ├─ github.md                     git/GitHub workflow: commit checks, phase branches, PR + CI + squash-merge, going public (P5), hosting checks
 │  ├─ integrations/                 integration design: README (boundary, capabilities, provenance, lifecycle), provider matrix, hris-payroll, accounting, expenses, documents, notifications, identity, mcp
 │  ├─ decisions/                    ADRs: integration abstraction, HRIS unified API, accounting unified API, Kleeno MCP
@@ -67,7 +67,7 @@ Kleeno/                                  repo root = Next.js app root
 │  ├─ add-platform-admin.ts         [W] grant/revoke access to the private lead list (growth.platform_admins); --prod, --remove, --reset-password, --reset-mfa
 │  ├─ probe-site.ts                 [W] lockdown probe: public pages 200, guessed URLs 404, admin path -> login (path never printed)
 │  ├─ seed-demo.ts                  [P5] 6-worker demo cast + prior settled run (synthetic, labelled)
-│  └─ model-eval.ts                 [P5] run fixtures across OpenRouter models
+│  └─ model-eval.ts                 [P3] run the policy fixture through the real pipeline on chosen OpenRouter models, N times
 │
 ├─ src/
 │  ├─ proxy.ts                      [P2] Next 16 proxy (was middleware): session refresh, redirects only; not authorization (excludes receipt + Circle webhook). [W] site lockdown: SITE_MODE allowlist, secret ADMIN_PATH rewrite + gate header
@@ -84,6 +84,7 @@ Kleeno/                                  repo root = Next.js app root
 │  │  ├─ integrations/              [P3] capabilities, categories, provider descriptors (csv_upload), requireCapability, provenance schema; connection lifecycle [Next]; never names a vendor
 │  │  ├─ reconciliation/            [P3] deterministic checks, exception creation, AI classification intake
 │  │  ├─ variance/                  [P3] actual-paid vs engine comparison
+│  │  ├─ views/                     [P3] table view definitions: per-table column/operator allow-lists, validation, totals, CSV escaping for exports (docs/pages.md §5)
 │  │  ├─ workflow/                  [P2] run service, approvals, four-eyes (extended in P4)
 │  │  ├─ payments/                  [P1] obligations, gate.ts (single gate, issues the gate pass), payment agent, retry, settlement matching (full in P4)
 │  │  │  ├─ batches/                [P4] batch lifecycle, plan hash, fallback plan, holds, standing authorization
@@ -99,7 +100,7 @@ Kleeno/                                  repo root = Next.js app root
 │  │  ├─ crypto/                    [P2] field encryption: AES-256-GCM, per-company data keys wrapped by DATA_ENCRYPTION_KEY; called only by db/
 │  │  ├─ db/                        [P1] Supabase clients (user-scoped for reads; service role for all writes), repositories that set company_id from context
 │  │  ├─ auth/                      [P2] session, auth guard for every handler, role lookup from app_users, re-auth (password in same request)
-│  │  ├─ ai/openrouter.ts           [P3] OpenRouter adapter (structured output, privacy flags, model + fallback from config)
+│  │  ├─ ai/                        [P3] openrouter.ts adapter (structured output, privacy flags, model fallback), provider.ts (model + fallback from config), policy.ts (policy text -> AIExecution -> config in HUMAN_REVIEW)
 │  │  ├─ circle/                    [P1] wallets client, provisioning, guard-owner.ts (only openRun/closeRun/replaceOperator caller), webhook signature verification
 │  │  ├─ arc/                       [P1] viem reader: receipts, ObligationPaid + USDC Transfer logs, isPaid; guard ABI
 │  │  ├─ rails/arc-usdc-rail.ts     [P1] PaymentRail via PayrollGuard.pay
@@ -125,11 +126,11 @@ Kleeno/                                  repo root = Next.js app root
 │  │  ├─ receipt/[token]/           [P4] public read-only receipt (signed, expiring, noindex)
 │  │  └─ api/                       [P1+] thin handlers (the only mutation surface; no Server Actions): config, imports, runs, exceptions, payments (incl. recover), circle/webhook; mcp [Next]; waitlist/ (public) + admin/ (gate + platform admin) [W]
 │  │
-│  └─ components/                   [P1+] shared UI (shadcn/ui)
+│  └─ components/                   [P1+] shared UI (shadcn/ui); table-view/ [P3] reusable table view (`table-view.tsx`, server-driven by `core/views`; no TanStack), `record-tabs.tsx`, `import-wizard.tsx`, `exception-panels.tsx`, `config-forms.tsx`
 │
 └─ tests/
    ├─ invariants/                   [P1+] PROTECTED: invariants + fixture acceptance (payment-plan in P4b); security/ structure + secrets checks [P0+]; gate, kill-switch, standing-auth, AI privacy/injection, webhook, failure + crash matrices; integrations/ (provenance, capabilities, snapshot isolation) [P3]
-   ├─ fixtures/                     [P1+] PROTECTED: fixture data + expected results (synthetic, labelled); ai/injection/ [P3]
+   ├─ fixtures/                     [P1+] PROTECTED: fixture data + expected results (synthetic, labelled); ai/ (policy, injection/) and reconciliation/ (six-worker demo cast) [P3]
    ├─ unit/                         [P1+] core unit tests, mirrors src/core
    ├─ db/                           [P2] RLS + write denial on every table, IDOR + handler authz, re-auth, immutability, kill switch, idempotency, integrity, append-only audit, four-eyes, compare-and-set, trace (local Supabase in CI)
    └─ e2e/                          [P5] Playwright demo path (SIMULATION + LIVE_TESTNET smoke)

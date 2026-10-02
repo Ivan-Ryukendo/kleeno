@@ -16,6 +16,15 @@ export function AppNav({ signedIn = true }: { signedIn?: boolean }) {
           <Link href="/workers" className="text-base font-medium">
             Workers
           </Link>
+          <Link href="/configuration" className="text-base font-medium">
+            Configuration
+          </Link>
+          <Link href="/import" className="text-base font-medium">
+            Import
+          </Link>
+          <Link href="/exceptions" className="text-base font-medium">
+            Exceptions
+          </Link>
           <Link href="/account" className="text-base font-medium">
             Account
           </Link>

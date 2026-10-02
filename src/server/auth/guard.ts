@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { newCorrelationId } from "@/core/audit";
 import { TransitionError } from "@/core/domain/machines";
+import { ViewError } from "@/core/views";
 import { WorkflowError, type Role } from "@/core/workflow";
 import { logError } from "@/server/log";
 import { adminGateOk, siteMode } from "@/server/site";
@@ -57,6 +58,7 @@ function fail(status: number, code: string, message: string, correlationId: stri
 function toResponse(err: unknown, correlationId: string) {
   if (err instanceof AuthError) return fail(err.status, err.code, err.message, correlationId);
   if (err instanceof z.ZodError) return fail(400, "BAD_REQUEST", `invalid request: ${[...new Set(err.issues.map((i) => i.path.join(".") || "body"))].join(", ")}`, correlationId);
+  if (err instanceof ViewError) return fail(400, "BAD_REQUEST", err.message, correlationId);
   if (err instanceof TransitionError) return fail(err.code === "NOT_FOUND" ? 404 : 409, err.code, err.message, correlationId);
   if (err instanceof WorkflowError) return fail(err.code === "FORBIDDEN" ? 403 : 409, err.code, err.message, correlationId);
   if (err instanceof Error && /(23505)/.test(err.message)) return fail(409, "CONFLICT", "that already exists", correlationId);

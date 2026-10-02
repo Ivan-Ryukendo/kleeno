@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { parseUsdc } from "@/core/money";
+import { OPTIONS, RECON_CATEGORIES, type ReconCategory, type ResolutionAction } from "@/core/reconciliation";
 
 const MAX_USDC = 1_000_000_000n * 1_000_000n; // 1e9 USDC: keeps every amount far below 2^53 micro-USDC and bigint columns
 
@@ -18,3 +19,7 @@ export const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((v) => new Date(`${v}T00:00:00Z`).toISOString().startsWith(v), "a real calendar date"); // 2026-02-31 would reach Postgres and 500
+
+/** Decisions a person may take on a reconciliation exception; the repository also checks the ones offered for that exception. */
+export const resolutionAction = z.enum([...new Set(Object.values(OPTIONS).flat())] as [ResolutionAction, ...ResolutionAction[]]);
+export const reconCategory = z.enum(RECON_CATEGORIES as [ReconCategory, ...ReconCategory[]]);

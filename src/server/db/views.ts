@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatUsdc } from "@/core/money";
 import { EXPLORER_TX } from "@/server/arc/reader";
+import { openJson } from "@/server/crypto";
 import { must } from "./client";
 import { loadLines } from "./calculations";
 
@@ -23,8 +24,18 @@ export async function runView(client: SupabaseClient, companyId: string, runId: 
   const workers = must(await client.from("workers").select("id, pseudonym").eq("company_id", companyId), "workers");
   const obligations = must(await client.from("obligations").select("id, worker_id, amount, recipient, status, tx_hash, exception_code, exception_reasons").eq("run_id", runId).eq("company_id", companyId), "obligations");
   const name = (id: string) => workers.find((w) => w.id === id)?.pseudonym ?? "unknown";
+  // Variance exists only when "actually paid" amounts were imported; the findings are decrypted here, on the server.
+  const hasActual = (must(await client.from("actual_payments").select("id").eq("run_id", runId).eq("company_id", companyId).limit(1), "actual payments")).length > 0;
+  const findings = calc ? must(await client.from("variance_findings").select("id, worker_id, kind, detail_enc").eq("calculation_id", calc.id).eq("company_id", companyId), "variance") : [];
+  const variance = await Promise.all(
+    findings.map(async (f) => {
+      const d = await openJson<{ expected: string; actual: string; difference: string }>(companyId, "variance_findings", "detail_enc", f.id, f.detail_enc);
+      return { id: f.id, worker: name(f.worker_id), kind: f.kind as string, expected: usd(BigInt(d.expected)), actual: usd(BigInt(d.actual)), difference: usd(BigInt(d.difference)) };
+    }),
+  );
   return {
     run,
+    variance: calc ? { available: hasActual, findings: variance.sort((x, y) => x.worker.localeCompare(y.worker)) } : null,
     calculationHash: calc?.calculation_hash ?? null,
     lines: lines.map((l) => ({
       id: l.id,

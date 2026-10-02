@@ -21,8 +21,9 @@ const schema = z.object({
   DATA_ENCRYPTION_KEY_PREVIOUS: masterKey.optional(),
   OPENROUTER_API_KEY: z.string().min(1),
   // Model and fallback are config, not code, so they can change freely (ARCHITECTURE 7).
-  OPENROUTER_MODEL: z.string().min(1).default("z-ai/glm-5.3-flash"),
-  OPENROUTER_FALLBACK_MODEL: z.string().min(1).optional(),
+  // Chosen by scripts/model-eval.ts on 2026-10-02 (docs/phases/P3.md decision 5).
+  OPENROUTER_MODEL: z.string().min(1).default("google/gemini-2.5-flash-lite"),
+  OPENROUTER_FALLBACK_MODEL: z.string().min(1).default("openai/gpt-oss-120b"),
   // Waitlist (docs/phases/W.md). WAITLIST_SECRET keys the IP hashes for rate limits (S55): >= 32 random characters.
   WAITLIST_SECRET: z.string().min(32),
   SITE_URL: z.string().url().default("http://localhost:3000"), // canonical URL for SEO (e.g. https://kleeno.orclide.com)

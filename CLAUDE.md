@@ -18,7 +18,7 @@ On conflict: stop and ask the user.
 
 ## Architecture
 AI proposes; deterministic code calculates; humans approve; PayrollGuard pays only committed obligations; Arc receipts verify; everything is audited.
-Security layer: public DB API read-only (writes only via server repositories) · one payment gate · owner/operator split · kill switch · re-auth for authority-granting actions · immutable approved records · DB-backed idempotency. Controls S01–S58 with tests: `docs/security.md`.
+Security layer: public DB API read-only (writes only via server repositories) · one payment gate · owner/operator split · kill switch · re-auth for authority-granting actions · immutable approved records · DB-backed idempotency. Controls S01–S60 with tests: `docs/security.md`.
 Integrations: external systems are evidence sources or destinations, never authorities; code asks for capabilities, not vendors; every import carries provenance; CSV is the first source; connectors and a read-only MCP come after the hackathon (`docs/integrations/`, `docs/decisions/`).
 Flow: policy -> AI rules -> validation -> HR approval -> CSV import (anonymised in browser, USD only) -> reconciliation + exceptions -> engine + trace -> payroll approval -> obligations -> Payment Planner (AI) proposes batch + holds -> payment approver signs plan (different user), or a standing authorization signs a clean batch -> openRun on PayrollGuard -> gate -> payment agent -> Circle wallet -> PayrollGuard.pay on Arc -> settlement reconciliation -> audit.
 Modes: `SIMULATION` (default, never pays), `LIVE_TESTNET`. Pay types: `SALARIED`, `HOURLY`, `RETAINER`.

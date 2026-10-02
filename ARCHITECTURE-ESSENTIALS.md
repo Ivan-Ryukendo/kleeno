@@ -70,7 +70,7 @@ AI proposes. Deterministic code calculates. Humans approve. PayrollGuard bounds 
     - AI text and untrusted data stay plain text (rule 6); the design never changes any other rule.
 
 ## Security layer
-46. Security controls are listed in `docs/security.md` (IDs S01–S58, each with its phase and test). Every `Pn.md` copies that phase's rows into "Done when". A phase is not done until its rows are `verified`, or `unverified` with a stated reason. Never assume a control works.
+46. Security controls are listed in `docs/security.md` (IDs S01–S60, each with its phase and test). Every `Pn.md` copies that phase's rows into "Done when". A phase is not done until its rows are `verified`, or `unverified` with a stated reason. Never assume a control works.
 47. Re-authentication: the server checks the user's password in the same request for anything that grants or widens payment authority (payroll approval, plan signing, hold release, standing-authorization create, per-payment ceiling change, recipient confirmation). Actions that only reduce authority (revoke, place hold, live payments OFF) never require it.
 48. Approved records are immutable in the database (triggers bind the service role too): calculations, lines, snapshots, approvals, approved config versions, AI executions and audit events. For obligations, only status, batch, tx hash and timestamps may change. Any other change needs a new run.
 49. Every idempotent operation is backed by a DB unique constraint, not only by application code (imports, wallets, obligations, payments, attempts, webhook notifications, guard runs).

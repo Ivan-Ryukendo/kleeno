@@ -10,7 +10,7 @@ export const isPaymentRole = (r: Role) => r === "PAYMENT_APPROVER";
 
 export class WorkflowError extends Error {
   constructor(
-    readonly code: "FORBIDDEN" | "LIVE_PAYMENTS_DISABLED" | "NO_ACTIVE_CONFIG" | "FOUR_EYES" | "RUN_FROZEN" | "SIMULATION_CANNOT_PAY",
+    readonly code: "FORBIDDEN" | "FLAGS_UNCONFIRMED" | "CALCULATION_BLOCKED" | "LIVE_PAYMENTS_DISABLED" | "NO_ACTIVE_CONFIG" | "FOUR_EYES" | "RUN_FROZEN" | "SIMULATION_CANNOT_PAY",
     message: string,
   ) {
     super(message);
