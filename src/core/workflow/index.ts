@@ -10,7 +10,7 @@ export { isPayrollRole, isPaymentRole, type Role } from "../tenancy";
 
 export class WorkflowError extends Error {
   constructor(
-    readonly code: "FORBIDDEN" | "CONFLICT" | "FLAGS_UNCONFIRMED" | "CALCULATION_BLOCKED" | "LIVE_PAYMENTS_DISABLED" | "NO_ACTIVE_CONFIG" | "FOUR_EYES" | "RUN_FROZEN" | "SIMULATION_CANNOT_PAY",
+    readonly code: "FORBIDDEN" | "CONFLICT" | "FLAGS_UNCONFIRMED" | "CALCULATION_BLOCKED" | "LIVE_PAYMENTS_DISABLED" | "NO_ACTIVE_CONFIG" | "FOUR_EYES" | "RUN_FROZEN" | "SIMULATION_CANNOT_PAY" | "RECIPIENT_NOT_CONFIRMED" | "PLAN_INVALID" | "TREASURY_SHORT" | "NOT_PROVISIONED",
     message: string,
   ) {
     super(message);

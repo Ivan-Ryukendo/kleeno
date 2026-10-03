@@ -278,3 +278,34 @@ export function AccessApproval({ base, id, invites }: { base: string; id: string
     </section>
   );
 }
+
+/** Platform admin decision on a live-payments request. Approving provisions wallets and the guard (can take a minute); approving again resumes. */
+export function LiveRequestActions({ base, companyId, status }: { base: string; companyId: string; status: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function decide(action: "approve" | "reject") {
+    setBusy(action);
+    setError(null);
+    const r = await postJson(`${base}/api/live-payments/${companyId}`, { action });
+    if (r.ok) router.refresh();
+    else setError(r.error ?? "That did not work");
+    setBusy(null);
+  }
+  if (status === "PROVISIONED" || status === "REJECTED") return <span className="text-muted-foreground">Done</span>;
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <div className="flex gap-2">
+        <button type="button" disabled={!!busy} onClick={() => decide("approve")} className={ink}>
+          {busy === "approve" ? "Setting up…" : status === "APPROVED" ? "Resume setup" : "Approve and set up"}
+        </button>
+        {status === "REQUESTED" && (
+          <button type="button" disabled={!!busy} onClick={() => decide("reject")} className={outline}>
+            Reject
+          </button>
+        )}
+      </div>
+      <ErrorText error={error} />
+    </div>
+  );
+}

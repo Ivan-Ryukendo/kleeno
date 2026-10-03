@@ -1,6 +1,6 @@
 import "server-only";
 import { keccak256, toHex } from "viem";
-import { circle, deterministicUuid, FEE, waitForCircleTx } from "./client";
+import { circle, FEE, waitForCircleTx, withFreshKeyOnFailure } from "./client";
 
 // The ONLY caller of PayrollGuard owner functions (S04): openRun, closeRun (and replaceOperator when needed).
 // Imported only by batch authorization / close and scripts/.
@@ -14,19 +14,21 @@ interface Owner {
 
 export const guardRunKey = (batchId: string) => keccak256(toHex(batchId));
 
-async function exec(o: Owner, contract: string, sig: string, params: unknown[], seed: string) {
-  const res = await circle().wallets.createContractExecutionTransaction({
-    walletId: o.approverWalletId,
-    contractAddress: contract,
-    abiFunctionSignature: sig,
-    abiParameters: params,
-    fee: FEE,
-    idempotencyKey: deterministicUuid(seed), // a retried step is exactly-once
+// A retried step is exactly-once (stable key); a step Circle reported as failed gets a fresh key.
+const exec = (o: Owner, contract: string, sig: string, params: unknown[], seed: string) =>
+  withFreshKeyOnFailure(seed, async (idempotencyKey) => {
+    const res = await circle().wallets.createContractExecutionTransaction({
+      walletId: o.approverWalletId,
+      contractAddress: contract,
+      abiFunctionSignature: sig,
+      abiParameters: params,
+      fee: FEE,
+      idempotencyKey,
+    });
+    const id = res.data?.id;
+    if (!id) throw new Error("circle returned no transaction id");
+    return waitForCircleTx(id);
   });
-  const id = res.data?.id;
-  if (!id) throw new Error("circle returned no transaction id");
-  return waitForCircleTx(id);
-}
 
 /** Exact approve (never unlimited), then openRun committing the batch's obligations. */
 export async function openRun(

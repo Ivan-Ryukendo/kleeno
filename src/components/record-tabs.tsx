@@ -13,7 +13,7 @@ export function RecordTabs({ tables }: { tables: TableViewProps[] }) {
     <div>
       <div role="tablist" className="mt-4 flex flex-wrap gap-2">
         {tables.map((t) => (
-          <button key={t.table} role="tab" aria-selected={t.table === active} type="button" onClick={() => setActive(t.table)} className={`rounded-full border px-4 py-2 text-sm ${t.table === active ? "border-primary bg-primary text-primary-foreground" : "border-primary/50 bg-white"}`}>
+          <button key={t.table} role="tab" aria-selected={t.table === active} type="button" onClick={() => setActive(t.table)} className={`rounded-field border px-3 py-1.5 text-sm ${t.table === active ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}>
             {LABEL[t.table] ?? t.table}
           </button>
         ))}

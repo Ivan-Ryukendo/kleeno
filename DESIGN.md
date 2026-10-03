@@ -1,5 +1,7 @@
 # Design System Inspired by Mastercard
 
+> **Scope (P4u, 2026-10-03):** §1-9 describe the marketing look and apply to the public pages only (landing, `/privacy`, 404, admin). Signed-in and auth pages follow **§11 Product UI**, which overrides these sections. §10 (motion) applies to both.
+
 ## 1. Visual Theme & Atmosphere
 
 Mastercard's experience reads like a warm, editorial magazine built from soft stone and signal orange. The canvas is a muted putty-cream (`#F3F0EE`) — not white, not gray, but a color that feels like the paper of a premium annual report. On top of that canvas, everything that matters is shaped like a stadium, a pill, or a perfect circle. The dominant visual gesture is the **oversized radius**: heroes carry 40-point corners, cards go fully pill-shaped, service images are cropped into circular orbits, and buttons either complete the pill or fit snugly at 20 points. There are almost no sharp corners anywhere on the page.
@@ -380,3 +382,33 @@ The source site barely moves, so this section is Kleeno's own. Motion helps peop
 - **Never:** delay or hide an approval button, an amount or a DO NOT PAY; animate money while a user is deciding; move layout under the pointer; use parallax or orbit animation on working screens (landing page only).
 - **Accessibility:** under `prefers-reduced-motion: reduce`, every transition becomes an instant change and shimmer stops.
 - **Implementation:** CSS transitions and `tw-animate-css` (already installed) first; add the `motion` library only if a pattern above can't be done in CSS. Tokens (durations, easing) live in `globals.css` with the other design tokens.
+
+## 11. Product UI (Kleeno addition, user 2026-10-03: "Calm workspace")
+
+Sections 1-9 describe a marketing site. They apply to the public pages only (landing, `/privacy`, 404, admin). **Signed-in pages** (the workspace shell and the centred auth pages) follow this section instead, and it overrides §1-9 on conflict (ESSENTIALS rule 45). Reason: payroll professionals work in Gusto, Rippling, Notion and ClickUp style layouts, where dense and quiet beats editorial and airy.
+
+- **Feel:** white content, warm-grey sidebar, ink-black primary buttons, hairline borders instead of shadows, 14px body. Signal Orange only for risk (exception, DO NOT PAY, approval needed, compliance). Sofia Sans stays (body 450, headings 500, -2% tracking on page titles only).
+- **Scoping:** the product tokens are a CSS-variable override applied by the class `app-theme` on the shell wrapper and the auth wrapper (`html:has(.app-theme)` so portals such as menus and dialogs pick them up). Public pages never carry that class, so they keep the Mastercard tokens unchanged. Components use tokens only, never hex.
+
+### Tokens (product)
+| Token | Value | Use |
+|---|---|---|
+| canvas (`--background`) | `#FFFFFF` | content area |
+| sidebar (`--sidebar`) | `#F7F7F5` | left rail, table header fill |
+| text (`--foreground`) | `#141413` | all text |
+| muted (`--muted-foreground`) | `#5F5E5B` | secondary text (AA on white and sidebar) |
+| hairline (`--border`) | `#E9E9E7` | every divider, card edge, input edge |
+| primary (`--primary`) | `#141413` | primary buttons, active nav indicator, focus ring |
+| risk (`--signal`) | `#CF4500` | risk text and badges only; text on white is AA, never small text on the sidebar |
+| success (`--success`, **proposed**) | `#1E6B45` text, `#E8F3EC` fill | settled, matched, ON. Awaiting the user's approval per rule 45 |
+| radii | card 8px, field/button 6px, chip 4px | tokens `--card-radius`, `--field-radius`, `--chip-radius`, `--box-radius` |
+| shadow | none; popovers `0 4px 16px rgb(0 0 0 / 8%)` | hairlines carry structure |
+
+### Shell
+- **Sidebar** 240px, collapses to icons, becomes a drawer below 768px. Company switcher on top; groups HOME, PAYROLL (Pay runs, Exceptions with open count, Payments), PEOPLE (Workers, Import), SETUP (Pay policy, Team, Company); footer: Account, sign out. Items show only for roles that can use them; the server still checks every action (rule 33).
+- **Top bar** 48px: breadcrumb on the left; Ctrl+K search, bell (to-dos), "Run payroll" (payroll roles only) and the SIMULATION/LIVE badge on the right.
+- **Page frame:** max width 1152px, title (24px/500) with at most one primary action, then content in hairline panels. Dense tables: 14px text, 40px rows, sidebar-tint header, tabular figures for money.
+- **Status badges** are 4px chips: neutral hairline by default, success fill for settled/matched/ON, risk fill for exception/OFF/DO NOT PAY.
+- **Auth pages** (login, invite, onboarding, select company): one centred hairline card on white, 400-480px wide, Kleeno wordmark above. The login card keeps a slot for a "Continue with Google" button (P4g).
+- **Motion:** §10 unchanged (150-250 ms, reduced-motion respected). Sidebar collapse and drawer use the 200 ms panel timing.
+- **Accessibility:** focus ring 2px primary with 2px offset on every control; contrast AA; icon-only buttons carry a label; Ctrl+K is also reachable with a visible button.

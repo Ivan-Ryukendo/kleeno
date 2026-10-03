@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/input";
 import { postJson } from "@/lib/api";
 
-const big = "h-11 rounded-[1.25rem] px-6 text-base";
-const area = "min-h-48 w-full rounded-[1.25rem] border border-primary/50 bg-white px-5 py-4 text-base outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
+const big = "h-9 rounded-field px-4 text-sm";
+const area = "min-h-48 w-full rounded-box border border-field-border bg-white px-3 py-2 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 
 interface Proposal {
   status: "ACCEPTED" | "REPAIRED" | "NEEDS_HUMAN_REVIEW";
@@ -95,9 +95,9 @@ export function ConfigCard({ c, canEdit }: { c: ConfigCardView; canEdit: boolean
   }
 
   return (
-    <section className="mt-8 rounded-[2.5rem] bg-card p-10 shadow-card">
+    <section className="mt-6 panel">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-2xl">Version {c.version}</h2>
+        <h2 className="text-lg">Version {c.version}</h2>
         <StatusPill status={c.status} />
         {c.aiAssisted && <span className="text-sm text-muted-foreground">Suggested by AI, not applied until you approve</span>}
       </div>
@@ -111,7 +111,7 @@ export function ConfigCard({ c, canEdit }: { c: ConfigCardView; canEdit: boolean
         ))}
       </dl>
 
-      <h3 className="mt-8 text-lg">Rules and the policy lines they come from</h3>
+      <h3 className="mt-6 text-lg">Rules and the policy lines they come from</h3>
       <ul className="mt-3 space-y-3 text-sm">
         {c.rules.map((r) => (
           <li key={r.ruleId}>
@@ -127,7 +127,7 @@ export function ConfigCard({ c, canEdit }: { c: ConfigCardView; canEdit: boolean
       </ul>
 
       {c.flags.length > 0 && (
-        <div className="mt-8 rounded-[1.25rem] border border-signal p-5">
+        <div className="mt-6 rounded-box border border-signal p-4">
           <p className="font-medium text-signal">{c.confirmed ? "You confirmed these values" : "Check these values before approving"}</p>
           <ul className="mt-2 list-disc pl-5 text-sm">
             {c.flags.map((f) => (

@@ -30,7 +30,7 @@ export function CompanyChooser({ companies, next = "/dashboard" }: { companies: 
   }
 
   return (
-    <div className="mt-8">
+    <div className="mt-6">
       <ul className="space-y-3">
         {companies.map((c) => (
           <li key={c.id}>
@@ -38,7 +38,7 @@ export function CompanyChooser({ companies, next = "/dashboard" }: { companies: 
               type="button"
               disabled={busy !== null}
               onClick={() => choose(c.id)}
-              className="flex w-full items-center justify-between gap-4 rounded-[1.25rem] border border-primary bg-card px-6 py-4 text-left transition-shadow hover:shadow-card disabled:opacity-60"
+              className="flex w-full items-center justify-between gap-4 rounded-box border bg-card px-4 py-3 text-left transition-shadow hover:bg-muted disabled:opacity-60"
             >
               <span className="text-lg font-medium">{c.name}</span>
               <span className="text-sm text-muted-foreground">{c.roles}</span>

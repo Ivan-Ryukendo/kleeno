@@ -27,15 +27,19 @@ export type GateResult = { ok: true; pass: GatePass } | { ok: false; failures: s
 const RUN_APPROVED_OR_LATER = new Set<string>(RUN_APPROVED_OR_LATER_STATES);
 const BATCH_PAYABLE = new Set(["AUTHORIZED", "OPEN"]);
 
-/** The single safety gate. Re-reads everything by obligation ID; any failed check = DO NOT PAY. */
-export async function runGate(obligationId: string, repo: PaymentsRepo, chain: ChainReader): Promise<GateResult> {
+/**
+ * The single safety gate. Re-reads everything by obligation ID; any failed check = DO NOT PAY.
+ * `resume` is for recovery of an obligation already claimed (PAYING) whose attempt exists: it expects PAYING and skips only the
+ * "idempotency key unused" check (the saved attempt is that key). Every other check still runs, kill switch included.
+ */
+export async function runGate(obligationId: string, repo: PaymentsRepo, chain: ChainReader, opts: { resume?: boolean } = {}): Promise<GateResult> {
   const ctx = await repo.loadContext(obligationId);
   if (!ctx) return { ok: false, failures: ["OBLIGATION_NOT_FOUND"] };
   const { obligation: o, run, batch, company } = ctx;
 
   const guard = await chain.guardEntry(o.onchainKey);
   const checks: [string, boolean][] = [
-    ["OBLIGATION_NOT_AUTHORIZED", o.status === "AUTHORIZED"],
+    [opts.resume ? "OBLIGATION_NOT_PAYING" : "OBLIGATION_NOT_AUTHORIZED", o.status === (opts.resume ? "PAYING" : "AUTHORIZED")],
     ["COMPANY_MISMATCH", run.companyId === o.companyId && company.id === o.companyId && !!batch && batch.companyId === o.companyId],
     ["RUN_MISMATCH", run.id === o.runId],
     ["NOT_IN_BATCH", !!batch && batch.id === o.batchId && BATCH_PAYABLE.has(batch.status)],
@@ -51,7 +55,7 @@ export async function runGate(obligationId: string, repo: PaymentsRepo, chain: C
     ["NOT_USDC", o.currency === "USDC"],
     ["NOT_ARC_TESTNET", ctx.network === "ARC-TESTNET"],
     ["RECIPIENT_MISMATCH", o.recipient.toLowerCase() === ctx.approvedRecipient.toLowerCase()],
-    ["IDEMPOTENCY_KEY_USED", !ctx.attemptExistsForKey],
+    ["IDEMPOTENCY_KEY_USED", !!opts.resume || !ctx.attemptExistsForKey],
     ["OVER_CEILING", o.amount <= company.perPaymentCeiling],
     ["NOT_COMMITTED_ON_GUARD", guard.committed && guard.runOpen],
     ["ALREADY_PAID_ON_GUARD", !guard.paid],

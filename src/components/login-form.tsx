@@ -39,7 +39,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="mt-8 space-y-5">
+    <form onSubmit={submit} className="space-y-4">
       {step.kind === "password" ? (
         <>
           <div>
@@ -62,7 +62,7 @@ export function LoginForm() {
           {error}
         </p>
       )}
-      <Button type="submit" disabled={busy} className="h-11 w-full rounded-[1.25rem] px-6 text-base">
+      <Button type="submit" disabled={busy} className="h-9 w-full rounded-field px-4 text-sm">
         {step.kind === "password" ? "Sign in" : "Verify"}
       </Button>
     </form>

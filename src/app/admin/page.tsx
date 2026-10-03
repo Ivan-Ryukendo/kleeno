@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { BUDGET_LABELS, BUDGETS, PAIN_LABELS, PAINS, ROLE_LABELS, ROLES, STATUS_LABELS, STATUSES, leadMetrics } from "@/core/growth";
-import { AdminSignOut } from "@/components/admin-forms";
+import { AdminSignOut, LiveRequestActions } from "@/components/admin-forms";
 import { adminPageSession } from "@/server/auth/admin";
 import { PAGE_SIZE, listContacts, metricRows, type ContactFilter } from "@/server/db/growth";
+import { liveRequests } from "@/server/db/settlement";
 
 type Search = Record<string, string | string[] | undefined>;
 
@@ -57,7 +58,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   await connection();
   const { base } = await adminPageSession();
   const f = filterFrom(await searchParams);
-  const [m, { rows, total }] = await Promise.all([metricRows().then(leadMetrics), listContacts(f)]);
+  const [m, { rows, total }, live] = await Promise.all([metricRows().then(leadMetrics), listContacts(f), liveRequests()]);
   const filtered = Object.entries(f).some(([k, v]) => k !== "page" && v);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageHref = (p: number) => {
@@ -90,6 +91,36 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
           <AdminSignOut base={base} />
         </div>
       </header>
+
+      <section aria-labelledby="live-title" className="mt-10">
+        <h2 id="live-title" className="text-2xl font-medium">Live-payment requests</h2>
+        {live.length === 0 ? (
+          <p className="mt-3 rounded-[2.5rem] bg-card p-8 text-muted-foreground">No company has asked for live payments yet.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-[1.25rem] bg-white">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-border">
+                <tr>
+                  {["Company", "Status", "Requested", "Guard", "Action"].map((h) => (
+                    <th key={h} scope="col" className="px-4 py-3 font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {live.map((c) => (
+                  <tr key={c.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 font-medium">{c.name}</td>
+                    <td className="px-4 py-3">{c.live_status.replaceAll("_", " ").toLowerCase()}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{c.live_requested_at ? date(c.live_requested_at) : "–"}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{c.guard_address ? `${c.guard_address.slice(0, 10)}…${c.guard_address.slice(-6)}` : "–"}</td>
+                    <td className="px-4 py-3 text-right"><LiveRequestActions base={base} companyId={c.id} status={c.live_status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {m.signups === 0 ? (
         <p className="mt-10 rounded-[2.5rem] bg-card p-10 text-lg">No sign-ups yet. Metrics appear here once real people join; test records never count.</p>

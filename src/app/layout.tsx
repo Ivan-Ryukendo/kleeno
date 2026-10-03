@@ -19,7 +19,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={cn("font-sans", sofia.variable)}>
+    // suppressHydrationWarning: browser extensions (e.g. QuillBot's data-qb-installed) mutate <html> before hydration; one level deep only.
+    <html lang="en" className={cn("font-sans", sofia.variable)} suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

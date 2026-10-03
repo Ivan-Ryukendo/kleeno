@@ -37,6 +37,7 @@ export async function runView(client: SupabaseClient, companyId: string, runId: 
     run,
     variance: calc ? { available: hasActual, findings: variance.sort((x, y) => x.worker.localeCompare(y.worker)) } : null,
     calculationHash: calc?.calculation_hash ?? null,
+    netTotal: usd(lines.reduce((sum, l) => sum + BigInt(l.net), 0n)),
     lines: lines.map((l) => ({
       id: l.id,
       worker: name(l.workerId),
