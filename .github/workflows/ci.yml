@@ -20,7 +20,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: npm audit --audit-level=high
+      - run: npm audit --omit=dev --audit-level=high
 
   contracts:
     runs-on: ubuntu-latest

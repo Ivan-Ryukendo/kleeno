@@ -175,6 +175,7 @@ Separate production owner and operator credentials (payment approver holds the o
 - Worker wallets are custodial, and we say so openly.
 - The data encryption key lives in server env, so a fully compromised running server can decrypt (§0). Deleted companies stay in platform backups until those age out.
 - The judge demo company has no MFA (shared logins). It holds synthetic data only and cannot pay.
+- **Dev tools are not audited in CI (user decision 2026-10-03).** `braces` (via the `shadcn` CLI: fast-glob, micromatch, ts-morph) has a high advisory with no patched release. CI runs `npm audit --omit=dev --audit-level=high`, so everything shipped is still gated; `shadcn` is a devDependency used only at build time. Revisit when `braces` or `shadcn` ships a fix, or by Oct 10 at the latest.
 
 ## 6. Hardening report (2026-09-30, end of P0)
 - **Already in place:** Zod `env.ts` with `server-only`; `.gitignore` for secrets; gitleaks and `npm audit` in CI; no `NEXT_PUBLIC_` secrets; S37 structure test.
