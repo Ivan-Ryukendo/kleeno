@@ -40,14 +40,32 @@ export const FEE = { type: "level", config: { feeLevel: "MEDIUM" } } as const;
 const TERMINAL_OK = new Set(["COMPLETE"]);
 const TERMINAL_FAIL = new Set(["FAILED", "DENIED", "CANCELLED"]);
 
+/** A transaction Circle finished as FAILED, DENIED or CANCELLED (nothing happened on chain). A timeout is a different error: it stays UNKNOWN. */
+export class CircleTxFailed extends Error {}
+
 /** Poll a Circle transaction to a terminal state. Throws on failure or timeout (caller treats timeout as UNKNOWN). */
 export async function waitForCircleTx(id: string, timeoutMs = 120_000): Promise<{ txHash: string }> {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
     const tx = (await circle().wallets.getTransaction({ id })).data?.transaction;
     if (tx && TERMINAL_OK.has(tx.state) && tx.txHash) return { txHash: tx.txHash };
-    if (tx && TERMINAL_FAIL.has(tx.state)) throw new Error(`circle transaction ${tx.state}`);
+    if (tx && TERMINAL_FAIL.has(tx.state)) throw new CircleTxFailed(`circle transaction ${tx.state}`);
     await new Promise((r) => setTimeout(r, 2000));
   }
   throw new Error("circle transaction timeout");
+}
+
+/**
+ * Circle replays the first result for a repeated idempotency key, so a step that ended FAILED would fail forever.
+ * Keep the stable key for the first try (a retry after a crash is exactly-once), and move to a fresh key only after Circle itself reported a terminal failure.
+ * A timeout is not a failure and never gets a fresh key. The contract rejects a repeated openRun/closeRun, so a fresh key cannot act twice.
+ */
+export async function withFreshKeyOnFailure<T>(seed: string, run: (key: string) => Promise<T>, maxTries = 6): Promise<T> {
+  for (let n = 0; ; n++) {
+    try {
+      return await run(deterministicUuid(n === 0 ? seed : `${seed}:${n}`));
+    } catch (e) {
+      if (!(e instanceof CircleTxFailed) || n + 1 >= maxTries) throw e;
+    }
+  }
 }

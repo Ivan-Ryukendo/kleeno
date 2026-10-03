@@ -9,7 +9,7 @@ import { postJson } from "@/lib/api";
 
 const ROLE_HINTS: Record<Role, string> = {
   OWNER: "Company details, team and invites.",
-  HR_APPROVER: "Configuration, imports, exceptions and calculation.",
+  HR_APPROVER: "Pay policy, imports, exceptions and calculation.",
   PAYROLL_APPROVER: "Approves a payroll run.",
   PAYMENT_APPROVER: "Signs payments. Never the same person who approved the run.",
   VIEWER: "Can look, cannot change anything.",
@@ -20,7 +20,7 @@ function RolePicker({ value, onChange, disabled = false }: { value: Role[]; onCh
     <fieldset className="grid gap-3 sm:grid-cols-2" disabled={disabled}>
       <legend className="sr-only">Roles</legend>
       {ROLES.map((r) => (
-        <label key={r} className="flex cursor-pointer items-start gap-3 rounded-[1.25rem] border border-primary/30 bg-white px-4 py-3 has-[:checked]:border-primary">
+        <label key={r} className="flex cursor-pointer items-start gap-3 rounded-box border border-border bg-white px-4 py-3 has-[:checked]:border-primary">
           <input type="checkbox" className="mt-1 size-4 accent-[var(--primary)]" checked={value.includes(r)} onChange={(e) => onChange(e.target.checked ? [...value, r] : value.filter((x) => x !== r))} />
           <span>
             <span className="block text-sm font-medium">{ROLE_LABELS[r]}</span>
@@ -85,20 +85,20 @@ export function InviteForm() {
           </div>
         )}
         <Alert text={error} />
-        <Button type="submit" disabled={busy || roles.length === 0} className="h-11 rounded-[1.25rem] px-6 text-base">
+        <Button type="submit" disabled={busy || roles.length === 0} className="h-9 rounded-field px-4 text-sm">
           Create invite link
         </Button>
       </form>
 
       {issued && (
-        <div className="mt-6 rounded-[1.25rem] border border-primary/30 bg-white p-5" role="status">
+        <div className="mt-6 rounded-box border border-border bg-white p-5" role="status">
           <p className="text-sm font-medium">{issued.emailed ? `We emailed ${issued.email}. You can also share this link:` : `Share this link with ${issued.email}. It works once, for 7 days, only for that address.`}</p>
           <div className="mt-3 flex gap-3">
             <Input readOnly value={issued.link} aria-label="Invite link" onFocus={(e) => e.currentTarget.select()} />
             <Button
               type="button"
               variant="outline"
-              className="h-11 rounded-[1.25rem] px-5"
+              className="h-9 rounded-field px-4 text-sm"
               onClick={async () => {
                 await navigator.clipboard.writeText(issued.link);
                 setCopied(true);
@@ -179,7 +179,7 @@ export function MemberActions({ userId, roles, isSelf }: { userId: string; roles
         <Button
           type="button"
           disabled={busy || next.length === 0}
-          className="h-10 rounded-[1.25rem] px-5"
+          className="h-9 rounded-field px-4 text-sm"
           onClick={async () => {
             setBusy(true);
             setError(null);
@@ -195,7 +195,7 @@ export function MemberActions({ userId, roles, isSelf }: { userId: string; roles
         >
           Save roles
         </Button>
-        <Button type="button" variant="outline" className="h-10 rounded-[1.25rem] px-5" onClick={() => { setEditing(false); setNext(roles); setError(null); }}>
+        <Button type="button" variant="outline" className="h-9 rounded-field px-4 text-sm" onClick={() => { setEditing(false); setNext(roles); setError(null); }}>
           Cancel
         </Button>
       </div>

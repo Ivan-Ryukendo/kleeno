@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { auditEvent } from "@/core/audit";
 import { TransitionError } from "@/core/domain/machines";
 import type { PayType } from "@/core/engine";
+import { WorkflowError } from "@/core/workflow";
 import { openJson, sealJson } from "@/server/crypto";
 import { writeAudit } from "./audit";
 import { db, must } from "./client";
@@ -88,7 +89,40 @@ export async function reactivateWorker(who: Who, workerId: string): Promise<bool
 }
 
 export async function setWorkerWallet(companyId: string, workerId: string, w: { walletId: string; address: string; source: "CIRCLE" | "EXTERNAL" }) {
-  must(await db().from("workers").update({ wallet_id: w.walletId, wallet_address: w.address, wallet_source: w.source }).eq("id", workerId).eq("company_id", companyId).is("wallet_id", null).select("id"), "worker wallet"); // never overwrites an existing wallet
+  // A wallet Kleeno itself creates is confirmed at once; anything else waits for a payment approver (confirmRecipient).
+  const confirmed = w.source === "CIRCLE" ? { wallet_confirmed_address: w.address, wallet_confirmed_at: new Date().toISOString() } : {};
+  must(await db().from("workers").update({ wallet_id: w.walletId, wallet_address: w.address, wallet_source: w.source, ...confirmed }).eq("id", workerId).eq("company_id", companyId).is("wallet_id", null).select("id"), "worker wallet"); // never overwrites an existing wallet
+}
+
+const workerWallet = async (companyId: string, workerId: string) => {
+  const w = (await db().from("workers").select("id, wallet_address, wallet_confirmed_address, wallet_set_by").eq("id", workerId).eq("company_id", companyId).maybeSingle()).data;
+  if (!w) throw new TransitionError("NOT_FOUND", "worker not found");
+  return w;
+};
+
+/** Points a worker at an external address. The old confirmation is cleared: the new address cannot be paid until a payment approver confirms it. */
+export async function changeRecipient(who: Who, workerId: string, address: string) {
+  const w = await workerWallet(who.companyId, workerId);
+  if (w.wallet_address?.toLowerCase() === address.toLowerCase()) throw new TransitionError("INVALID_TRANSITION", "that is already this worker's address");
+  must(
+    await db().from("workers").update({ wallet_address: address, wallet_source: "EXTERNAL", wallet_id: null, wallet_set_by: who.userId, wallet_confirmed_address: null, wallet_confirmed_by: null, wallet_confirmed_at: null }).eq("id", workerId).eq("company_id", who.companyId).select("id"),
+    "worker recipient",
+  );
+  await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.recipient_changed", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId }));
+}
+
+/** Four-eyes for the recipient: the confirmer holds the payment role (checked in the route and by a trigger) and is not the person who set the address. */
+export async function confirmRecipient(who: Who, workerId: string) {
+  const w = await workerWallet(who.companyId, workerId);
+  if (!w.wallet_address) throw new TransitionError("INVALID_TRANSITION", "this worker has no wallet address");
+  if (w.wallet_confirmed_address?.toLowerCase() === w.wallet_address.toLowerCase()) throw new TransitionError("INVALID_TRANSITION", "this address is already confirmed");
+  if (w.wallet_set_by === who.userId) throw new WorkflowError("FOUR_EYES", "a different payment approver must confirm this address");
+  const done = must(
+    await db().from("workers").update({ wallet_confirmed_address: w.wallet_address, wallet_confirmed_by: who.userId, wallet_confirmed_at: new Date().toISOString() }).eq("id", workerId).eq("company_id", who.companyId).eq("wallet_address", w.wallet_address).select("id"),
+    "worker confirm",
+  );
+  if (done.length === 0) throw new TransitionError("STALE_STATE", "the address changed; review it again");
+  await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.recipient_confirmed", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId }));
 }
 
 export interface WorkerRow {
@@ -97,6 +131,8 @@ export interface WorkerRow {
   payType: PayType;
   walletAddress: string | null;
   walletSource: string;
+  /** The payout address was confirmed by a payment approver (or is a wallet Kleeno created). Unconfirmed wallets cannot be paid. */
+  walletConfirmed: boolean;
   active: boolean;
   compensation: Compensation | null;
   compensationVersion: number | null;
@@ -107,7 +143,7 @@ export interface WorkerRow {
 
 /** Reads through `reader` (the user-scoped client, so RLS applies) and decrypts on the server. */
 export async function listWorkers(reader: SupabaseClient, companyId: string, opts: { activeOnly?: boolean } = {}): Promise<WorkerRow[]> {
-  const workers = must(await reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, active, left_on, left_reason").eq("company_id", companyId).order("pseudonym"), "workers read").filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
+  const workers = must(await reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason").eq("company_id", companyId).order("pseudonym"), "workers read").filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
   const comps = must(await reader.from("compensations").select("id, worker_id, version, reason, created_at, payload_enc").eq("company_id", companyId).order("version", { ascending: false }), "compensations read");
   return Promise.all(
     workers.map(async (w) => {
@@ -124,6 +160,7 @@ export async function listWorkers(reader: SupabaseClient, companyId: string, opt
         payType: w.pay_type,
         walletAddress: w.wallet_address,
         walletSource: w.wallet_source,
+        walletConfirmed: !!w.wallet_address && w.wallet_address.toLowerCase() === w.wallet_confirmed_address?.toLowerCase(),
         active: w.active,
         compensation: cur ? { baseAmount: cur.baseAmount, hourlyRate: cur.hourlyRate } : null,
         compensationVersion: cur?.version ?? null,

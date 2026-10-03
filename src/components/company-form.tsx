@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { INDUSTRIES, PAY_FREQUENCIES, SIZE_RANGES, WEEKDAYS, countryOptions, timezoneOptions, type CompanyProfile } from "@/core/company";
+import { useState } from "react";
+import { INDUSTRIES, PAY_FREQUENCIES, SIZE_RANGES, WEEKDAYS, type CompanyProfile } from "@/core/company";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { postJson } from "@/lib/api";
@@ -14,10 +14,15 @@ function Message({ error }: { error: string | null }) {
   ) : null;
 }
 
-/** Company name, country, time zone, size and industry. Saves through POST /api/company (Owner only). */
-export function BasicsForm({ profile, submitLabel = "Save", disabled = false, onSaved }: { profile: CompanyProfile; submitLabel?: string; disabled?: boolean; onSaved?: () => void }) {
-  const countries = useMemo(() => countryOptions(), []);
-  const zones = useMemo(() => timezoneOptions(), []);
+export interface BasicsOptions {
+  countries: { code: string; name: string }[];
+  zones: string[];
+}
+
+/** Company name, country, time zone, size and industry. Saves through POST /api/company (Owner only).
+ * The country and time zone lists come from the server page: Intl data differs between Node and the browser, so building them here mismatches on hydration. */
+export function BasicsForm({ profile, options, submitLabel = "Save", disabled = false, onSaved }: { profile: CompanyProfile; options: BasicsOptions; submitLabel?: string; disabled?: boolean; onSaved?: () => void }) {
+  const { countries, zones } = options;
   const [zone, setZone] = useState(profile.timezone ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -108,7 +113,7 @@ export function BasicsForm({ profile, submitLabel = "Save", disabled = false, on
       <Message error={error} />
       {saved && <p role="status" className="text-sm font-medium">Saved.</p>}
       {!disabled && (
-        <Button type="submit" disabled={busy} className="h-11 rounded-[1.25rem] px-6 text-base">
+        <Button type="submit" disabled={busy} className="h-9 rounded-field px-4 text-sm">
           {submitLabel}
         </Button>
       )}
@@ -186,7 +191,7 @@ export function ScheduleForm({ profile, submitLabel = "Save", disabled = false, 
       <Message error={error} />
       {saved && <p role="status" className="text-sm font-medium">Saved.</p>}
       {!disabled && (
-        <Button type="submit" disabled={busy || !frequency} className="h-11 rounded-[1.25rem] px-6 text-base">
+        <Button type="submit" disabled={busy || !frequency} className="h-9 rounded-field px-4 text-sm">
           {submitLabel}
         </Button>
       )}

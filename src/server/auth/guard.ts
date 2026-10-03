@@ -36,6 +36,7 @@ interface Options<B> {
   // "app" (default): the payroll app; 404 while SITE_MODE is waitlist. "waitlist": the public sign-up routes.
   // "admin": reachable only through the secret admin path (proxy gate header); a session means a platform admin (S52).
   scope?: "app" | "waitlist" | "admin";
+  serverToServer?: boolean; // callbacks that carry their own signature (Circle webhook): no browser Origin to check
 }
 
 const parseJson = (raw: string): unknown => {
@@ -75,7 +76,7 @@ function wrap<B, P>(opts: Options<B>, authenticated: boolean, fn: (h: Handled<B,
     try {
       const scope = opts.scope ?? "app";
       if ((scope === "app" && siteMode() === "waitlist") || (scope === "admin" && !adminGateOk(request.headers))) return fail(404, "NOT_FOUND", "not found", correlationId);
-      if (!originOk(request)) throw new AuthError(403, "FORBIDDEN", "cross-origin request refused");
+      if (!opts.serverToServer && !originOk(request)) throw new AuthError(403, "FORBIDDEN", "cross-origin request refused");
       const jar = jarFromRequest(request);
       const cookies: PendingCookie[] = [];
       const asAdmin = authenticated && scope === "admin" ? await authenticateAdmin(jar, { allowAal1: opts.allowAal1, sink: cookies }) : null;
@@ -99,4 +100,4 @@ function wrap<B, P>(opts: Options<B>, authenticated: boolean, fn: (h: Handled<B,
 }
 
 export const guarded = <B = undefined, P = Record<string, string>>(opts: Options<B>, fn: (h: Handled<B, P>) => Promise<unknown>) => wrap<B, P>(opts, true, fn);
-export const openRoute = <B = undefined>(opts: Pick<Options<B>, "body" | "scope">, fn: (h: Handled<B, Record<string, string>>) => Promise<unknown>) => wrap<B, Record<string, string>>(opts, false, fn);
+export const openRoute = <B = undefined>(opts: Pick<Options<B>, "body" | "scope" | "serverToServer">, fn: (h: Handled<B, Record<string, string>>) => Promise<unknown>) => wrap<B, Record<string, string>>(opts, false, fn);

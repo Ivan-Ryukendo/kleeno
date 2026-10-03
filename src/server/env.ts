@@ -11,6 +11,9 @@ const masterKey = z.string().refine((v) => {
   }
 }, "at least 32 random bytes, hex or base64");
 
+// A blank line copied from .env.example means "not set", not "invalid".
+const blankIsUnset = <T extends z.ZodType<string>>(inner: T) => z.preprocess((v) => (v === "" ? undefined : v), inner.optional());
+
 const schema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
@@ -31,6 +34,9 @@ const schema = z.object({
   // Invite emails (P3b, S62). Optional: without them the sender copies the invite link.
   RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(3).optional(), // e.g. "Kleeno <invites@orclide.com>"
+  // P4 (S36, S68). Optional so the app boots without them; the receipt and Kleeno Verify paths fail closed when missing.
+  RECEIPT_HMAC_SECRET: blankIsUnset(z.string().min(32)), // >= 32 random characters; rotating it voids every receipt link
+  X402_SELLER_ADDRESS: blankIsUnset(z.string().regex(/^0x[0-9a-fA-F]{40}$/)), // receive-only platform wallet for Kleeno Verify
   // SITE_MODE and ADMIN_PATH are read in src/server/site.ts and src/proxy.ts (fail closed when missing).
 });
 

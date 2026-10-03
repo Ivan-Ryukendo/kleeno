@@ -36,7 +36,7 @@ export function PasswordForm() {
           {msg.text}
         </p>
       )}
-      <Button type="submit" disabled={busy} className="h-11 rounded-[1.25rem] px-6 text-base">
+      <Button type="submit" disabled={busy} className="h-9 rounded-field px-4 text-sm">
         Change password
       </Button>
     </form>
@@ -53,7 +53,7 @@ export function MfaSetup() {
       <div className="mt-6">
         <Button
           type="button"
-          className="h-11 rounded-[1.25rem] px-6 text-base"
+          className="h-9 rounded-field px-4 text-sm"
           onClick={async () => {
             const r = await postJson<{ factorId: string; qr: string; secret: string }>("/api/auth/mfa/enroll");
             if (r.ok && r.data) setSetup(r.data);
@@ -84,7 +84,7 @@ export function MfaSetup() {
     >
       <p className="text-muted-foreground">Scan this code with an authenticator app, then enter the 6-digit code it shows.</p>
       {/* eslint-disable-next-line @next/next/no-img-element -- data URI from Supabase Auth */}
-      <img src={setup.qr} alt="Authenticator QR code" className="size-44 rounded-[1.25rem] bg-white p-3" />
+      <img src={setup.qr} alt="Authenticator QR code" className="size-44 rounded-box bg-white p-3" />
       <p className="break-all text-sm text-muted-foreground">
         Or enter this key by hand: <span className="font-mono">{setup.secret}</span>
       </p>
@@ -97,7 +97,7 @@ export function MfaSetup() {
           {error}
         </p>
       )}
-      <Button type="submit" className="h-11 rounded-[1.25rem] px-6 text-base">
+      <Button type="submit" className="h-9 rounded-field px-4 text-sm">
         Turn on MFA
       </Button>
     </form>

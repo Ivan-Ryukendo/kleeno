@@ -10,8 +10,8 @@ import { codeFor, emptyNameKey, NameKeyError, openNameKey, sealNameKey, WORKER_C
 import { FIELDS, validateRows, type ImportType, type Rejected, type RowItem } from "@/core/ingest/rows";
 import { postJson } from "@/lib/api";
 
-const select = "h-11 w-full rounded-full border border-primary/50 bg-white px-5 text-base outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
-const big = "h-11 rounded-[1.25rem] px-6 text-base";
+const select = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
+const big = "h-9 rounded-field px-4 text-sm";
 const TYPE_LABEL: Record<ImportType, string> = { TIMESHEETS: "Timesheets (hours worked)", LEAVE: "Leave (paid or unpaid)", ACTUAL_PAID: "Amounts actually paid (for the variance report)" };
 const REJECT_TEXT: Record<string, string> = {
   MISSING: "a required value is missing",
@@ -132,7 +132,7 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
     setBusy(false);
   }
 
-  if (runs.length === 0) return <p className="mt-6 text-muted-foreground">No run is open for data yet. Start one on the Dashboard first.</p>;
+  if (runs.length === 0) return <p className="mt-6 text-muted-foreground">No run is open for data yet. Start one on Home first.</p>;
 
   const needsPassphrase = parsed && mapping.workerRef !== undefined && parsed.rows.some((r) => !WORKER_CODE.test((r[mapping.workerRef] ?? "").trim().toUpperCase()));
   return (
@@ -215,7 +215,7 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
           </div>
 
           {needsPassphrase && (
-            <div className="rounded-[1.25rem] border border-primary/50 p-5">
+            <div className="rounded-box border border-border p-4">
               <h3 className="text-lg">Names stay on this computer</h3>
               <p className="mt-1 text-sm text-muted-foreground">Names in your file become worker codes (W001…). A name key file remembers which code is whom so codes stay the same next time. It is encrypted with your passphrase and saved to your computer, never uploaded. Keep both safe: without them the codes cannot be matched back to names.</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -240,7 +240,7 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
       )}
 
       {prepared && (
-        <div className="rounded-[1.25rem] border border-primary/50 p-5">
+        <div className="rounded-box border border-border p-4">
           <h3 className="text-lg">Ready to send</h3>
           <p className="mt-1 text-sm">
             {prepared.items.length - prepared.localRejected.length} of {prepared.items.length} rows look valid.
@@ -264,7 +264,7 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
       )}
 
       {result && (
-        <div role="status" className="rounded-[1.25rem] border border-primary/50 p-5">
+        <div role="status" className="rounded-box border border-border p-4">
           <h3 className="text-lg">{result.alreadyImported ? "Already imported" : "Imported"}</h3>
           <p className="mt-1 text-sm">
             {result.alreadyImported ? "This data was already in the run; nothing changed." : `${result.newRecords} new records stored from ${result.accepted} accepted rows (${result.rows} in the file).`}

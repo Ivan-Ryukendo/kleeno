@@ -56,6 +56,8 @@ export interface PaymentsRepo {
   markSettled(obligationId: string, txHash: string): Promise<void>;
   /** Moves the obligation to PAYMENT_EXCEPTION only if it is still in `from` (never touches SETTLED or a concurrent claimant). */
   markException(obligationId: string, code: string, reasons: string[], from: "AUTHORIZED" | "PAYING"): Promise<void>;
+  /** The obligation's payment attempt, if one was saved (one per idempotency key). */
+  loadAttempt(obligationId: string): Promise<{ id: string; state: AttemptState; circleTxId: string | null } | null>;
 }
 
 export interface RailStatus {
@@ -92,4 +94,6 @@ export interface ChainReader {
   guardEntry(onchainKey: string): Promise<GuardEntry>;
   isPaid(onchainKey: string): Promise<boolean>;
   receipt(txHash: string): Promise<ChainReceipt | null>;
+  /** Hash of the transaction that emitted ObligationPaid for this key, or null when it cannot be found (recovery fails closed). */
+  paymentTx(onchainKey: string): Promise<string | null>;
 }

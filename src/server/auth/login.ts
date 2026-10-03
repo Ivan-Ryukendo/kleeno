@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { auditEvent } from "@/core/audit";
 import { writeAudit } from "@/server/db/audit";
 import { db } from "@/server/db/client";
@@ -28,6 +28,21 @@ export async function requireReauth(actor: { companyId: string; userId: string; 
   if (!(await passwordIsValid(actor.email, password))) {
     await recordAuthEvent("REAUTH_FAILED", actor.companyId, actor.userId, correlationId);
     throw new AuthError(401, "UNAUTHENTICATED", "That password is not right");
+  }
+}
+
+/**
+ * A fresh authenticator code, verified in the same request as the action (S66). Unlike a session at aal2, this proves the person is
+ * holding the device now. Throttled and audited like every other MFA attempt.
+ */
+export async function requireTotp(client: SupabaseClient, actor: { companyId: string; userId: string }, code: string, correlationId: string) {
+  await assertNotThrottled(actor.companyId, actor.userId, "MFA_FAILED");
+  const factor = (await client.auth.mfa.listFactors()).data?.totp.find((f) => f.status === "verified");
+  if (!factor) throw new AuthError(401, "MFA_REQUIRED", "set up an authenticator app on your account first", true);
+  const { error } = await client.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+  if (error) {
+    await recordAuthEvent("MFA_FAILED", actor.companyId, actor.userId, correlationId);
+    throw new AuthError(401, "UNAUTHENTICATED", "That code is not valid");
   }
 }
 

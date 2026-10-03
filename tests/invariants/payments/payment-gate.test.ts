@@ -27,6 +27,7 @@ const cases: [string, string, Mut][] = [
   ["AMOUNT_MISMATCH", "obligation != calculation line", (c) => (c.lineAmount = 99_000_000n)],
   ["NOT_USDC", "wrong currency", (c) => (c.obligation.currency = "EURC")],
   ["NOT_ARC_TESTNET", "wrong network", (c) => (c.network = "ETH-SEPOLIA")],
+  ["NOT_IN_PLAN", "obligation amount differs from the signed plan", (c) => (c.batch!.plan.obligations[0].amount = 1n)],
   ["RECIPIENT_MISMATCH", "recipient != approved snapshot", (c) => (c.approvedRecipient = "0x00000000000000000000000000000000000000ff")],
   ["IDEMPOTENCY_KEY_USED", "attempt already exists", (c) => (c.attemptExistsForKey = true)],
   ["OVER_CEILING", "over per-payment ceiling", (c) => (c.company.perPaymentCeiling = 1n)],

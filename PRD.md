@@ -105,6 +105,7 @@ Public GitHub repo (going-public checklist in `docs/github.md` §5 passed; the u
 
 ## 12. Timeline and cuts
 - Done: P0 Sep 29–30 · P1 Sep 30 · P2 Sep 30–Oct 1 · W waitlist Oct 1 · P3 Oct 2 (two days early).
+- Update (user, 2026-10-03): P4u App shell + product UI (sidebar, top bar; `docs/phases/P4u.md`) Oct 3–4, on `p4-payments` before the P4 browser check · P4g Google sign-in (`docs/phases/P4g.md`) straight after P4 merges, ~Oct 4–5; later phases shift by up to a day. Landing/waitlist and `/privacy` are redesigned last.
 - Plan (user, 2026-10-02): P3b Company system: Oct 3–4 · P4 Payments (+ live activation, Gateway top-up, Kleeno Verify): Oct 4–7, in parallel after P3b's foundation slice · P4c Policy + pay: Oct 5–6 · P4d Dashboard + motion: Oct 6–7 · P4b Payment Planner: Oct 7 (can be cut) · Oct 8 feature freeze · P5 Demo + submission: Oct 8–10.
 - Cut order if late (user, 2026-10-02): 1 motion polish → 2 Gateway top-up → 3 Kleeno Verify → 4 part-period pay → 5 Payment Planner (P4b) → 6 department and single-worker scopes → 7 receipt page → 8 Playwright beyond one smoke test → 9 standing authorization. Never cut: company system, invites, policy upload, dashboard, guard, gate, invariants, SIMULATION variance, settlement reconciliation, audit, kill switch, RLS + read-only public DB API.
 - Minimum demo if P4/P5 fail: the full SIMULATION path in the UI plus the P1 scripted guarded payment on Arc with an arcscan link.

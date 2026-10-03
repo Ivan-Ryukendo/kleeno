@@ -8,8 +8,8 @@ import { Input, Label } from "@/components/ui/input";
 import { describeFacts, type ReconCategory, type ResolutionAction } from "@/core/reconciliation";
 import { postJson } from "@/lib/api";
 
-const big = "h-11 rounded-[1.25rem] px-6 text-base";
-const select = "h-11 w-full rounded-full border border-primary/50 bg-white px-5 text-base outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
+const big = "h-9 rounded-field px-4 text-sm";
+const select = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 
 export const CATEGORY_LABEL: Record<ReconCategory, string> = {
   DUPLICATE_TIMESHEET: "Duplicate timesheet lines",
@@ -100,8 +100,8 @@ export function CategoryPanel({ runId, category, rows, canEdit }: { runId: strin
   }
 
   return (
-    <section className="mt-8 rounded-[2.5rem] bg-card p-10 shadow-card">
-      <h2 className="text-2xl">
+    <section className="mt-6 panel">
+      <h2 className="text-lg">
         <span className="mr-3 inline-block size-2 rounded-full bg-signal align-middle" />
         {CATEGORY_LABEL[category]} <span className="text-muted-foreground">({open.length} open of {rows.length})</span>
       </h2>
@@ -118,7 +118,7 @@ export function CategoryPanel({ runId, category, rows, canEdit }: { runId: strin
               <p className="mt-1 text-sm text-muted-foreground">Evidence: {r.recordCount} imported records.</p>
               {r.suggestion && r.status !== "RESOLVED" && (
                 <p className="mt-2 text-sm">
-                  <span className="rounded-full bg-secondary px-3 py-1">Suggested by AI, not applied: {ACTION_LABEL[r.suggestion.action]} ({r.suggestion.confidence.toLowerCase()} confidence)</span>
+                  <span className="rounded-chip border bg-secondary px-2 py-0.5">Suggested by AI, not applied: {ACTION_LABEL[r.suggestion.action]} ({r.suggestion.confidence.toLowerCase()} confidence)</span>
                 </p>
               )}
               {r.status === "RESOLVED" && r.decision && (
@@ -134,7 +134,7 @@ export function CategoryPanel({ runId, category, rows, canEdit }: { runId: strin
       </ul>
 
       {canEdit && chosen.length > 1 && (
-        <div className="mt-6 rounded-[1.25rem] border border-primary/50 p-5">
+        <div className="mt-6 rounded-box border border-border p-4">
           <h3 className="text-lg">Settle {chosen.length} selected together</h3>
           {shared.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">These items have no decision in common. Select items that accept the same decision.</p>
@@ -187,7 +187,7 @@ function SingleDecision({ row, busy, onSave }: { row: ExceptionRow; busy: boolea
         ))}
       </select>
       <Input aria-label={`Note for ${row.worker}`} placeholder="Why (required, no names)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
-      <Button type="button" disabled={busy || !action || note.trim().length < 3} className="h-11 rounded-[1.25rem] px-6 text-base" onClick={() => onSave(action, note)}>
+      <Button type="button" disabled={busy || !action || note.trim().length < 3} className="h-9 rounded-field px-4 text-sm" onClick={() => onSave(action, note)}>
         Save decision
       </Button>
     </div>

@@ -19,7 +19,7 @@ const importing = (needle: string, list: string[]) => list.filter((f) => read(f)
 
 describe("S04 owner calls exist only in guard-owner", () => {
   it("guard-owner is imported only by allowed callers", () => {
-    const allowed = ["scripts/seed-run.ts"]; // + batch authorization / close handlers from P4
+    const allowed = ["src/server/db/batches.ts", "scripts/seed-run.ts"]; // batch signing opens the guard run; close handlers follow in P4 slice 3
     expect(importing("circle/guard-owner", [...src, ...scripts])).toEqual(allowed);
   });
 
@@ -48,8 +48,8 @@ describe("S07 one gate", () => {
     expect(makers).toEqual(["src/core/payments/gate.ts"]);
   });
 
-  it("the rail is wired only from scripts/ (P1) and asserts the pass", () => {
-    expect(importing("rails/arc-usdc-rail", [...src, ...scripts])).toEqual(["scripts/pay-obligation.ts"]);
+  it("the rail is wired only by the batch executor and scripts/, and asserts the pass", () => {
+    expect(importing("rails/arc-usdc-rail", [...src, ...scripts])).toEqual(["src/server/payments/execute.ts", "scripts/pay-obligation.ts"]); // P4: the executor is the server wiring of the agent
     expect(read("src/server/rails/arc-usdc-rail.ts")).toContain("assertGatePass(pass)");
   });
 });

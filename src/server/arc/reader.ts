@@ -1,5 +1,5 @@
 import "server-only";
-import { createPublicClient, decodeEventLog, http, parseAbiItem, TransactionReceiptNotFoundError, type Address, type Hex } from "viem";
+import { createPublicClient, decodeEventLog, http, parseAbi, parseAbiItem, TransactionReceiptNotFoundError, type Address, type Hex } from "viem";
 import { arcTestnet } from "viem/chains";
 import type { ChainReader, ChainReceipt } from "@/core/ports";
 import { guardAbi } from "./guard-abi";
@@ -21,6 +21,15 @@ export async function assertArcChain(client = arcClient()) {
   if (id !== ARC_CHAIN_ID) throw new Error(`RPC reports chain ${id}, expected ${ARC_CHAIN_ID}`);
 }
 
+const paidEvent = parseAbiItem("event ObligationPaid(bytes32 indexed runKey, bytes32 indexed obligationKey, address recipient, uint256 amount)");
+const erc20 = parseAbi(["function balanceOf(address) view returns (uint256)"]);
+
+/** USDC (6 dp) held by an address on Arc. */
+export async function usdcBalanceOf(address: string, client = arcClient()): Promise<bigint> {
+  await assertArcChain(client);
+  return client.readContract({ address: USDC_ADDRESS, abi: erc20, functionName: "balanceOf", args: [address as Address] });
+}
+
 export function arcChainReader(guardAddress: string, client = arcClient()): ChainReader {
   const guard = guardAddress as Address;
   const read = <F extends "entries" | "runs" | "isPaid">(functionName: F, args: [Hex]) =>
@@ -36,6 +45,15 @@ export function arcChainReader(guardAddress: string, client = arcClient()): Chai
     },
     async isPaid(onchainKey) {
       return (await read("isPaid", [onchainKey as Hex])) as boolean;
+    },
+    async paymentTx(onchainKey) {
+      // The key is an indexed topic, so this is a cheap filtered log query. An RPC that refuses the range returns null: recovery then fails closed.
+      try {
+        const logs = await client.getLogs({ address: guard, event: paidEvent, args: { obligationKey: onchainKey as Hex }, fromBlock: 0n });
+        return logs.length === 1 ? logs[0].transactionHash : null;
+      } catch {
+        return null;
+      }
     },
     async receipt(txHash): Promise<ChainReceipt | null> {
       const chainId = await client.getChainId(); // reported by the RPC, matched in settlement

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-// Pill input on white (DESIGN.md: inputs use pill or 20px radius, 1px border).
+// Field on white. Shape comes from tokens: pill on the public pages (DESIGN.md §4), 6px in the product UI (§11).
 function Input({ className, type = "text", ...props }: React.ComponentProps<"input">) {
   return (
     <input
@@ -9,7 +9,7 @@ function Input({ className, type = "text", ...props }: React.ComponentProps<"inp
       data-slot="input"
       suppressHydrationWarning // browsers/extensions rewrite autocomplete before hydration
       className={cn(
-        "h-11 w-full min-w-0 rounded-full border border-primary/50 bg-white px-5 text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50",
+        "h-(--field-height) w-full min-w-0 rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50",
         className,
       )}
       {...props}
@@ -26,7 +26,7 @@ function Select({ className, ...props }: React.ComponentProps<"select">) {
     <select
       data-slot="select"
       suppressHydrationWarning
-      className={cn("h-11 w-full min-w-0 rounded-full border border-primary/50 bg-white px-5 text-base outline-none transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50", className)}
+      className={cn("h-(--field-height) w-full min-w-0 rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50", className)}
       {...props}
     />
   );

@@ -13,7 +13,7 @@ export function InviteAcceptForm({ token, email, existingAccount }: { token: str
   const [busy, setBusy] = useState(false);
   return (
     <form
-      className="mt-8 space-y-5"
+      className="mt-4 space-y-4"
       onSubmit={async (e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
@@ -42,7 +42,7 @@ export function InviteAcceptForm({ token, email, existingAccount }: { token: str
           {error}
         </p>
       )}
-      <Button type="submit" disabled={busy} className="h-11 w-full rounded-[1.25rem] px-6 text-base">
+      <Button type="submit" disabled={busy} className="h-9 w-full rounded-field px-4 text-sm">
         {existingAccount ? "Sign in and join" : "Create account and join"}
       </Button>
     </form>

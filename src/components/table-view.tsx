@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { OPS, type ColumnDef, type TableId, type TableResult, type ViewDef } from "@/core/views";
 import { postJson } from "@/lib/api";
 
-const field = "h-9 rounded-full border border-primary/50 bg-white px-4 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
+const field = "h-8 rounded-field border border-field-border bg-white px-3 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 const OP_LABEL: Record<string, string> = { contains: "contains", equals: "is", is: "is", isNot: "is not", eq: "=", gt: ">", gte: "≥", lt: "<", lte: "≤", on: "on", before: "before", after: "after" };
 const human = (v: string) => v.replaceAll("_", " ").toLowerCase();
 
@@ -71,7 +71,7 @@ export function TableView({ table, runId, columns, initialView, initial, empty =
         <Input aria-label="Search" placeholder="Search" value={view.search} onChange={(e) => set({ search: e.target.value })} className="h-9 w-48" />
         <details className="relative">
           <summary className={`${field} flex cursor-pointer list-none items-center`}>Columns</summary>
-          <div className="absolute z-10 mt-2 w-56 rounded-[1.25rem] border border-primary/50 bg-white p-4 shadow-card">
+          <div className="absolute z-10 mt-2 w-56 rounded-box border bg-popover p-4 shadow-pop">
             {columns.map((c) => (
               <label key={c.id} className="flex items-center gap-2 py-1 text-sm">
                 <input type="checkbox" checked={view.columns.includes(c.id)} onChange={(e) => set({ columns: e.target.checked ? columns.map((x) => x.id).filter((id) => id === c.id || view.columns.includes(id)) : view.columns.filter((id) => id !== c.id) })} disabled={view.columns.length === 1 && view.columns.includes(c.id)} />
@@ -80,7 +80,7 @@ export function TableView({ table, runId, columns, initialView, initial, empty =
             ))}
           </div>
         </details>
-        <Button type="button" variant="outline" className="h-9 rounded-full px-4 text-sm" onClick={exportCsv}>
+        <Button type="button" variant="outline" className="h-8 rounded-field px-3 text-sm" onClick={exportCsv}>
           Export CSV
         </Button>
       </div>
@@ -112,11 +112,11 @@ export function TableView({ table, runId, columns, initialView, initial, empty =
         ) : (
           <input aria-label="Filter value" className={field} value={draft.value} placeholder={dc?.type === "date" ? "YYYY-MM-DD" : "value"} onChange={(e) => setDraft({ ...draft, value: e.target.value })} />
         )}
-        <Button type="button" variant="outline" className="h-9 rounded-full px-4 text-sm" disabled={!draft.value.trim() || view.filters.length >= 8} onClick={() => (set({ filters: [...view.filters, { column: draft.column, op: draft.op || ops[0], value: draft.value.trim() }] }), setDraft({ ...draft, value: "" }))}>
+        <Button type="button" variant="outline" className="h-8 rounded-field px-3 text-sm" disabled={!draft.value.trim() || view.filters.length >= 8} onClick={() => (set({ filters: [...view.filters, { column: draft.column, op: draft.op || ops[0], value: draft.value.trim() }] }), setDraft({ ...draft, value: "" }))}>
           Add filter
         </Button>
         {view.filters.map((f, i) => (
-          <span key={i} className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-sm">
+          <span key={i} className="inline-flex items-center gap-2 rounded-chip border bg-secondary px-2 py-0.5 text-sm">
             {byId.get(f.column)?.label} {OP_LABEL[f.op]} {byId.get(f.column)?.type === "enum" ? human(f.value) : f.value}
             <button type="button" aria-label="Remove filter" className="font-medium" onClick={() => set({ filters: view.filters.filter((_, j) => j !== i) })}>
               ×

@@ -59,9 +59,11 @@ export function paymentsRepo(): PaymentsRepo {
           authorizerId: b.authorizer_id,
           guardRunKey: b.guard_run_key,
           planHash: b.plan_hash,
+          // Only the hashed fields: the stored plan also carries display-only signals, which are not part of plan_hash.
           plan: {
-            ...b.plan,
             obligations: b.plan.obligations.map((p: { id: string; amount: string; recipient: string }) => ({ ...p, amount: big(p.amount) })),
+            heldIds: b.plan.heldIds,
+            source: b.plan.source,
           },
         },
         company: { id: company.data.id, livePaymentsEnabled: company.data.live_payments_enabled, perPaymentCeiling: big(company.data.per_payment_ceiling) },
@@ -80,6 +82,11 @@ export function paymentsRepo(): PaymentsRepo {
     async saveAttempt({ obligationId, companyId, idempotencyKey }) {
       const res = await db().from("payment_attempts").insert({ company_id: companyId, obligation_id: obligationId, idempotency_key: idempotencyKey, state: "SUBMISSION_PENDING" }).select("id").single();
       return { attemptId: must(res, "attempt insert").id };
+    },
+
+    async loadAttempt(obligationId) {
+      const a = (await db().from("payment_attempts").select("id, state, circle_tx_id").eq("obligation_id", obligationId).order("created_at", { ascending: false }).limit(1).maybeSingle()).data;
+      return a ? { id: a.id, state: a.state, circleTxId: a.circle_tx_id } : null;
     },
 
     async attachCircleTx(attemptId, circleTxId) {

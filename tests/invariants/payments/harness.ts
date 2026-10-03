@@ -86,6 +86,10 @@ export class FakeRepo implements PaymentsRepo {
     this.attempts.push({ id, state: "SUBMISSION_PENDING", key: a.idempotencyKey });
     return { attemptId: id };
   }
+  async loadAttempt() {
+    const a = this.attempts[this.attempts.length - 1];
+    return a ? { id: a.id, state: a.state, circleTxId: a.circleTxId ?? null } : null;
+  }
   async attachCircleTx(id: string, circleTxId: string) {
     this.attempts.find((a) => a.id === id)!.circleTxId = circleTxId;
   }
@@ -113,6 +117,10 @@ export class FakeChain implements ChainReader {
   async isPaid() {
     return this.paid;
   }
+  paidTx: string | null = null; // what the ObligationPaid log lookup finds
+  async paymentTx() {
+    return this.paid ? this.paidTx : null;
+  }
   async receipt(tx: string) {
     return this.receipts.get(tx) ?? null;
   }
@@ -132,15 +140,23 @@ export type RailScript = "OK" | "THROW_AFTER_SEND" | "FAIL" | "PENDING_FOREVER";
 export class FakeRail implements PaymentRail {
   submits = 0;
   sends = 0; // how many times money would actually have moved
+  keys = new Map<string, string>(); // Circle idempotency: a repeated key returns the existing transaction
   constructor(private chain: FakeChain, public script: RailScript = "OK") {}
   async submit(pass: GatePass, attemptId?: string) {
     void attemptId;
     assertGatePass(pass);
     this.submits++;
-    if (this.script === "FAIL") return { circleTxId: "c-fail" };
+    const seen = this.keys.get(pass.idempotencyKey);
+    if (seen) return { circleTxId: seen };
+    if (this.script === "FAIL") {
+      this.keys.set(pass.idempotencyKey, "c-fail");
+      return { circleTxId: "c-fail" };
+    }
     this.sends++;
     this.chain.paid = true;
+    this.chain.paidTx = "0xtx1";
     this.chain.goodReceipt("0xtx1");
+    this.keys.set(pass.idempotencyKey, "c-1"); // the transaction exists even if the answer is lost
     if (this.script === "THROW_AFTER_SEND") throw new Error("timeout");
     return { circleTxId: "c-1" };
   }

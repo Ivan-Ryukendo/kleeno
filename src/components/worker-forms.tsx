@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { postJson } from "@/lib/api";
 
-const selectClass = "h-11 w-full rounded-full border border-primary/50 bg-white px-5 text-base outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
+const selectClass = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 const amountPattern = "\\d+(\\.\\d{1,6})?";
 
 export function AddWorkerForm() {
@@ -57,7 +57,7 @@ export function AddWorkerForm() {
             {error}
           </p>
         )}
-        <Button type="submit" disabled={busy} className="h-11 rounded-[1.25rem] px-6 text-base">
+        <Button type="submit" disabled={busy} className="h-9 rounded-field px-4 text-sm">
           Add worker
         </Button>
       </div>
@@ -73,6 +73,7 @@ export interface WorkerView {
   base: string;
   hourly: string;
   walletAddress: string | null;
+  walletConfirmed: boolean;
   active: boolean;
   leftOn: string | null;
   leftReason: string | null;
@@ -81,18 +82,18 @@ export interface WorkerView {
 
 const label = (v: string) => v.charAt(0) + v.slice(1).toLowerCase().replaceAll("_", " ");
 const hasHourly = (v: string) => Number(v) > 0;
-const small = "h-9 rounded-[1.25rem] px-4";
-const big = "h-11 rounded-[1.25rem] px-6 text-base";
+const small = "h-8 rounded-field px-3 text-sm";
+const big = "h-9 rounded-field px-4 text-sm";
 
 /** One worker: the row, plus an inline panel to change pay (promotion), mark as left, reactivate, or see pay history. */
-export function WorkerRow({ w, canEdit }: { w: WorkerView; canEdit: boolean }) {
+export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: boolean; canConfirm: boolean }) {
   const router = useRouter();
-  const [panel, setPanel] = useState<"pay" | "leave" | "history" | null>(null);
+  const [panel, setPanel] = useState<"pay" | "leave" | "history" | "wallet" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const toggle = (p: "pay" | "leave" | "history") => {
+  const toggle = (p: "pay" | "leave" | "history" | "wallet") => {
     setPanel(panel === p ? null : p);
     setError(null);
   };
@@ -128,7 +129,10 @@ export function WorkerRow({ w, canEdit }: { w: WorkerView; canEdit: boolean }) {
               Left {w.leftOn} · {label(w.leftReason ?? "")}
             </span>
           ) : w.walletAddress ? (
-            <span className="break-all font-mono text-xs">{w.walletAddress}</span>
+            <span>
+              <span className="break-all font-mono text-xs">{w.walletAddress}</span>
+              {!w.walletConfirmed && <StatusPill status="NOT_CONFIRMED" className="ml-2 bg-signal text-white border-signal" />}
+            </span>
           ) : canEdit ? (
             <Button type="button" variant="outline" disabled={busy} className={small} onClick={() => run(`/api/workers/${w.id}/wallet`)}>
               Create wallet
@@ -142,6 +146,11 @@ export function WorkerRow({ w, canEdit }: { w: WorkerView; canEdit: boolean }) {
             <Button type="button" variant="ghost" className={small} onClick={() => toggle("history")}>
               History ({w.history.length})
             </Button>
+            {(canEdit || (canConfirm && w.walletAddress && !w.walletConfirmed)) && w.active && (
+              <Button type="button" variant="outline" className={small} onClick={() => toggle("wallet")}>
+                {canConfirm && w.walletAddress && !w.walletConfirmed ? "Confirm wallet" : "Payout address"}
+              </Button>
+            )}
             {canEdit && w.active && (
               <>
                 <Button type="button" variant="outline" className={small} onClick={() => toggle("pay")}>
@@ -176,7 +185,7 @@ export function WorkerRow({ w, canEdit }: { w: WorkerView; canEdit: boolean }) {
             )}
             {panel === "pay" && (
               <form
-                className="grid gap-4 rounded-[1.25rem] bg-secondary p-5 sm:grid-cols-2"
+                className="grid gap-4 rounded-box bg-secondary p-5 sm:grid-cols-2"
                 onSubmit={(e) => {
                   e.preventDefault();
                   const f = new FormData(e.currentTarget);
@@ -216,9 +225,55 @@ export function WorkerRow({ w, canEdit }: { w: WorkerView; canEdit: boolean }) {
                 </div>
               </form>
             )}
+            {panel === "wallet" && (
+              <div className="space-y-4 rounded-box bg-secondary p-5">
+                {canEdit && (
+                  <form
+                    className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const f = new FormData(e.currentTarget);
+                      run(`/api/workers/${w.id}/recipient`, { address: f.get("address") }, () => "Saved. A payment approver has to confirm this address before it can be paid.");
+                    }}
+                  >
+                    <div>
+                      <Label htmlFor={`addr-${w.id}`}>External payout address (Arc testnet)</Label>
+                      <Input id={`addr-${w.id}`} name="address" placeholder="0x…" pattern="0x[0-9a-fA-F]{40}" required />
+                    </div>
+                    <Button type="submit" disabled={busy} className={big}>
+                      Propose address
+                    </Button>
+                  </form>
+                )}
+                {canConfirm && w.walletAddress && !w.walletConfirmed && (
+                  <form
+                    className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const f = new FormData(e.currentTarget);
+                      run(`/api/workers/${w.id}/recipient/confirm`, { password: f.get("password") }, () => "Confirmed. This address can now be paid.");
+                    }}
+                  >
+                    <div>
+                      <p className="mb-2 text-sm">
+                        Confirm <span className="break-all font-mono text-xs">{w.walletAddress}</span> as the only address {w.pseudonym} is paid at. The person who set it cannot confirm it.
+                      </p>
+                      <Label htmlFor={`confirm-${w.id}`}>Your password</Label>
+                      <Input id={`confirm-${w.id}`} name="password" type="password" autoComplete="current-password" required />
+                    </div>
+                    <Button type="submit" disabled={busy} className={big}>
+                      Confirm address
+                    </Button>
+                  </form>
+                )}
+                <Button type="button" variant="ghost" className={big} onClick={() => setPanel(null)}>
+                  Close
+                </Button>
+              </div>
+            )}
             {panel === "leave" && (
               <form
-                className="grid gap-4 rounded-[1.25rem] bg-secondary p-5 sm:grid-cols-2"
+                className="grid gap-4 rounded-box bg-secondary p-5 sm:grid-cols-2"
                 onSubmit={(e) => {
                   e.preventDefault();
                   const f = new FormData(e.currentTarget);

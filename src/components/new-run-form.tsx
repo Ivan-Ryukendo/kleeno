@@ -35,7 +35,7 @@ export function NewRunForm() {
       </div>
       <div>
         <Label htmlFor="mode">Mode</Label>
-        <select id="mode" name="mode" defaultValue="SIMULATION" className="h-11 w-full rounded-full border border-primary/50 bg-white px-5 text-base outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40">
+        <select id="mode" name="mode" defaultValue="SIMULATION" className="h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40">
           <option value="SIMULATION">Simulation (never pays)</option>
           <option value="LIVE_TESTNET">Live testnet</option>
         </select>
@@ -46,10 +46,10 @@ export function NewRunForm() {
             {error}
           </p>
         )}
-        <Button type="submit" disabled={busy} className="h-11 rounded-[1.25rem] px-6 text-base">
+        <Button type="submit" disabled={busy} className="h-9 rounded-field px-4 text-sm">
           Start a run
         </Button>
-        <p className="mt-2 text-sm text-muted-foreground">A run needs an active configuration. Approve and activate one on the Configuration page first.</p>
+        <p className="mt-2 text-sm text-muted-foreground">A run needs an active configuration. Approve and activate one on the Pay policy page first.</p>
       </div>
     </form>
   );

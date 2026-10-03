@@ -43,7 +43,7 @@ export interface TestCompany {
 }
 
 export async function makeCompany(opts: { live?: boolean; mfa?: boolean } = {}): Promise<TestCompany> {
-  const { data, error } = await admin.from("companies").insert({ name: `dbtest-${uniq()}`, is_demo: false, live_payments_enabled: opts.live ?? false, mfa_required: opts.mfa ?? false }).select("id").single();
+  const { data, error } = await admin.from("companies").insert({ name: `dbtest-${uniq()}`, is_demo: false, live_payments_enabled: opts.live ?? false, mfa_required: opts.mfa ?? false, per_payment_ceiling: 1_000_000_000_000_000, live_status: opts.live ? "PROVISIONED" : "NOT_REQUESTED" }).select("id").single(); // test amounts are large; the ceiling has its own test
   if (error) throw new Error("company insert failed");
   const mk = async (roles: Role[]): Promise<TestUser> => {
     const email = `dbtest-${uniq()}@example.com`;
@@ -143,21 +143,27 @@ export interface BuiltRun {
   recipient: string;
 }
 
-/** A LIVE run taken through the real machine to PENDING_APPROVAL (needs live payments ON for the company). */
-export async function pendingRun(c: TestCompany, cfg?: Awaited<ReturnType<typeof activeConfig>>, workerNo = 1) {
+/** A LIVE run taken through the real machine to PENDING_APPROVAL (needs live payments ON for the company). `extra` adds more workers to the same run. */
+export async function pendingRun(c: TestCompany, cfg?: Awaited<ReturnType<typeof activeConfig>>, workerNo = 1, extra = 0) {
   const config = (cfg ?? (await activeConfig(c))).config;
-  const recipient = ADDR(0xa000 + workerNo + Math.floor(Math.random() * 1e6));
-  const { id: workerId } = await createWorker({ companyId: c.id, userId: c.payroll.id, correlationId: randomUUID() }, { pseudonym: `W${String(100 + workerNo)}`, payType: "SALARIED", compensation: { baseAmount: parseUsdc(CANARY_BASE), hourlyRate: 0n } });
-  await admin.from("workers").update({ wallet_address: recipient, wallet_id: randomUUID() }).eq("id", workerId);
+  const workers: { workerId: string; recipient: string }[] = [];
+  for (let i = 0; i <= extra; i++) {
+    const n = workerNo + i;
+    const recipient = ADDR(0xa000 + n + Math.floor(Math.random() * 1e6));
+    const { id: workerId } = await createWorker({ companyId: c.id, userId: c.payroll.id, correlationId: randomUUID() }, { pseudonym: `W${String(100 + n)}`, payType: "SALARIED", compensation: { baseAmount: parseUsdc(CANARY_BASE), hourlyRate: 0n } });
+    await admin.from("workers").update({ wallet_address: recipient, wallet_id: randomUUID(), wallet_confirmed_address: recipient }).eq("id", workerId);
+    workers.push({ workerId, recipient });
+  }
+  const { workerId, recipient } = workers[0];
   const run = await admin.from("payroll_runs").insert({ company_id: c.id, mode: "LIVE_TESTNET", period_start: "2026-10-01", period_end: "2026-10-31", config_version: config.version, created_by: c.payroll.id }).select("id").single();
   if (run.error) throw new Error(`run insert failed: ${run.error.message}`);
   const runId = run.data.id;
   await step<RunState>(runStore, runMachine, c, runId, ["import_data", "start_reconciliation", "finish_reconciliation", "calculate"]);
-  const entries: EngineEntry[] = [{ worker: { workerId, payType: "SALARIED", baseAmount: parseUsdc(CANARY_BASE), hourlyRate: 0n }, input: { workedHours: "160" } }];
+  const entries: EngineEntry[] = workers.map((w) => ({ worker: { workerId: w.workerId, payType: "SALARIED", baseAmount: parseUsdc(CANARY_BASE), hourlyRate: 0n }, input: { workedHours: "160" } }));
   const calc = calculatePayroll(config, entries);
   const saved = await saveCalculation(c.id, runId, config, entries, calc);
   await step<RunState>(runStore, runMachine, c, runId, ["validate_calculation", "submit_for_approval"]);
-  return { runId, workerId, recipient, config, calc, saved };
+  return { runId, workerId, recipient, workers, config, calc, saved };
 }
 
 /** A LIVE run taken to APPROVED with one CREATED obligation. */
