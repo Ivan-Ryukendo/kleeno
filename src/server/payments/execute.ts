@@ -30,12 +30,12 @@ interface Who {
 type Actor = { id: string; type: ActorType };
 
 /** The agent wallet, the guard and the real clock for one company. Tests pass their own `AgentDeps`. */
-export async function agentDeps(companyId: string): Promise<AgentDeps> {
+export async function agentDeps(companyId: string, correlationId = newCorrelationId()): Promise<AgentDeps> {
   const co = must(await db().from("companies").select("guard_address").eq("id", companyId).single(), "company read");
   const wallet = (await db().from("company_wallets").select("circle_wallet_id").eq("company_id", companyId).eq("role", "AGENT").maybeSingle()).data;
   if (!co.guard_address || !wallet) throw new WorkflowError("NOT_PROVISIONED", "this company has no agent wallet and guard yet");
   return {
-    repo: paymentsRepo(),
+    repo: paymentsRepo(correlationId),
     chain: arcChainReader(co.guard_address),
     rail: arcUsdcRail({ agentWalletId: wallet.circle_wallet_id, guardAddress: co.guard_address }),
     clock: { now: () => new Date(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) },
@@ -91,7 +91,7 @@ export async function executeBatch(who: Who, batchId: string, o: { deps?: AgentD
   if (batch.status === "COMPLETED") return { status: "COMPLETED" as const, settled: 0, failed: 0, remaining: 0, inFlight: 0 };
   if (batch.status !== "OPEN") throw new TransitionError("INVALID_TRANSITION", `a ${batch.status} batch cannot be paid`);
   await assertLive(who.companyId);
-  const deps = o.deps ?? (await agentDeps(who.companyId));
+  const deps = o.deps ?? (await agentDeps(who.companyId, correlationId));
   const start = Date.now();
   const tally = { settled: 0, failed: 0, remaining: 0, inFlight: 0 };
   let attempted = 0;
@@ -126,7 +126,7 @@ export async function recoverPayments(companyId: string, o: { olderThanMs?: numb
     for (const id of open) await rollUp(companyId, id, o.actor ?? SYSTEM, correlationId);
     return { checked: 0, settled: 0 };
   }
-  const deps = o.deps ?? (await agentDeps(companyId));
+  const deps = o.deps ?? (await agentDeps(companyId, correlationId));
   let settled = 0;
   for (const s of stuck) if ((await resumeObligation(s.id, deps)).status === "SETTLED") settled++;
   for (const id of new Set([...stuck.map((s) => s.batch_id as string | null).filter((x): x is string => !!x), ...open])) await rollUp(companyId, id, o.actor ?? SYSTEM, correlationId);
@@ -145,15 +145,16 @@ export async function assertRecoverRate(companyId: string) {
  * A Circle webhook says a transaction changed. It is a hint: find the attempt it belongs to, remember the notification once, and re-check
  * Circle and Arc for that one obligation. Unknown transactions are ignored. Nothing in the payload becomes state.
  */
-export async function onCircleNotification(n: { notificationId: string; circleTxId: string }, o: { deps?: AgentDeps } = {}) {
+export async function onCircleNotification(n: { notificationId: string; circleTxId: string }, o: { deps?: AgentDeps; correlationId?: string } = {}) {
+  const correlationId = o.correlationId ?? newCorrelationId();
   const attempt = (await db().from("payment_attempts").select("obligation_id, company_id").eq("circle_tx_id", n.circleTxId).maybeSingle()).data;
   if (!attempt) return { handled: false as const };
   const seen = (await db().from("webhook_notifications").select("id").eq("provider", "circle").eq("notification_id", n.notificationId).maybeSingle()).data;
   if (seen) return { handled: false as const, duplicate: true as const }; // replay or retry of one already processed: nothing to do
-  const deps = o.deps ?? (await agentDeps(attempt.company_id));
+  const deps = o.deps ?? (await agentDeps(attempt.company_id, correlationId));
   const out = await resumeObligation(attempt.obligation_id, deps);
   const ob = (await db().from("obligations").select("batch_id").eq("id", attempt.obligation_id).maybeSingle()).data;
-  if (ob?.batch_id) await rollUp(attempt.company_id, ob.batch_id, SYSTEM, newCorrelationId());
+  if (ob?.batch_id) await rollUp(attempt.company_id, ob.batch_id, SYSTEM, correlationId);
   // Remembered only after success, so a failure returns 500 and Circle's retry is processed. Two deliveries racing both run; re-checking is idempotent (Arc decides).
   const saved = await db().from("webhook_notifications").insert({ company_id: attempt.company_id, provider: "circle", notification_id: n.notificationId, circle_tx_id: n.circleTxId }).select("id");
   if (saved.error && saved.error.code !== "23505") throw new Error("webhook insert failed");

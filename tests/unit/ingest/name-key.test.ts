@@ -1,13 +1,25 @@
 // S42: the name key file is encrypted in the browser and fails closed; codes stay stable across imports.
 import { describe, expect, it } from "vitest";
 import { mapRows, missingRequired, normalizeDate, suggestMapping } from "@/core/ingest/map";
-import { codeFor, emptyNameKey, KDF_ITERATIONS, NameKeyError, openNameKey, sealNameKey } from "@/core/ingest/name-key";
+import { codeFor, emptyNameKey, KDF_ITERATIONS, namesByCode, NameKeyError, openNameKey, sealNameKey } from "@/core/ingest/name-key";
 import { parseCsv } from "@/core/ingest/csv";
 import { validateRows } from "@/core/ingest/rows";
 
 const PASS = "correct horse battery";
 
 describe("S42 name key file", () => {
+  it("handles prototype-like names and reveals only supplied worker codes locally", () => {
+    const key = emptyNameKey();
+    expect(codeFor(key, "__proto__")).toBe("W001");
+    expect(codeFor(key, "constructor")).toBe("W002");
+    expect(namesByCode(key, ["W001"])).toEqual({ W001: "__proto__" });
+  });
+  it("refuses malformed decrypted maps, reused codes and unbounded KDF work", async () => {
+    await expect(openNameKey(await sealNameKey({ next: 1, names: { jane: "W001" } }, PASS), PASS)).rejects.toMatchObject({ code: "WRONG_PASSPHRASE" });
+    await expect(openNameKey(await sealNameKey({ next: 3, names: { jane: "W001", ali: "W001" } }, PASS), PASS)).rejects.toMatchObject({ code: "WRONG_PASSPHRASE" });
+    const file = JSON.parse(await sealNameKey(emptyNameKey(),PASS));
+    await expect(openNameKey(JSON.stringify({ ...file, iter: 1e12 }),PASS)).rejects.toMatchObject({ code: "BAD_FILE" });
+  });
   it("round trips and keeps codes stable across imports", async () => {
     const key = emptyNameKey(7);
     expect(codeFor(key, "Jane Doe")).toBe("W007");
@@ -17,6 +29,9 @@ describe("S42 name key file", () => {
     const again = await openNameKey(file, PASS);
     expect(codeFor(again, "ali khan")).toBe("W008");
     expect(codeFor(again, "New Person")).toBe("W009");
+    const afterOtherWorkers = await openNameKey(file, PASS, 20);
+    expect(codeFor(afterOtherWorkers, "ali khan")).toBe("W008");
+    expect(codeFor(afterOtherWorkers, "New Person")).toBe("W020");
   });
 
   it("the file holds no plaintext name, and states a strong KDF", async () => {

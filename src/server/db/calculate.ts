@@ -1,14 +1,15 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { auditEvent, newCorrelationId } from "@/core/audit";
+import { scopeReview, scopeOverrideKey } from "@/core/config";
 import { runMachine, TransitionError } from "@/core/domain/machines";
 import { applyTransition } from "@/core/domain/transition";
-import { calculatePayroll, EngineBlocked, verifyCalculation, type EngineEntry } from "@/core/engine";
+import { calculatePayroll, EngineBlocked, verifyCalculation, PayAdjustmentsSchema, type PayAdjustment, type EngineEntry } from "@/core/engine";
 import { parseUsdc } from "@/core/money";
 import { analyse } from "@/core/reconciliation";
 import { compareVariance } from "@/core/variance";
 import { isPayrollRole, WorkflowError, type Role } from "@/core/workflow";
-import { openField, sealJson } from "@/server/crypto";
+import { openField, openJson, sealJson } from "@/server/crypto";
 import { writeAudit } from "./audit";
 import { saveCalculation } from "./calculations";
 import { db, must } from "./client";
@@ -43,12 +44,17 @@ export async function calculateRun(who: Who, runId: string) {
   if (!analysis.inputs) throw new TransitionError("INVALID_TRANSITION", "resolve every exception before calculating");
 
   const workers = new Map((await listWorkers(db(), who.companyId)).map((w) => [w.id, w]));
+  const revisionRow = (await db().from("payroll_runs").select("adjustment_revision").eq("company_id", who.companyId).eq("id", runId).single()).data;
+  const adjustmentRevision = revisionRow?.adjustment_revision ?? 0;
+  const adjustments = await loadRunAdjustments(db(), who.companyId, runId);
   const code = (id: string) => workers.get(id)?.pseudonym ?? "unknown worker";
   const entries: EngineEntry[] = [...analysis.inputs].map(([workerId, wi]) => {
     const w = workers.get(workerId);
     if (!w?.compensation) throw new WorkflowError("CALCULATION_BLOCKED", `${code(workerId)} has no pay set up`);
-    return { worker: { workerId, payType: w.payType, baseAmount: w.compensation.baseAmount, hourlyRate: w.compensation.hourlyRate }, input: wi };
+    return { worker: { workerId, pseudonym: w.pseudonym, payType: w.payType, baseAmount: w.compensation.baseAmount, hourlyRate: w.compensation.hourlyRate, ...w.metadata }, input: { ...wi, adjustments: adjustments.get(workerId) ?? [] }, period: { start: run.period_start, end: run.period_end } };
   });
+  const scope = scopeReview(cfg.config, entries.map(e => e.worker));
+  if (scope.problems.length || scope.overrides.some(o => !cfg.confirmedOverrideKeys.includes(scopeOverrideKey(o)))) throw new WorkflowError("CALCULATION_BLOCKED", "worker scope evidence changed; approve a new configuration with the current overrides");
   let calc;
   try {
     calc = calculatePayroll(cfg.config, entries);
@@ -66,6 +72,7 @@ export async function calculateRun(who: Who, runId: string) {
       await saveCalculation(who.companyId, runId, cfg.config, entries, calc, {
         evidence: { timesheets: await evidence("timesheets"), leave: await evidence("leave_records"), actualPayments: await evidence("actual_payments") },
         decisions: Object.fromEntries(resolutions),
+        adjustmentRevision,
       })
     ).calculationId;
 
@@ -80,6 +87,26 @@ export async function calculateRun(who: Who, runId: string) {
   const variance = await saveVariance(who.companyId, runId, calculationId, calc.lines, cfg.config.varianceTolerance);
   const status = await step("validate_calculation");
   return { calculationId, calculationHash: calc.calculationHash, status, workers: calc.lines.length, variance };
+}
+
+export async function loadRunAdjustments(reader: import("@supabase/supabase-js").SupabaseClient, companyId: string, runId: string): Promise<Map<string, PayAdjustment[]>> {
+  const rows = must(await reader.from("run_adjustments").select("id,worker_id,payload_enc").eq("company_id", companyId).eq("run_id", runId), "run adjustments");
+  const values = await Promise.all(rows.map(async r => [r.worker_id as string, PayAdjustmentsSchema.parse(await openJson(companyId, "run_adjustments", "payload_enc", r.id, r.payload_enc))] as const));
+  return new Map(values);
+}
+export async function setRunAdjustments(who: Who, runId: string, workerId: string, input: PayAdjustment[]) {
+  if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only HR or payroll enters adjustments");
+  const adjustments = PayAdjustmentsSchema.parse(input);
+  const run = await loadRun(who.companyId, runId);
+  if (!["DRAFT", "DATA_IMPORTED", "RECONCILING", "EXCEPTIONS_PENDING", "READY_FOR_CALCULATION"].includes(run.status)) throw new TransitionError("INVALID_TRANSITION", "create a new run to change calculated inputs");
+  const worker = (await db().from("workers").select("id").eq("company_id", who.companyId).eq("id", workerId).maybeSingle()).data;
+  if (!worker) throw new TransitionError("NOT_FOUND", "worker not found");
+  const existing = (await db().from("run_adjustments").select("id").eq("company_id", who.companyId).eq("run_id", runId).eq("worker_id", workerId).maybeSingle()).data;
+  const id = existing?.id ?? randomUUID(), payload_enc = await sealJson(who.companyId, "run_adjustments", "payload_enc", id, adjustments);
+  if (existing) must(await db().from("run_adjustments").update({ payload_enc, created_by: who.userId, updated_at: new Date().toISOString() }).eq("company_id", who.companyId).eq("run_id", runId).eq("id", id).select("id"), "adjustments update");
+  else must(await db().from("run_adjustments").insert({ id, company_id: who.companyId, run_id: runId, worker_id: workerId, payload_enc, created_by: who.userId }).select("id"), "adjustments insert");
+  await writeAudit(auditEvent({ companyId: who.companyId, event: "run.adjustments", entityType: "payroll_run", entityId: runId, actor: who.userId, actorType: "user", correlationId: who.correlationId ?? newCorrelationId(), refs: { workerId, adjustmentId: id, count: adjustments.length } }));
+  return { id, count: adjustments.length };
 }
 
 /** Null when no amounts actually paid were imported for the run (there is no report to make); otherwise the number of findings. */

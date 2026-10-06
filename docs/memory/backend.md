@@ -1,0 +1,7 @@
+# Policy/pay worker context — 2026-10-05
+
+Read AGENT.md, project memory, PROGRESS, ESSENTIALS, PRD, relevant ARCHITECTURE sections, security S69/S71/S72/S73, completion plan tasks 2/3, P4c, DESIGN/pages for UI and relevant installed Next docs. Owner approved parallel mission/upload bounds; calendar-day proration was already confirmed. Ponytail full backend only; UI uses UI/UX Pro Max. Preserve existing work; failing tests before code, targeted pass/refactor; never weaken protected tests.
+
+Exclusive writes: config/engine/AI input schemas and policy adapter/cache; config/worker/calculate/snapshot repositories; config-forms and worker-forms; related tests; migrations numbered 20261005000001/2 reserved to this lane. Parent owns APIs/package/shared integration, core/views and table-views (temporary reassignment for independent column work); do not edit those. Coordinate API/type contracts early. Uploads worker supplies standalone policy-upload callback; embed once ready. Policy clauses and pay fields encrypted; approved versions/snapshots immutable; deterministic exact money and trace/hash; no names or arbitrary AI amounts. Scope precedence and explicit override confirmation, tenant/model/schema/prompt-bound cache and near-duplicate warnings per plan.
+
+Build the complete retained P4c behavior, including worker metadata/additions/fixed deductions/calendar-day proration. No commits/cloud migrations. Report exact changed files/checks and remaining limitations. Parent owns shared memory updates; restore context by reading actual files.

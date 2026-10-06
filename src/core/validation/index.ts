@@ -37,6 +37,17 @@ export function validateConfigProposal(params: ConfigParams, clauses: Clauses): 
   check("hourlyCapHours", params.hourlyCapHours, ["OVERTIME", "HOURLY_RATE"], []);
   if (params.hourlyCapHours !== null) check("aboveCapMultiplier", params.aboveCapMultiplier, ["OVERTIME", "HOURLY_RATE"], ["1", "1.0"]); // no cap: the multiplier is unused
   for (const d of params.deductions) check(`deduction ${d.code}`, d.percent, ["PERCENT_DEDUCTION"], []);
+  for (const r of params.scopedRules ?? []) {
+    const cited = clauses.filter(c => r.clauseIds.includes(c.id)).map(c => c.text).join(" ");
+    const ns = numbersIn(cited);
+    for (const [key, value] of Object.entries(r.values)) {
+      if (typeof value === "string" && !ns.includes(Number(value))) flags.push(`scoped rule ${r.id}: ${key} = ${value} is not stated in its cited clauses`);
+      if (key === "deductions") for (const d of r.values.deductions ?? []) if (!ns.includes(Number(d.percent))) flags.push(`scoped rule ${r.id}: deduction ${d.code} is not stated in its cited clauses`);
+    }
+    for (const group of r.scope.groups ?? []) if (!cited.toLowerCase().includes(group.value.toLowerCase())) flags.push(`scoped rule ${r.id}: scope value is not stated in its cited clauses`);
+    problems.push(...plainTextProblems(`scope ${r.id}`, r.scope.groups?.map(g => g.value) ?? []));
+  }
+  if (params.prorationMethod === "ACTUAL_CALENDAR_DAYS" && !ruleIds.includes("PRORATION")) flags.push("Calendar-day proration needs HR confirmation; no PRORATION clause was cited");
   check("varianceTolerance", params.varianceTolerance, [], ["0.01"]);
   if (params.deductions.length && !ruleIds.includes("PERCENT_DEDUCTION")) problems.push("deductions need a PERCENT_DEDUCTION rule citing a clause");
   return { problems, flags };

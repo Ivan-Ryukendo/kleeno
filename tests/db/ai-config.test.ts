@@ -1,12 +1,11 @@
 // P3 slice 1: AI policy -> config in HUMAN_REVIEW, flag confirmation, immutable executions, company isolation (S13, S19, S22).
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-import { TransitionError } from "@/core/domain/machines";
 import { WorkflowError } from "@/core/workflow";
 import { proposeConfig } from "@/server/ai/policy";
-import { configAction } from "@/server/db/configs";
+import { configAction, createConfigDraft } from "@/server/db/configs";
 import { GOOD, POLICY_TEXT, scripted } from "../fixtures/ai/policy";
-import { admin, makeCompany, type TestCompany } from "./helpers";
+import { activeConfig, admin, CONFIG_PARAMS, makeCompany, userClient, type TestCompany } from "./helpers";
 
 let a: TestCompany;
 let b: TestCompany;
@@ -69,8 +68,55 @@ describe("flagged values", () => {
 describe("S13 isolation", () => {
   it("another company cannot act on a config; its executions are invisible to it", async () => {
     const r = await proposeConfig(who(a), POLICY_TEXT, scripted([GOOD]));
-    await expect(configAction(who(b), r.config!.id, "approve")).rejects.toBeInstanceOf(TransitionError);
+    await expect(configAction(who(b), r.config!.id, "approve")).rejects.toMatchObject({ code: "FORBIDDEN" });
     const seen = (await admin.from("ai_executions").select("id").eq("company_id", b.id).eq("id", r.executionId)).data!;
     expect(seen).toEqual([]);
+  });
+});
+
+describe("S18 atomic configuration activation", () => {
+  it("invalid, absent and foreign targets leave the active configuration and its audit unchanged", async () => {
+    const c = await makeCompany(), other = await makeCompany();
+    const current = await activeConfig(c), foreign = await activeConfig(other);
+    const draft = await createConfigDraft(who(c), { params: CONFIG_PARAMS, clauses: [{ id: "C1", text: "Synthetic baseline policy." }] });
+    for (const [id, code] of [[draft.id, "INVALID_TRANSITION"], [current.id, "INVALID_TRANSITION"], [randomUUID(), "NOT_FOUND"], [foreign.id, "NOT_FOUND"]]) {
+      await expect(configAction(who(c), id, "activate")).rejects.toMatchObject({ code });
+      expect((await admin.from("payroll_configurations").select("id").eq("company_id", c.id).eq("status", "ACTIVE")).data).toEqual([{ id: current.id }]);
+    }
+    expect((await admin.from("audit_events").select("id").eq("entity_id", current.id).eq("event", "config.supersede")).data).toEqual([]);
+  });
+
+  it("concurrent activation of the same target wins once and audits the replacement exactly once", async () => {
+    const c = await makeCompany(), current = await activeConfig(c);
+    const proposal = await proposeConfig(who(c), POLICY_TEXT, scripted([GOOD]));
+    const id = proposal.config!.id;
+    await configAction(who(c), id, "approve");
+    const actor = who(c);
+    const results = await Promise.allSettled([configAction(actor, id, "activate"), configAction(actor, id, "activate")]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ code: "INVALID_TRANSITION" });
+    expect((await admin.from("payroll_configurations").select("id").eq("company_id", c.id).eq("status", "ACTIVE")).data).toEqual([{ id }]);
+    const events = (await admin.from("audit_events").select("entity_id,event,correlation_id,refs").eq("company_id", c.id).eq("correlation_id", actor.correlationId)).data!;
+    expect(events).toHaveLength(2);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ entity_id: current.id, event: "config.supersede", refs: { from: "ACTIVE", to: "SUPERSEDED" } }),
+      expect.objectContaining({ entity_id: id, event: "config.activate", refs: { from: "APPROVED", to: "ACTIVE" } }),
+    ]));
+  });
+
+  it("activation is service-only and rechecks the actor's current role without changing either version", async () => {
+    const c = await makeCompany(), current = await activeConfig(c);
+    const proposal = await proposeConfig(who(c), POLICY_TEXT, scripted([GOOD]));
+    const id = proposal.config!.id;
+    await configAction(who(c), id, "approve");
+    const args = { p_company: c.id, p_id: id, p_actor: c.payroll.id, p_correlation: randomUUID() };
+    const reader = await userClient(c.payroll);
+    expect((await reader.rpc("activate_payroll_config", args)).error).not.toBeNull();
+    expect((await admin.rpc("activate_payroll_config", { ...args, p_actor: c.payment.id })).data).toBe("FORBIDDEN");
+    expect((await admin.from("payroll_configurations").select("id").eq("company_id", c.id).eq("status", "ACTIVE")).data).toEqual([{ id: current.id }]);
+    expect((await admin.from("payroll_configurations").select("status").eq("id", id).single()).data).toEqual({ status: "APPROVED" });
+    expect((await admin.from("audit_events").select("id").eq("entity_id", current.id).eq("event", "config.supersede")).data).toEqual([]);
+    expect((await admin.from("memberships").update({ roles: ["OWNER", "VIEWER"] }).eq("company_id", c.id).eq("user_id", c.payroll.id)).error).toBeNull();
+    await expect(configAction(who(c), id, "activate")).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

@@ -4,10 +4,12 @@ import { ConfigCard, PolicyForm, type ConfigCardView } from "@/components/config
 import { isPayrollRole } from "@/core/workflow";
 import { pageSession } from "@/server/auth/page-session";
 import { listConfigs, type ConfigView } from "@/server/db/configs";
+import { scopeCategory, scopeOverrideKey } from "@/core/config";
+import { listWorkers } from "@/server/db/workers";
 
 export const metadata = { title: "Pay policy · Kleeno" };
 
-const view = (c: ConfigView): ConfigCardView => {
+const view = (c: ConfigView, codes: Map<string, string>): ConfigCardView => {
   const p = c.params;
   const text = new Map(c.clauses.map((cl) => [cl.id, cl.text]));
   return {
@@ -17,6 +19,10 @@ const view = (c: ConfigView): ConfigCardView => {
     aiAssisted: c.aiAssisted,
     flags: c.flags,
     confirmed: c.confirmed,
+    warnings: c.warnings,
+    documents: c.documents,
+    scope: { ...c.scope, coverage: c.scope.coverage.map((w) => ({ ...w, workerId: codes.get(w.workerId) ?? w.workerId })), overrides: c.scope.overrides.map((o) => ({ ...o, key: scopeOverrideKey(o), workerId: codes.get(o.workerId) ?? o.workerId })) },
+    scopedRules: p.scopedRules?.map((r) => ({ id: r.id, category: scopeCategory(r.scope), clauses: r.clauseIds.map((id) => ({ id, text: text.get(id) ?? "missing clause" })), values: Object.entries(r.values).map(([label, value]) => ({ label, value: Array.isArray(value) ? value.map((d) => `${d.label}: ${d.percent}%`).join(", ") : String(value) })) })),
     values: [
       { label: "Scheduled hours per period", value: p.scheduledHoursPerPeriod },
       { label: "Weekly overtime starts after (hours)", value: p.weeklyOvertimeThresholdHours },
@@ -34,7 +40,8 @@ export default async function ConfigurationPage() {
   await connection();
   const session = await pageSession();
   const { actor, client } = session;
-  const configs = (await listConfigs(client, actor.companyId)).map(view);
+  const codes = new Map((await listWorkers(client, actor.companyId)).map((w) => [w.id, w.pseudonym]));
+  const configs = (await listConfigs(client, actor.companyId)).map((c) => view(c, codes));
   const canEdit = isPayrollRole(actor.roles);
 
   return (
@@ -44,7 +51,7 @@ export default async function ConfigurationPage() {
       {canEdit && (
         <section className="mt-6 panel">
           <h2 className="text-lg">New proposal</h2>
-          <PolicyForm />
+          <PolicyForm key={`${actor.companyId}:${actor.userId}`} />
         </section>
       )}
 

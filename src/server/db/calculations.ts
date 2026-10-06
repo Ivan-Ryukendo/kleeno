@@ -30,7 +30,7 @@ export async function saveCalculation(companyId: string, runId: string, config: 
     });
   }
   // One transaction: the calculation and every line, or nothing (both are immutable once written).
-  const saved = await db().rpc("save_calculation", { p_calc: { id: calcId, company_id: companyId, run_id: runId, config_version: config.version, calculation_hash: calc.calculationHash, snapshot_enc: snapshot }, p_lines: lines });
+  const saved = await db().rpc("save_calculation", { p_calc: { id: calcId, company_id: companyId, run_id: runId, config_version: config.version, calculation_hash: calc.calculationHash, snapshot_enc: snapshot, adjustment_revision: extra.adjustmentRevision ?? 0 }, p_lines: lines });
   if (saved.error) throw new Error(`db calculation save failed (${saved.error.code})`); // void result: must() would read null as failure
   return { calculationId: calcId, lineIds };
 }

@@ -5,8 +5,8 @@ import type { AiSpec } from ".";
 
 // PolicyInterpreter: HR policy clauses -> a config proposal that uses catalog rule IDs only and cites clause IDs.
 // It never supplies pay amounts (a config has none) and never approves anything (rules 2, 3).
-export const POLICY_PROMPT_VERSION = "policy-v5";
-export const POLICY_SCHEMA_VERSION = "1";
+export const POLICY_PROMPT_VERSION = "policy-v6";
+export const POLICY_SCHEMA_VERSION = "2";
 
 export const PolicyOutputSchema = z
   .object({
@@ -26,6 +26,8 @@ Rules:
 - Defaults when the policy is silent: weeklyOvertimeThresholdHours "0" and overtimeMultiplier "1" only if there is no overtime rule; hourlyCapHours null and aboveCapMultiplier "1" whenever there is no hourly cap (a multiplier is never below 1). Percentages are 0-100; multipliers are between 1 and 3.
 - Pay amounts, salaries and hourly rates are stored per worker elsewhere and are never part of this configuration. Their absence from the policy is NOT a reason to decline. Decline only when a value the policy does address is ambiguous or contradictory.
 - List a rule only if a clause supports it; a policy need not cover every rule in the catalog.
+- Scope selectors are data: groups use payType, workerType, department or tag; listed workers use pseudonymous IDs only. Never add a category or rank. Empty scope covers everyone; groups are a union. Scoped rules can override supported configuration values only, cite clauses and use unique stable IDs. No salaries, addition amounts or arbitrary formulas. Omit scopedRules if the policy has no scoped differences.
+- Set prorationMethod to ACTUAL_CALENDAR_DAYS only when a cited PRORATION clause states inclusive active dates divided by actual days in the period; otherwise omit it for human setup.
 - Every number you set (hours per period, overtime threshold, multipliers, percentages, caps) must be written in a clause that one of your rules cites. For hours per period use BASE_SALARY or HOURLY_RATE and cite the clause that states it.
 - Do not calculate pay, approve anything or add commentary. Reasons are short plain text with no links.
 Answer with the JSON object only.`;

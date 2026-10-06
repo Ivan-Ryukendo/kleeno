@@ -2,13 +2,29 @@
 
 Status: **concept** (user request 2026-10-01). User plan: conceptualize now; build a small, working slice for the hackathon only if time allows after P3; full build after the hackathon.
 
+## October 6 future-product update (planned, not active)
+
+The owner approved documenting company opt-in encrypted **employee names and basic contact details** as a future direction, default off for existing companies. This is the narrowed first profile slice in [roadmap Step 8](../roadmap.md#step-8--introduce-employee-profiles-and-self-service), not permission to store names now. Current rule 35/S25 and browser-only name handling remain active until the encryption, access, deletion and migration controls pass and active rules are amended together.
+
+This update supersedes conflicting recommendations in the earlier concept below:
+
+- Initial access default: HR plus employees viewing only their own published records, with explicit employee-account mapping and MFA for all real-data users. The earlier optional-worker-MFA proposal is superseded. Broader manager access is deferred.
+- Name/basic contact fields are encrypted through existing company-key repositories; keep them out of AI inputs, chain, logs and audit payloads. Opt-in must be explicit; real-data retention/deletion/export and backup behavior must be specified before rollout.
+- Schedules (regular/irregular, timezone), projects/allocation/blockers, applicable policies and supported performance measures are future profile capabilities. Show source/period/target/freshness/missing data and role/leave/workload context; never automate punitive employment decisions.
+- Corrections are reviewed requests. Employees cannot directly change approved pay, policy or payout recipients; original approved records stay immutable. Reuse existing guarded compensation/recipient paths.
+- Photos, general documents, unrestricted notes and medical records are outside this initial exception. Earlier upload/storage proposals below are historical options, not approved near-term scope or launch dates.
+- Existing company-configured resource leave/KPI work and P4c proration have their current status in PROGRESS; the older statement that all leave/proration is deferred does not describe the present implementation.
+- No new WORKER role, profile schema, storage bucket or UI is implemented by this documentation update. Define the narrow role/access contract and tests in the selected phase before coding. Profile controls are planned in [security section 7](../security.md#7-future-commercial-controls-2026-10-06-all-planned).
+
+## Earlier October 1 concept (historical; narrowed above)
+
 ## Request
 Each worker gets a personal page: HR uploads details and documents, workers upload their own photo and information, everything linked to that page. It shows status, leave balance and what a long-term leave needs. The dashboard shows worker information updates for HR to approve, and sends reminders to HR and the team about upcoming leave.
 
 ## Conflicts with the current rules
 1. **Rule 35 / S25 ("names never reach the server").** Workers are W001-style codes on purpose. A profile with name, contact, photo or documents is personal data on the server. This ADR proposes an **opt-in per company** exception (below). Without approval, profile data stays out and only pseudonymous fields exist.
 2. **Workers are not users.** Only approvers have accounts (`memberships`, rule 33). Workers uploading their own data needs a new `WORKER` role that sees only its own page.
-3. **Scope and time.** 9 days remain (deadline Oct 10) and P3, P4, P5 are open. Leave balances, notifications and wider RBAC are in the PRD out-of-scope list.
+3. **Scope and time.** The original time-pressure assessment predates the extension. Submission is now **October 17, 2026** (user update 2026-10-05); current phase status and dependency-aware dates are in PROGRESS and PRD §12. Leave balances, notifications and wider RBAC remain out of scope; the extension prioritizes validation/evidence/demo, not expansion of this ADR.
 
 ## Decisions proposed
 **Data kinds.**

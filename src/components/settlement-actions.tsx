@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { formatUsdc } from "@/core/money";
 import { postJson } from "@/lib/api";
 
 const big = "h-9 rounded-field px-4 text-sm";
@@ -14,6 +15,87 @@ function Alert({ error }: { error: string | null }) {
       {error}
     </p>
   ) : null;
+}
+
+interface StandingAuthorizationRow {
+  id: string;
+  max_batch_total: string | number;
+  max_per_payment: string | number;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+/** A payment approver can grant a capped, expiring clean-plan authorization and revoke it at any time. */
+export function StandingAuthorizationsPanel({ canCreate, initialRows }: { canCreate: boolean; initialRows: StandingAuthorizationRow[] }) {
+  const [rows, setRows] = useState<StandingAuthorizationRow[]>(initialRows);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function refresh() {
+    try {
+      const response = await fetch("/api/standing-authorizations", { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(json?.error?.message ?? "Could not load standing authorizations");
+        return;
+      }
+      setRows(json as StandingAuthorizationRow[]);
+    } catch {
+      setError("Could not reach the server");
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-5">
+      <p className="text-sm text-muted-foreground">A standing authorization may sign only an accepted, clean payment plan within these limits. Holds, flags, changed policy or recipients, and missing evidence always require a person.</p>
+      {rows.length > 0 && (
+        <ul className="divide-y divide-border rounded-field border border-border">
+          {rows.map((row) => (
+            <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div className="text-sm">
+                <p><strong>{formatUsdc(BigInt(row.max_batch_total))} USDC</strong> per batch · {formatUsdc(BigInt(row.max_per_payment))} USDC per payment</p>
+                <p className="mt-1 text-muted-foreground">Expires {new Date(row.expires_at).toLocaleString()}{row.revoked_at ? " · Revoked" : ""}</p>
+              </div>
+              {!row.revoked_at && (
+                <Button type="button" variant="outline" className={big} disabled={busy} onClick={async () => {
+                  setBusy(true); setError(null);
+                  const result = await postJson("/api/standing-authorizations", { action: "revoke", id: row.id });
+                  if (result.ok) await refresh(); else setError(result.error ?? "Could not revoke the authorization");
+                  setBusy(false);
+                }}>Revoke</Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canCreate ? (
+        <form className="grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={async (event) => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          const values = new FormData(form);
+          setBusy(true); setError(null);
+          const result = await postJson("/api/standing-authorizations", {
+            action: "create",
+            maxBatchTotal: values.get("maxBatchTotal"),
+            maxPerPayment: values.get("maxPerPayment"),
+            expiresAt: new Date(String(values.get("expiresAt"))).toISOString(),
+            password: values.get("password"),
+          });
+          if (result.ok) { form.reset(); await refresh(); }
+          else setError(result.error ?? "Could not create the authorization");
+          setBusy(false);
+        }}>
+          <p className="sm:col-span-2 text-sm">Set explicit USDC limits and an expiry. Creating or changing a grant requires your password.</p>
+          <div><Label htmlFor="standing-batch">Maximum batch total (USDC)</Label><Input id="standing-batch" name="maxBatchTotal" inputMode="decimal" pattern="[0-9]+([.][0-9]{1,6})?" placeholder="1000" required /></div>
+          <div><Label htmlFor="standing-payment">Maximum per payment (USDC)</Label><Input id="standing-payment" name="maxPerPayment" inputMode="decimal" pattern="[0-9]+([.][0-9]{1,6})?" placeholder="250" required /></div>
+          <div><Label htmlFor="standing-expiry">Expiry</Label><Input id="standing-expiry" name="expiresAt" type="datetime-local" required /></div>
+          <div><Label htmlFor="standing-password">Your password</Label><Input id="standing-password" name="password" type="password" autoComplete="current-password" required /></div>
+          <div className="sm:col-span-2"><Button type="submit" disabled={busy} className={big}>{busy ? "Saving…" : "Create standing authorization"}</Button></div>
+        </form>
+      ) : <p className="text-sm text-muted-foreground">Live payments are off; existing authorizations can still be revoked.</p>}
+      <Alert error={error} />
+    </div>
+  );
 }
 
 interface ExecResult {

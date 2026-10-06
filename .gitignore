@@ -13,6 +13,8 @@ node_modules/
 .next/
 out/
 coverage/
+test-results/
+playwright-report/
 *.tsbuildinfo
 next-env.d.ts
 
@@ -25,8 +27,12 @@ contracts/broadcast/
 supabase/.temp/
 supabase/.branches/
 
-# local agent settings
+# local agent settings and installed skills (tooling, not product)
 .claude/settings.local.json
+.claude/skills/
+.agents/
+skills-lock.json
 .dev.log
+claudex/
 
 .vercel

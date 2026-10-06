@@ -34,6 +34,9 @@ export interface ObligationContext {
     companyId: string;
     status: string;
     authorizerId: string | null;
+    authorizationType?: "HUMAN" | "STANDING";
+    /** Fresh server evidence; an absent result never permits a standing payment. */
+    standingValid?: boolean;
     guardRunKey: string | null;
     planHash: string;
     plan: PlanInput;

@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { auditEvent } from "@/core/audit";
 import { TransitionError } from "@/core/domain/machines";
 import type { PayType } from "@/core/engine";
-import { WorkflowError } from "@/core/workflow";
+import { isPayrollRole, WorkflowError, type Role } from "@/core/workflow";
+import { WorkerMetadataSchema, type WorkerMetadata } from "@/core/workers";
 import { openJson, sealJson } from "@/server/crypto";
 import { writeAudit } from "./audit";
 import { db, must } from "./client";
@@ -22,6 +23,7 @@ interface Who {
   companyId: string;
   userId: string;
   correlationId: string;
+  roles?: readonly Role[];
 }
 
 async function insertCompensation(who: Who, workerId: string, version: number, c: Compensation, reason: CompReason) {
@@ -31,9 +33,11 @@ async function insertCompensation(who: Who, workerId: string, version: number, c
   await writeAudit(auditEvent({ companyId: who.companyId, event: "compensation.version", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { version, reason } }));
 }
 
-export async function createWorker(who: Who, input: { pseudonym: string; payType: PayType; compensation: Compensation }) {
+export async function createWorker(who: Who, input: { pseudonym: string; payType: PayType; compensation: Compensation; metadata?: WorkerMetadata }) {
   const id = randomUUID();
-  must(await db().from("workers").insert({ id, company_id: who.companyId, pseudonym: input.pseudonym, pay_type: input.payType }).select("id"), "worker insert"); // unique (company, pseudonym)
+  const metadata = WorkerMetadataSchema.parse(input.metadata ?? {});
+  const metadata_enc = await sealJson(who.companyId, "workers", "metadata_enc", id, metadata);
+  must(await db().from("workers").insert({ id, company_id: who.companyId, pseudonym: input.pseudonym, pay_type: input.payType, metadata_enc, employment_start: metadata.employmentStart, employment_end: metadata.employmentEnd }).select("id"), "worker insert"); // unique (company, pseudonym)
   try {
     await insertCompensation(who, id, 1, input.compensation, "INITIAL");
   } catch (e) {
@@ -42,6 +46,17 @@ export async function createWorker(who: Who, input: { pseudonym: string; payType
   }
   await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.create", entityType: "worker", entityId: id, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { payType: input.payType } }));
   return { id };
+}
+
+export async function updateWorkerMetadata(who: Who, workerId: string, input: WorkerMetadata): Promise<boolean> {
+  if (!isPayrollRole(who.roles ?? [])) throw new WorkflowError("FORBIDDEN", "only the payroll side edits worker evidence");
+  const metadata = WorkerMetadataSchema.parse(input);
+  const w = (await db().from("workers").select("id").eq("company_id", who.companyId).eq("id", workerId).maybeSingle()).data;
+  if (!w) return false;
+  const metadata_enc = await sealJson(who.companyId, "workers", "metadata_enc", workerId, metadata);
+  must(await db().from("workers").update({ metadata_enc, employment_start: metadata.employmentStart, employment_end: metadata.employmentEnd }).eq("company_id", who.companyId).eq("id", workerId).select("id"), "worker metadata");
+  await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.metadata", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { metadataUpdated: true } }));
+  return true;
 }
 
 /**
@@ -71,7 +86,7 @@ export async function archiveWorker(who: Who, workerId: string, input: { leftOn:
   const w = (await db().from("workers").select("id, active").eq("id", workerId).eq("company_id", who.companyId).maybeSingle()).data;
   if (!w) return null;
   if (!w.active) throw new TransitionError("INVALID_TRANSITION", "this worker has already left");
-  const done = must(await db().from("workers").update({ active: false, left_on: input.leftOn, left_reason: input.reason }).eq("id", workerId).eq("company_id", who.companyId).eq("active", true).select("id"), "worker archive");
+  const done = must(await db().from("workers").update({ active: false, left_on: input.leftOn, left_reason: input.reason, employment_end: input.leftOn }).eq("id", workerId).eq("company_id", who.companyId).eq("active", true).select("id"), "worker archive");
   if (done.length === 0) throw new TransitionError("STALE_STATE", "this worker has already left"); // lost a race
   await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.archive", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { leftOn: input.leftOn, reason: input.reason } }));
   const { count } = await db().from("obligations").select("id", { count: "exact", head: true }).eq("company_id", who.companyId).eq("worker_id", workerId).in("status", OPEN_OBLIGATIONS);
@@ -82,7 +97,7 @@ export async function reactivateWorker(who: Who, workerId: string): Promise<bool
   const w = (await db().from("workers").select("id, active").eq("id", workerId).eq("company_id", who.companyId).maybeSingle()).data;
   if (!w) return false;
   if (w.active) throw new TransitionError("INVALID_TRANSITION", "this worker is already active");
-  const done = must(await db().from("workers").update({ active: true, left_on: null, left_reason: null }).eq("id", workerId).eq("company_id", who.companyId).eq("active", false).select("id"), "worker reactivate");
+  const done = must(await db().from("workers").update({ active: true, left_on: null, left_reason: null, employment_end: null }).eq("id", workerId).eq("company_id", who.companyId).eq("active", false).select("id"), "worker reactivate");
   if (done.length === 0) throw new TransitionError("STALE_STATE", "this worker is already active");
   await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.reactivate", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId }));
   return true;
@@ -139,11 +154,12 @@ export interface WorkerRow {
   leftOn: string | null;
   leftReason: string | null;
   history: { version: number; reason: string; baseAmount: bigint; hourlyRate: bigint; at: string }[]; // newest first
+  metadata: WorkerMetadata;
 }
 
 /** Reads through `reader` (the user-scoped client, so RLS applies) and decrypts on the server. */
 export async function listWorkers(reader: SupabaseClient, companyId: string, opts: { activeOnly?: boolean } = {}): Promise<WorkerRow[]> {
-  const workers = must(await reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason").eq("company_id", companyId).order("pseudonym"), "workers read").filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
+  const workers = must(await reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason, metadata_enc, employment_start, employment_end").eq("company_id", companyId).order("pseudonym"), "workers read").filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
   const comps = must(await reader.from("compensations").select("id, worker_id, version, reason, created_at, payload_enc").eq("company_id", companyId).order("version", { ascending: false }), "compensations read");
   return Promise.all(
     workers.map(async (w) => {
@@ -154,6 +170,7 @@ export async function listWorkers(reader: SupabaseClient, companyId: string, opt
         }),
       );
       const cur = history[0];
+      const metadata = WorkerMetadataSchema.parse(w.metadata_enc ? await openJson<WorkerMetadata>(companyId, "workers", "metadata_enc", w.id, w.metadata_enc) : {});
       return {
         id: w.id,
         pseudonym: w.pseudonym,
@@ -167,6 +184,7 @@ export async function listWorkers(reader: SupabaseClient, companyId: string, opt
         leftOn: w.left_on,
         leftReason: w.left_reason,
         history,
+        metadata: { ...metadata, employmentStart: w.employment_start, employmentEnd: w.employment_end },
       };
     }),
   );

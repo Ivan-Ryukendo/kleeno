@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { PageHeader } from "@/components/shell/page-header";
-import { LivePaymentsPanel, PayControls, PlanForm, ReceiptLinkButton, SignForm, TopUpPanel } from "@/components/settlement-actions";
+import { LivePaymentsPanel, PayControls, PlanForm, ReceiptLinkButton, SignForm, StandingAuthorizationsPanel, TopUpPanel } from "@/components/settlement-actions";
 import { StatusPill } from "@/components/status-pill";
 import { isOwner } from "@/core/tenancy";
 import { isPaymentRole } from "@/core/workflow";
 import { pageSession } from "@/server/auth/page-session";
 import { settlementView } from "@/server/db/settlement";
+import { listStanding } from "@/server/db/standing";
 
 export const metadata = { title: "Payments · Kleeno" };
 
@@ -24,6 +25,9 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
   const canPay = isPaymentRole(actor.roles);
   const owner = isOwner(actor.roles);
   const live = company.live_payments_enabled;
+  const standing = canPay && !company.is_demo && !company.is_sandbox
+    ? await listStanding({ companyId: actor.companyId, userId: actor.userId, roles: actor.roles })
+    : [];
   const active = run?.batch && ["PROPOSED", "AUTHORIZED", "OPEN"].includes(run.batch.status) ? run.batch : null;
   const unpaid = run?.obligations.filter((o) => o.status === "CREATED" || o.status === "ON_HOLD") ?? [];
   const settledCount = run?.obligations.filter((o) => o.status === "SETTLED").length ?? 0;
@@ -190,6 +194,12 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
             </section>
           )}
         </>
+      )}
+      {canPay && !company.is_demo && !company.is_sandbox && (
+        <section className={card}>
+          <h2 className="text-lg">Standing payment authorizations</h2>
+          <StandingAuthorizationsPanel canCreate={live} initialRows={standing} />
+        </section>
       )}
     </>
   );

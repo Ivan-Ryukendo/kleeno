@@ -26,7 +26,7 @@ export default async function ImportPage() {
       {canEdit ? (
         <section className="mt-6 panel">
           <h2 className="text-lg">New import</h2>
-          <ImportWizard runs={runs.map((r) => ({ id: r.id, label: label(r) }))} workerCodes={workers.map((w) => w.pseudonym)} nextCode={nextCode} />
+          <ImportWizard key={`${actor.companyId}:${actor.userId}`} contextKey={`${actor.companyId}:${actor.userId}`} runs={runs.map((r) => ({ id: r.id, label: label(r) }))} workerCodes={workers.map((w) => w.pseudonym)} nextCode={nextCode} />
         </section>
       ) : (
         <p className="mt-6 text-muted-foreground">The payroll approver imports data.</p>

@@ -11,7 +11,7 @@ const Payload = z.object({ notificationId: z.string().min(1).max(100), notificat
 
 const reply = (status: number, code: string, message: string) => NextResponse.json({ error: { code, message } }, { status });
 
-export const POST = openRoute({ serverToServer: true }, async ({ request }) => {
+export const POST = openRoute({ serverToServer: true }, async ({ request, correlationId }) => {
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > MAX_BODY) return reply(413, "TOO_LARGE", "request too large");
   const raw = await request.text();
@@ -27,6 +27,6 @@ export const POST = openRoute({ serverToServer: true }, async ({ request }) => {
   }
   const p = Payload.safeParse(json);
   if (!p.success || !p.data.notificationType.startsWith("transactions.")) return { ok: true }; // test pings and other event types: nothing to do
-  await onCircleNotification({ notificationId: p.data.notificationId, circleTxId: p.data.notification.id });
+  await onCircleNotification({ notificationId: p.data.notificationId, circleTxId: p.data.notification.id }, { correlationId });
   return { ok: true };
 });

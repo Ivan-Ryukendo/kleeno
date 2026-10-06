@@ -75,3 +75,10 @@ jobs:
             echo "SITE_MODE=app"
           } >> "$GITHUB_ENV"
       - run: npm run test:db
+      - name: Build the app against isolated services
+        run: npm run build
+        env:
+          SITE_URL: http://127.0.0.1:3000
+      - run: npx playwright install --with-deps chromium
+      - name: Browser SIMULATION workflow
+        run: npm run test:e2e

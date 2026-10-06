@@ -334,6 +334,21 @@ skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
 
+# Kleeno P4g, Google sign-in (S74). Cloud projects (kleeno-dev, kleeno-prod) are configured in the dashboard (Authentication > Providers >
+# Google: client ID + secret pasted by the user, "Allow new users to sign up" off). Locally it stays `enabled = false` on purpose:
+# the CLI refuses to start an enabled provider whose client_id/secret env vars are empty, and CI's db job has no Google credentials.
+# To try it locally: export both variables, set `enabled = true` and add http://127.0.0.1:3000/auth/callback to additional_redirect_urls.
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+# DO NOT commit the secret: it comes from the environment.
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+# Google signs a nonce; only the local-development flow with the Google JS SDK needs this off. Kleeno uses the server redirect flow.
+skip_nonce_check = false
+email_optional = false
+
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
 [auth.web3.solana]

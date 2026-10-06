@@ -1,6 +1,6 @@
 # P4u — App shell + product UI (side phase, before P4 UI)
 
-Status: **approved by the user 2026-10-03** ("the plan looks good"). Decisions below are the user's answers of 2026-10-03. Next after P4u: finish P4, then P4g Google sign-in (`P4g.md`).
+Status: **merged with P4 2026-10-03** (`c0305d0`, PR #11); originally approved that day ("the plan looks good"). Decisions/progress below are historical. Remaining success-green/browser-fix checks are listed in `../p4-p5-readiness.md`; active next phase P4g, then PRD §12 sequence through Oct 17 submission.
 
 ## Why
 The signed-in app uses `DESIGN.md`'s Mastercard *marketing-site* system: a cream editorial canvas, a floating pill nav and 20–40px radii. Its own text says the whitespace means "slow down, read one thing at a time — the opposite of dense dashboard UIs". Payroll professionals expect the layout of Gusto, Rippling, ADP, Notion and ClickUp: a left sidebar with modules, a slim top bar, and dense, quiet content. Every file in `awesome-design-md` (Notion, Stripe, Linear, Wise…) also describes a marketing site, so swapping brands would not fix this. Kleeno therefore gets two styles under one brand: the public site keeps Mastercard, and the app gets a product-UI section of its own.

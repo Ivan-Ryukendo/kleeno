@@ -20,6 +20,7 @@ const routes = src.filter((f) => f.startsWith("src/app/api/") && f.endsWith("/ro
 /** Routes that may skip the session check. Each one must use `openRoute` and is listed here on purpose. */
 const OPEN_ROUTES = [
   "src/app/api/auth/login/route.ts",
+  "src/app/api/auth/oauth/google/route.ts", // P4g: only builds the Google authorize URL; the account is checked at /auth/callback (S74)
   "src/app/api/invites/accept/route.ts", // P3b: public, but only with a valid one-time invite token (S62)
   // W: public waitlist (rate-limited, S53–S55) and the admin password step (behind the secret-path gate, S52)
   "src/app/api/waitlist/route.ts",

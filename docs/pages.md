@@ -18,9 +18,9 @@ Tone of copy: short, precise, warm. We say "Arc testnet USDC, no real funds" whe
 |---|---|---|---|---|---|---|
 | 1 | `/` | public | business owners, pilots, judges | Landing page: what Kleeno is and why it is safe (§3) | "This understands my problem, and it won't do anything behind my back." | P5 |
 | 2 | `/privacy` | public | pilots, workers, judges | Data and security note: what we never see, what we store (encrypted), where, how long, how to delete | "I know exactly what happens to my data." | P3 |
-| 3 | `/login` | public | invited users | Email + password, then MFA code for real companies. No sign-up link ("Join by invite: request access on the home page"). | Quick, serious, private. | P2 |
+| 3 | `/login` | public | invited users | Email + password, or "Continue with Google" (P4g; existing accounts only), then MFA code for real companies. No sign-up link ("Join by invite: request access on the home page"). | Quick, serious, private. | P2 |
 | 4 | `/receipt/[token]` | signed link | a worker | One payment: amount, date, network, tx hash, arcscan link. No name. Works at 390px. | "I was paid, and here is the proof." | P4 |
-| 5 | `/account` | signed in | every user | Password change, MFA enrolment, my companies and roles, sign out | "My account is locked down." | P2 |
+| 5 | `/account` | signed in | every user | Password change, MFA enrolment, linked sign-in methods (password, Google; P4g), my companies and roles, sign out | "My account is locked down." | P2 |
 | 6 | `/dashboard` | signed in | every role | Setup checklist for new companies (P3b), then the period stepper, number tiles, my to-dos, AI activity feed, run mode badge, live-payments status (§6). | "I know where things stand and what's next." | P1 crude, P3b checklist, P4d full |
 | 7 | `/configuration` | HR approver | HR | Policy text or documents (PDF, Word, TXT, Markdown; P4c) -> AI-proposed rules with cited clauses and scopes -> category counts, per-worker coverage, overrides to tick, clashes and duplicates -> validation log -> approve a version | "The AI understood my policy, and I can see why." | P3, P4c |
 | 8 | `/workers` | signed in | every role | Pseudonymous workers (W001…; names after unlocking the key file in this browser, P4c), pay type, compensation, wallet, job title, department, worker type, tags, start date, per-worker history panel; recipient changes waiting for the other role | "Every payee is accounted for; changes need a second pair of eyes." | P2, P4c |
@@ -86,6 +86,76 @@ Why: the P1 dashboard only knows the company and its runs, and it doesn't say wh
 - **Number tiles:** workers in this run, share matched automatically, open exceptions (Signal Orange), total to pay. Real counts only, empty without data (rule 42).
 - **My to-dos:** next actions for my roles, each with the reason it needs me ("Approve run 2026-10: you are the payroll approver").
 - **AI activity feed:** plain entries from `ai_executions` and audit events ("Rules proposed from Handbook v2, 3 clauses cited", "Import: 42 rows, 2 rejected"), each linking to its evidence. Labelled "Suggested by AI, not applied" where it applies.
+- **Conditional P4r evidence/activity extension (planned 2026-10-05):** use the existing exception evidence panel and this feed for Agent Activity Records: operation/task/status, numbered approved sources/clauses and versions, exact record references, model/provider, proposed action, concrete validation checks, permission/role used, human decision, deterministic outcome and trace ID. Reuse AIExecution/audit; no new page or competing log. Label historical cases “Approved precedent” and keep human review explicit. Similarity is not a percent-correct score; no private chain-of-thought. Show unavailable/conflicting evidence as NEEDS_HUMAN_REVIEW. Keep the deterministic “why flagged” facts visible even if AI/retrieval is unavailable; the AI never determines final money. Detailed spec: `docs/evidence-grounded-ai.md`; dates: PRD §12 (Oct 17 submission).
 - **Runs table:** the P3 table view, not the plain list.
 - **Per-worker history panel** (on `/workers`): past runs, pay changes, exceptions and payments for one worker.
 - **Motion** (`DESIGN.md` §10): staggered fade-in on load, stepper fill, number tiles animating to new values, hover lift on cards and rows, skeletons while loading, slide-in side panels. 150–250 ms, never delays an approval or hides an amount, off under `prefers-reduced-motion`.
+
+## 7. Future page consolidation (2026-10-06; planned)
+
+The existing page map/routes above remain current. This is the future experience specification for [roadmap Steps 3-4](roadmap.md#future-product-delivery-sequence-approved-direction-2026-10-06), not a declaration that seventeen routes have been deleted or three pages implemented.
+
+| Future entry | Contents and existing functions to retain |
+|---|---|
+| Dashboard | Monthly planned versus confirmed settled spending, breakdown/trend, readiness, setup tasks, cutoffs/owners and links to underlying evidence; preserve period/run access. |
+| Payroll | Table / Workflow / Payments / Activity. Retain entry points for import, policy/configuration, exceptions, calculation trace/variance, review, authorization/holds, settlement and audit according to role and run mode. Secondary task screens may remain; fewer navigation entries do not remove security steps. |
+| All Workers | Directory and worker history; later opt-in profile, schedules/projects, supported metrics, applicable policies and reviewed corrections. Employee self-service is separately gated. |
+| Settings | Company/team/account and later approved integrations/billing; maintain current role checks. |
+| Help | Consistent in-app support entry, ticket progress and customer replies; support diagnostic references must not leak sensitive data. |
+
+Before changing routes, inventory current deep links, mode restrictions and role-specific actions. Decide the concrete mapping in the UI phase and review it with the owner. Login puts email/password above Google and retains invitations/MFA.
+
+Payroll table actions include comments, visible context menus, source/formula disclosure and saved views, extending existing work. Computed cells remain read-only. Missing evidence says Data required. Keyboard/touch/focus alternatives cover right-click/hover/drag; plain cell selection inspects data rather than silently modifying it.
+
+Workflow option A projects authoritative state into inspectable nodes; each shows status/count/evidence/next permitted action. The equivalent accessible step list remains available on small screens. SIMULATION never exposes payment actions, invented payment states or approval progression that its state machine does not support.
+
+### Future platform admin experience
+
+Reuse the protected admin area with Overview, Companies & Accounts, Support, Operations, Billing & Trials and Leads. Current Sign-ups means waitlist contacts; label it explicitly before introducing registered-account metrics. Users, memberships, workers, invites, leads, companies and subscriptions are different counts. Date ranges, freshness and demo/test exclusions are visible.
+
+Support separates customer replies from internal notes and shows only scoped metadata/deliberately submitted evidence initially. No impersonation, salary/recipient editor or support payment button. Safe operational actions remain authorized server actions through existing route handlers, not a UI bypass.
+
+### Future employee and demo experience
+
+Initial profile direction is company opt-in encrypted names/basic contacts, default off. Current browser-only privacy statements remain accurate for current behavior; before rollout, change privacy copy according to the company's actual setting. Never continue telling opted-in customers that names stay only in their browser.
+
+Employees see their own published records and request corrections; real-data MFA and self-only access are required. Metrics show source, target, period/freshness and missing data, with role/leave/workload context. Wider manager access and general profile files are deferred.
+
+A booked demo starts its 48-hour clock when the workspace is ready and activated. Show expiry/export/data terms and require explicit purchase; no card/automatic conversion or real payments. Numeric spending distinguishes simulation/planned/settled evidence.
+
+Owner review covers representative HR, employee and support journeys plus loading/empty/stale/error/access-denied states, small-screen layout, keyboard/screen-reader navigation and reduced motion. This documentation review is not deployed UI acceptance.
+
+## 8. Public acquisition and account lifecycle (planned for commercial launch)
+
+This extends the future page direction; no UI is implemented here. Keep the existing calm workspace visual system and public brand. The [launch matrix](roadmap.md#public-launch-completeness-matrix) is the completeness checklist.
+
+### Look and feel
+
+The workspace should feel like a focused finance tool: quiet light surfaces, readable dense tables, clear row/column hierarchy, tabular money figures, one primary action and contextual details in a side panel. Keep the company and period visible. Use existing semantic tokens; no new dark theme, palette, decorative graphs or product jargon is introduced.
+
+Dashboard shows planned and settled amounts separately, a spending breakdown/trend and a short actionable readiness list. Label missing/stale evidence. Payroll prioritizes the table, with discoverable Table / Workflow / Payments / Activity views. All Workers is a clean directory with profiles, not a second payroll table.
+
+Clicking a cell opens information or a clearly labeled permitted edit; comment actions are explicit. Hover can preview formula/source, but never contains the only route to an action. A policy inspector shows source clause/version, applicability, winner/overridden rules and the impact of a proposed change. AI displays proposed changes with preview/accept/reject, validation or missing-data messages; never auto-inserts authoritative employee facts.
+
+Use plain labels such as "Why this amount?" and "Needs review." Present verifiable inputs, formulas and outcomes rather than backend implementation detail or private chain-of-thought. Confirmations show the exact effect and re-auth where required; preserve focus and do not animate amounts or approvals.
+
+### Journey coverage before public sale
+
+| Journey | Screens/states to design and verify |
+|---|---|
+| Visitor to prospect | Honest product overview, audience/use cases, pricing assumptions, security/privacy/terms, supported scope, request access/book demo/contact, success/error/duplicate booking and return navigation. |
+| Prospect to demo | Invitation, expired/used invite, account setup/MFA, company selection, setup checklist, prepared demo activation, time remaining, expiry/export guidance and explicit subscription choice. |
+| Sign-in and recovery | Email/password first, Google below, password reset, invalid/expired reset link, MFA challenge/recovery, session timeout, access revoked and safe return to the permitted screen. Password managers/paste work. |
+| First review | Supported-format example, import/mapping preview, rejected rows/duplicates, approved policy selection, missing-data/conflict handling, calculation trace, review sign-off and export. |
+| Returning reviewer | Active company/period retained safely, task owner/cutoff, changed policy preview, saved view, comment/reply, stale edit, correction and version comparison. |
+| Owner/team | Invite/resend/revoke, role changes, departing user, last-owner constraint, ownership transfer/recovery, company settings and access history. |
+| Bureau reviewer | Client chooser with persistent client identity; only assigned companies; warnings/clear context before client-specific imports/approvals/exports; missing/revoked client access. Portfolio summaries are separately specified. |
+| Employee | Self-only published information, policy explanation, schedule/project context, correction status and denied access to another worker. No HR-only data leaks in search/notifications. |
+| Billing owner | Price/usage preview, checkout return/pending/failure, invoice, plan change, payment-method update, cancellation, grace/expiry and record export under agreed terms. A failed charge is not data deletion. |
+| Customer support | In-app help with safe diagnostic reference, ticket created/pending/replied/resolved/reopened, clearly separated internal notes on the staff side, escalation and published support coverage. |
+| Platform staff | Account/company metrics, lead/demo/pilot funnel, scoped support, operational incidents and billing statuses; sensitive detail restricted by capability. Grafana is a separate staff diagnostic tool if selected. |
+| Offboarding | Cancel service, export eligible records, confirm authorized deletion request, disclose applicable retention/backups and revoke sessions/integrations. Do not promise immediate erasure where retention applies. |
+
+At design acceptance, walk these journeys at desktop and mobile widths with keyboard and screen reader. Check pending/loading/empty/error/denied/stale states, zoom, focus visibility and reduced motion. Do not create a page for every row: reuse the three primary workspaces plus contextual panels/settings/help as appropriate.
+
+Public pages need useful, accurate copy and real proof only. Demo booking is available; cold outreach may begin with a low-friction question instead of forcing a meeting. Avoid generic AI hype, "never fails" promises and unsupported enterprise/tax/payment claims.
