@@ -11,6 +11,7 @@ export function openRouterProvider(opts: { apiKey: string; models: string[]; fet
   const call = opts.fetchFn ?? fetch;
   return {
     name: "openrouter",
+    models: [...opts.models],
     async complete(req) {
       for (const model of opts.models) {
         try {

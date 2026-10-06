@@ -9,6 +9,9 @@ import { isPayrollRole } from "@/core/workflow";
 import { pageSession } from "@/server/auth/page-session";
 import { initialTable } from "@/server/db/table-views";
 import { runView } from "@/server/db/views";
+import { RunAdjustmentsForm } from "@/components/worker-forms";
+import { listWorkers } from "@/server/db/workers";
+import { loadRunAdjustments } from "@/server/db/calculate";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -22,6 +25,9 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
   if (!view) notFound();
   const { run, lines, obligations, calculationHash, netTotal, variance } = view;
   const canEdit = isPayrollRole(actor.roles);
+  const canAdjust = canEdit && ["DRAFT", "DATA_IMPORTED", "RECONCILING", "EXCEPTIONS_PENDING", "READY_FOR_CALCULATION"].includes(run.status);
+  const adjustmentWorkers = canAdjust ? await listWorkers(client, actor.companyId) : [];
+  const adjustments = canAdjust ? Object.fromEntries(await loadRunAdjustments(client, actor.companyId, run.id)) : {};
   const summary = lines.length ? await initialTable(client, actor.companyId, actor.roles, "lines", run.id) : null;
   const link = "underline underline-offset-4";
 
@@ -84,6 +90,8 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
         {run.status === "REJECTED" && <p className="mt-3">This run was rejected. Start a new run to pay.</p>}
       </section>
 
+      {canAdjust && <section className="mt-6 panel"><h2 className="text-lg">One-off pay inputs</h2><p className="mt-2 text-sm text-muted-foreground">Review bonuses, commissions, reimbursements and fixed deductions before calculation. Every input needs a reason.</p><RunAdjustmentsForm key={run.id} runId={run.id} workers={adjustmentWorkers.map((w) => ({ id: w.id, pseudonym: w.pseudonym }))} initial={adjustments} /></section>}
+
       {summary && (
         <section className="mt-6 panel">
           <h2 className="text-lg">Pay summary</h2>
@@ -91,39 +99,50 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
         </section>
       )}
 
-      <section className="mt-6 panel">
+      <section id="calculation-trace" className="mt-6 scroll-mt-20 panel">
         <h2 className="text-lg">Calculation and trace</h2>
+        {lines.length > 0 && <p className="mt-2 text-sm text-muted-foreground">Recorded steps from the deterministic calculation, using config v{run.config_version}. Open a pay-summary cell to jump to its worker’s trace.</p>}
         {lines.length === 0 && <p className="mt-6 text-muted-foreground">Not calculated yet.</p>}
         {lines.map((l) => (
-          <div key={l.id} className="mt-6 rounded-box border border-border p-6">
+          <div key={l.id} id={`trace-${l.id}`} tabIndex={-1} aria-label={`Calculation trace for ${l.worker}`} className="mt-6 scroll-mt-20 rounded-box border border-border p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-medium">{l.worker}</span>
               <span>
                 gross {l.gross} − deductions {l.deductions} = <strong>net {l.net} USDC</strong>
               </span>
             </div>
-            <table className="mt-4 w-full text-left text-sm">
+            <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[42rem] text-left text-sm">
+              <caption className="sr-only">Calculation steps for {l.worker}, config version {run.config_version}; amounts in USDC.</caption>
               <thead className="text-muted-foreground">
                 <tr>
-                  <th className="py-1 font-medium">Step</th>
-                  <th className="py-1 font-medium">Component</th>
-                  <th className="py-1 font-medium">Rule</th>
-                  <th className="py-1 text-right font-medium">Amount</th>
+                  <th scope="col" className="py-1 pr-3 font-medium">Step</th>
+                  <th scope="col" className="py-1 pr-3 font-medium">Component</th>
+                  <th scope="col" className="py-1 pr-3 font-medium">Rule</th>
+                  <th scope="col" className="py-1 pr-3 font-medium">Source and inputs</th>
+                  <th scope="col" className="py-1 text-right font-medium">Amount (USDC)</th>
                 </tr>
               </thead>
               <tbody>
                 {l.trace.map((t) => (
                   <tr key={t.step} className="border-t border-border">
-                    <td className="py-2">{t.step}</td>
-                    <td className="py-2">{t.component}</td>
-                    <td className="py-2">
+                    <th scope="row" className="py-2 pr-3 font-normal tabular-nums">{t.step}</th>
+                    <td className="py-2 pr-3">{t.component}</td>
+                    <td className="py-2 pr-3">
                       {t.rule} v{t.ruleVersion}
                     </td>
-                    <td className="py-2 text-right">{t.amount}</td>
+                    <td className="max-w-72 py-2 pr-3">
+                      <p className="break-words">{t.source}</p>
+                      <dl className="mt-1 space-y-1 text-xs text-muted-foreground">
+                        {Object.entries(t.inputs).map(([name, value]) => <div key={name} className="flex flex-wrap gap-x-2"><dt className="break-words">{name}</dt><dd className="break-words font-mono">{value}</dd></div>)}
+                      </dl>
+                    </td>
+                    <td className="py-2 text-right tabular-nums">{t.amount}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ))}
       </section>
@@ -138,28 +157,31 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
           ) : variance.findings.length === 0 ? (
             <p className="mt-4 font-medium">Everything paid matches the calculation within the tolerance.</p>
           ) : (
-            <table className="mt-4 w-full text-left text-sm">
+            <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[36rem] text-left text-sm">
+              <caption className="sr-only">Actual imported payments compared with deterministic calculated pay; amounts in USDC.</caption>
               <thead className="text-muted-foreground">
                 <tr>
-                  <th className="py-1 font-medium">Worker</th>
-                  <th className="py-1 font-medium">Finding</th>
-                  <th className="py-1 text-right font-medium">Should be paid</th>
-                  <th className="py-1 text-right font-medium">Was paid</th>
-                  <th className="py-1 text-right font-medium">Difference</th>
+                  <th scope="col" className="py-1 pr-3 font-medium">Worker</th>
+                  <th scope="col" className="py-1 pr-3 font-medium">Finding</th>
+                  <th scope="col" className="py-1 pr-3 text-right font-medium">Should be paid</th>
+                  <th scope="col" className="py-1 pr-3 text-right font-medium">Was paid</th>
+                  <th scope="col" className="py-1 text-right font-medium">Difference</th>
                 </tr>
               </thead>
               <tbody>
                 {variance.findings.map((f) => (
                   <tr key={f.id} className="border-t border-border">
-                    <td className="py-2">{f.worker}</td>
-                    <td className="py-2 font-medium text-signal">{f.kind.replaceAll("_", " ").toLowerCase()}</td>
-                    <td className="py-2 text-right">{f.expected}</td>
-                    <td className="py-2 text-right">{f.actual}</td>
-                    <td className="py-2 text-right">{f.difference}</td>
+                    <th scope="row" className="py-2 pr-3 font-normal">{f.worker}</th>
+                    <td className="py-2 pr-3 font-medium text-signal">{f.kind.replaceAll("_", " ").toLowerCase()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{f.expected}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{f.actual}</td>
+                    <td className="py-2 text-right tabular-nums">{f.difference}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </section>
       )}

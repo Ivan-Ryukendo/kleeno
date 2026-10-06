@@ -1,6 +1,11 @@
 # Kleeno — Agent Guide
 
-AI-assisted payroll for workers (employees and contractors): configuration, reconciliation and USDC settlement on Arc testnet. Global by design; first market US firms paying remote contractors. Tameion Agents Hackathon, deadline Oct 10 2026, 11:59 PM ET. The user is architect and product owner (not a coder); agents write all code.
+Verified Payroll Automation for workers (employees and contractors): evidence-grounded configuration, reconciliation and guarded USDC settlement on Arc testnet. Global by design; first market US firms paying remote contractors. Tameion Agents Hackathon, deadline Oct 17, 2026 (user update 2026-10-05; precise new cutoff time/timezone pending confirmation). The user is architect and product owner (not a coder); agents write all code.
+
+Persistent session context: read `AGENT.md` and `docs/memory/project.md`; `PROGRESS.md` remains the operational resume point. File-based memory restores decisions without prior chat and supports explicit revocation; it is distinct from product knowledge/resolution/operational memory. Evidence retrieval implementation spec: `docs/evidence-grounded-ai.md` and draft `docs/phases/P4r.md`.
+Current P4 closeout/P5 handoff: `docs/p4-p5-readiness.md`; P5 draft: `docs/phases/P5.md`. Historical progress snapshot: `docs/memory/build-history.md`, never a substitute for current PROGRESS.
+
+Future-product handoff (2026-10-06, documentation only): read `docs/roadmap.md` "Future product delivery sequence" for the twelve ordered steps, dependencies and gates; PRD §14 and ARCHITECTURE §27 describe future scope/contracts. These do not change current P4/P5 scope, active ESSENTIALS rules or verified status. Documentation is saved; next inspect current status and prepare Step 1's bounded verification spec. Implement only a selected approved phase in a later session, not the entire roadmap. Profile opt-in/priority/review-lifecycle changes remain future until their controls and synchronized active-rule amendments pass.
 
 ## Read order
 1. `PROGRESS.md`: where the build stands.
@@ -17,8 +22,8 @@ AI-assisted payroll for workers (employees and contractors): configuration, reco
 On conflict: stop and ask the user.
 
 ## Architecture
-AI proposes; deterministic code calculates; humans approve; PayrollGuard pays only committed obligations; Arc receipts verify; everything is audited.
-Security layer: public DB API read-only (writes only via server repositories) · one payment gate · owner/operator split · kill switch · re-auth for authority-granting actions · immutable approved records · DB-backed idempotency. Controls S01–S75 with tests: `docs/security.md`.
+AI understands; evidence grounds; validation verifies; humans govern; deterministic code executes; audit proves. Retrieval and learning create evidence-backed proposals, never new authority. PayrollGuard pays only committed obligations; Arc receipts verify.
+Security layer: public DB API read-only (writes only via server repositories) · one payment gate · owner/operator split · kill switch · re-auth for authority-granting actions · immutable approved records · DB-backed idempotency. Controls S01–S82 with tests: `docs/security.md` (S76–S82 planned for conditional P4r).
 Companies: workspaces; invite-approved sign-up; one login in many companies (switcher); Owner + several roles per member; four-eyes per run still holds (ARCHITECTURE §25).
 Integrations: external systems are evidence sources or destinations, never authorities; code asks for capabilities, not vendors; every import carries provenance; CSV is the first source; connectors and a read-only MCP come after the hackathon (`docs/integrations/`, `docs/decisions/`). Gateway only tops up a company's own payroll wallet; x402 only sells the read-only Kleeno Verify answer; neither pays workers.
 Flow: policy -> AI rules -> validation -> HR approval -> CSV import (anonymised in browser, USD only) -> reconciliation + exceptions -> engine + trace -> payroll approval -> obligations -> Payment Planner (AI) proposes batch + holds -> payment approver signs plan (different user), or a standing authorization signs a clean batch -> openRun on PayrollGuard -> gate -> payment agent -> Circle wallet -> PayrollGuard.pay on Arc -> settlement reconciliation -> audit.
@@ -29,7 +34,7 @@ Layers: `src/core` pure domain -> `src/server` adapters -> `src/app` pages + thi
 Next.js App Router (TS strict), Tailwind + shadcn/ui themed per `DESIGN.md` (Sofia Sans), Vercel · Supabase cloud (`kleeno-dev`, `kleeno-prod`; Postgres, Auth, RLS; CLI via npx, no Docker) · Circle dev-controlled wallets SDK (`ARC-TESTNET`) · Solidity + Foundry · viem · OpenRouter (adapter, model + fallback from config, $5 cap) · Zod, decimal library, Vitest, Playwright (Chromium).
 
 ## How it is built
-Phases, in order: P0 Setup · P1 Thin slice · P2 Foundation · P3 Data + AI · P3b Company system · P4 Payments (in parallel after P3b slice 1) · P4u App shell + product UI · P4g Google sign-in · P4c Policy + pay · P4d Dashboard + motion · P4b Payment Planner (can be cut) · P5 Demo + submission. Dates, cut order and minimum demo: `PRD.md` §12. Deliverables: `FILE-STRUCTURE.md`.
+Phases, in order: P0 Setup · P1 Thin slice · P2 Foundation · P3 Data + AI · P3b Company system · P4 Payments (in parallel after P3b slice 1) · P4u App shell + product UI · P4g Google sign-in · P4c Policy + pay · P4d Dashboard + motion · P4b Payment Planner (can be cut) · conditional P4r evidence retrieval · P5 Demo + submission (readiness work starts before freeze). Dates, cut order and minimum demo: `PRD.md` §12. Deliverables: `FILE-STRUCTURE.md`.
 Per phase: write `Pn.md` (including that phase's `docs/security.md` rows) -> user approves -> backend (invoke the `ponytail` skill) -> `ponytail-review` -> UI (no Ponytail; follow `DESIGN.md`) -> "Done when" checks pass -> plain-language summary vs the docs -> user sees it in the browser -> second-agent review (P1, P2, P4 only) -> set security row status + update `PROGRESS.md` -> one commit on the phase branch -> PR, CI green, squash-merge to `main` (`docs/github.md`).
 Stuck rule: after 3 failed fixes on one problem, stop, write the attempts, error and 2 options in `PROGRESS.md`, and ask the user.
 Ponytail is for backend paths only, never UI (ESSENTIALS, Build).

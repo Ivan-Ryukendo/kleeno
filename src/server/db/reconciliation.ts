@@ -14,6 +14,7 @@ import { db, must } from "./client";
 import { loadConfig } from "./configs";
 import { runStore } from "./runs";
 import { dbStore } from "./store";
+import { listWorkers } from "./workers";
 
 const exceptionStore = dbStore<"OPEN" | "IN_REVIEW" | "RESOLVED" | "REJECTED" | "ESCALATED">("exceptions");
 const OPEN_STATES = ["OPEN", "IN_REVIEW", "ESCALATED"];
@@ -43,11 +44,11 @@ export async function loadInput(companyId: string, run: Awaited<ReturnType<typeo
   const sheets = must(await q("timesheets", "id, worker_id, work_date, hours, approved_extra_hours"), "timesheets read") as unknown as { id: string; worker_id: string; work_date: string; hours: number; approved_extra_hours: number }[];
   const leave = must(await q("leave_records", "id, worker_id, leave_date, leave_type, hours"), "leave read") as unknown as { id: string; worker_id: string; leave_date: string; leave_type: "PAID" | "UNPAID"; hours: number }[];
   const withEvidence = new Set([...sheets.map((s) => s.worker_id), ...leave.map((l) => l.worker_id)]);
-  const workers = must(await db().from("workers").select("id, pay_type, active").eq("company_id", companyId), "workers read").filter((w) => w.active || withEvidence.has(w.id));
+  const workers = (await listWorkers(db(), companyId)).filter(w => w.active || withEvidence.has(w.id) || (w.metadata.employmentEnd && w.metadata.employmentEnd >= run.period_start && (!w.metadata.employmentStart || w.metadata.employmentStart <= run.period_end)));
   return {
     config: cfg.config,
     period: { start: run.period_start, end: run.period_end },
-    workers: workers.map((w) => ({ id: w.id, payType: w.pay_type })),
+    workers: workers.map((w) => ({ id: w.id, pseudonym: w.pseudonym, payType: w.payType, ...w.metadata })),
     timesheets: sheets.map((s, i) => ({ id: s.id, workerId: s.worker_id, date: s.work_date, hours: String(s.hours), approvedExtraHours: String(s.approved_extra_hours), seq: i })),
     leave: leave.map((l, i) => ({ id: l.id, workerId: l.worker_id, date: l.leave_date, leaveType: l.leave_type, hours: String(l.hours), seq: i })),
   };

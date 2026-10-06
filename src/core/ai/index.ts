@@ -16,6 +16,7 @@ export interface AiRequest {
 /** Port: the adapter does model fallback itself and throws when every model is down. */
 export interface AiProvider {
   readonly name: string;
+  readonly models?: readonly string[]; // configured routing identity; absent means cache disabled
   complete(req: AiRequest): Promise<{ text: string; model: string }>;
 }
 

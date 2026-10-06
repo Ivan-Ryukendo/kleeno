@@ -1,8 +1,9 @@
-// Deletion on request (S44): removes ALL data of one company and its wrapped data key, and the sign-in accounts of its users.
+// Deletion on request (S44): removes ALL data of one company and its wrapped data key.
+// Sign-in accounts are global identities and may belong to other companies; workspace deletion never deletes them.
 // Irreversible. Usage: npm run script -- scripts/delete-company.ts <company-id> --yes
 // Runs against the project in .env (SUPABASE_URL): check the host printed first. Platform backups age out on Supabase's schedule;
-// without the deleted data key their encrypted fields are unreadable.
-import { db, must } from "@/server/db/client";
+// Backups can contain wrapped keys too; deleting live rows does not establish immediate backup erasure.
+import { db } from "@/server/db/client";
 import { env } from "@/server/env";
 
 async function main() {
@@ -13,13 +14,10 @@ async function main() {
   console.log(`project ${new URL(env.SUPABASE_URL).hostname} · company "${company.name}"`);
   if (flag !== "--yes") throw new Error("this deletes everything for that company and cannot be undone: add --yes to proceed");
 
-  const users = must(await db().from("memberships").select("user_id").eq("company_id", id), "users read").map((u) => u.user_id as string);
   const res = await db().rpc("delete_company", { p_company: id });
   if (res.error) throw new Error(`deletion failed (${res.error.code}); nothing was changed`);
-  let accounts = 0;
-  for (const u of users) if (!(await db().auth.admin.deleteUser(u)).error) accounts++;
   const rows = Object.values(res.data as Record<string, number>).reduce((s, n) => s + Number(n), 0);
-  console.log(`deleted ${rows} rows across ${Object.keys(res.data as object).length} tables and ${accounts} of ${users.length} sign-in accounts`);
+  console.log(`deleted ${rows} rows across ${Object.keys(res.data as object).length} tables; shared sign-in accounts retained`);
 }
 
 main().catch((e) => {

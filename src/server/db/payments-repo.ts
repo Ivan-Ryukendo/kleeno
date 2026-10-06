@@ -1,19 +1,21 @@
 import "server-only";
+import { newCorrelationId } from "@/core/audit";
 import type { AttemptState, ObligationContext, PaymentsRepo } from "@/core/ports";
+import { standingFailures } from "./standing";
 import { db, must } from "./client";
 
 // bigint columns arrive as JSON numbers; safe far beyond any testnet amount (< 2^53 micro-USDC).
 const big = (n: number | string) => BigInt(n);
 
-async function audit(companyId: string, event: string, obligationId: string, refs: Record<string, unknown> = {}) {
+async function audit(correlationId: string, companyId: string, event: string, obligationId: string, refs: Record<string, unknown> = {}) {
   // references only, never payroll values (S45)
   must(
-    await db().from("audit_events").insert({ company_id: companyId, event, entity_type: "obligation", entity_id: obligationId, actor: "system", refs }).select("id"),
+    await db().from("audit_events").insert({ company_id: companyId, event, entity_type: "obligation", entity_id: obligationId, actor: "system", correlation_id: correlationId, refs }).select("id"),
     "audit insert",
   );
 }
 
-export function paymentsRepo(): PaymentsRepo {
+export function paymentsRepo(correlationId = newCorrelationId()): PaymentsRepo {
   return {
     async loadContext(obligationId): Promise<ObligationContext | null> {
       const o = (await db().from("obligations").select("*").eq("id", obligationId).maybeSingle()).data;
@@ -32,6 +34,12 @@ export function paymentsRepo(): PaymentsRepo {
       const calc = (await db().from("calculations").select("calculation_hash").eq("id", line.data.calculation_id).maybeSingle()).data;
       if (!calc) return null;
       const b = batch.data as Record<string, any> | null; // eslint-disable-line @typescript-eslint/no-explicit-any
+      let standingValid = false;
+      if (b?.authorization_type === "STANDING" && b.standing_authorization_id && b.authorizer_id) {
+        try {
+          standingValid = (await standingFailures({ companyId: cid, runId: o.run_id, standingId: b.standing_authorization_id, authorizerId: b.authorizer_id, planHash: b.plan_hash, plan: { obligations: b.plan.obligations.map((p: { id: string; amount: string; recipient: string }) => ({ ...p, amount: big(p.amount) })), heldIds: b.plan.heldIds, source: b.plan.source } })).length === 0;
+        } catch { standingValid = false; }
+      }
       return {
         obligation: {
           id: o.id,
@@ -57,6 +65,8 @@ export function paymentsRepo(): PaymentsRepo {
           companyId: b.company_id,
           status: b.status,
           authorizerId: b.authorizer_id,
+          authorizationType: b.authorization_type,
+          standingValid,
           guardRunKey: b.guard_run_key,
           planHash: b.plan_hash,
           // Only the hashed fields: the stored plan also carries display-only signals, which are not part of plan_hash.
@@ -75,7 +85,7 @@ export function paymentsRepo(): PaymentsRepo {
     async claim(obligationId) {
       const res = await db().from("obligations").update({ status: "PAYING" }).eq("id", obligationId).eq("status", "AUTHORIZED").select("id, company_id");
       const row = must(res, "claim")[0];
-      if (row) await audit(row.company_id, "OBLIGATION_PAYING", obligationId);
+      if (row) await audit(correlationId, row.company_id, "OBLIGATION_PAYING", obligationId);
       return !!row;
     },
 
@@ -99,7 +109,7 @@ export function paymentsRepo(): PaymentsRepo {
 
     async markSettled(obligationId, txHash) {
       const rows = must(await db().from("obligations").update({ status: "SETTLED", tx_hash: txHash }).eq("id", obligationId).eq("status", "PAYING").select("company_id"), "settle");
-      if (rows[0]) await audit(rows[0].company_id, "OBLIGATION_SETTLED", obligationId, { txHash });
+      if (rows[0]) await audit(correlationId, rows[0].company_id, "OBLIGATION_SETTLED", obligationId, { txHash });
     },
 
     async markException(obligationId, code, reasons, from) {
@@ -107,7 +117,7 @@ export function paymentsRepo(): PaymentsRepo {
         await db().from("obligations").update({ status: "PAYMENT_EXCEPTION", exception_code: code, exception_reasons: reasons }).eq("id", obligationId).eq("status", from).select("company_id"),
         "exception",
       );
-      if (rows[0]) await audit(rows[0].company_id, "PAYMENT_EXCEPTION", obligationId, { code, reasons });
+      if (rows[0]) await audit(correlationId, rows[0].company_id, "PAYMENT_EXCEPTION", obligationId, { code, reasons });
     },
   };
 }

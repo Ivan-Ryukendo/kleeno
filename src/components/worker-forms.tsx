@@ -5,10 +5,16 @@ import { useState } from "react";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import type { WorkerMetadata } from "@/core/workers";
+import type { PayAdjustment } from "@/core/engine";
 import { postJson } from "@/lib/api";
 
 const selectClass = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 const amountPattern = "\\d+(\\.\\d{1,6})?";
+const metadataFrom = (f: FormData): WorkerMetadata => ({ department: String(f.get("department") ?? "").trim() || null, jobTitle: String(f.get("jobTitle") ?? "").trim() || null, workerType: (f.get("workerType") || null) as WorkerMetadata["workerType"], tags: String(f.get("tags") ?? "").split(",").map(t => t.trim()).filter(Boolean), employmentStart: String(f.get("employmentStart") ?? "") || null, employmentEnd: String(f.get("employmentEnd") ?? "") || null });
+function MetadataFields({ metadata, prefix }: { metadata?: WorkerMetadata; prefix: string }) {
+  return <fieldset className="grid gap-4 sm:col-span-2 sm:grid-cols-2"><legend className="mb-3 text-sm font-medium">Worker evidence for policy scopes and part-period pay</legend>{(["department", "jobTitle", "tags"] as const).map(field => <div key={field}><Label htmlFor={`${prefix}-${field}`}>{field === "jobTitle" ? "Job title" : field === "tags" ? "Tags, separated by commas" : "Department"}</Label><Input id={`${prefix}-${field}`} name={field} maxLength={field === "tags" ? 820 : 80} defaultValue={field === "tags" ? metadata?.tags.join(", ") : metadata?.[field] ?? ""} /></div>)}<div><Label htmlFor={`${prefix}-workerType`}>Worker type</Label><select id={`${prefix}-workerType`} name="workerType" className={selectClass} defaultValue={metadata?.workerType ?? ""}><option value="">Not specified</option><option value="EMPLOYEE">Employee</option><option value="CONTRACTOR">Contractor</option></select></div>{(["employmentStart", "employmentEnd"] as const).map(field => <div key={field}><Label htmlFor={`${prefix}-${field}`}>{field === "employmentStart" ? "Employment start date" : "Employment end date (inclusive)"}</Label><Input id={`${prefix}-${field}`} name={field} type="date" defaultValue={metadata?.[field] ?? ""} /></div>)}<p className="text-sm text-muted-foreground sm:col-span-2">Use job and department labels, tags and worker codes. Keep real names in your local name key. Salaried and retainer pay use approved calendar-day proration.</p></fieldset>;
+}
 
 export function AddWorkerForm() {
   const router = useRouter();
@@ -23,7 +29,7 @@ export function AddWorkerForm() {
         setBusy(true);
         setError(null);
         const f = new FormData(form);
-        const r = await postJson("/api/workers", { pseudonym: f.get("pseudonym"), payType: f.get("payType"), baseAmount: f.get("baseAmount"), hourlyRate: f.get("hourlyRate") || "0" });
+        const r = await postJson("/api/workers", { pseudonym: f.get("pseudonym"), payType: f.get("payType"), baseAmount: f.get("baseAmount"), hourlyRate: f.get("hourlyRate") || "0", metadata: metadataFrom(f) });
         if (r.ok) {
           form.reset();
           router.refresh();
@@ -47,6 +53,7 @@ export function AddWorkerForm() {
         <Label htmlFor="baseAmount">Base or retainer per period (USDC)</Label>
         <Input id="baseAmount" name="baseAmount" inputMode="decimal" placeholder="2000.00" pattern={amountPattern} required />
       </div>
+      <MetadataFields prefix="new-worker" />
       <div>
         <Label htmlFor="hourlyRate">Hourly rate (USDC, hourly or extra hours)</Label>
         <Input id="hourlyRate" name="hourlyRate" inputMode="decimal" placeholder="0" pattern={amountPattern} />
@@ -78,6 +85,7 @@ export interface WorkerView {
   leftOn: string | null;
   leftReason: string | null;
   history: { version: number; reason: string; base: string; hourly: string; at: string }[];
+  metadata?: WorkerMetadata;
 }
 
 const label = (v: string) => v.charAt(0) + v.slice(1).toLowerCase().replaceAll("_", " ");
@@ -88,12 +96,12 @@ const big = "h-9 rounded-field px-4 text-sm";
 /** One worker: the row, plus an inline panel to change pay (promotion), mark as left, reactivate, or see pay history. */
 export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: boolean; canConfirm: boolean }) {
   const router = useRouter();
-  const [panel, setPanel] = useState<"pay" | "leave" | "history" | "wallet" | null>(null);
+  const [panel, setPanel] = useState<"pay" | "leave" | "history" | "wallet" | "metadata" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const toggle = (p: "pay" | "leave" | "history" | "wallet") => {
+  const toggle = (p: "pay" | "leave" | "history" | "wallet" | "metadata") => {
     setPanel(panel === p ? null : p);
     setError(null);
   };
@@ -117,7 +125,7 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
   return (
     <tbody className="border-t border-border align-top">
       <tr>
-        <td className="py-3 pr-4 font-medium">{w.pseudonym}</td>
+        <td className="py-3 pr-4"><span className="font-medium">{w.pseudonym}</span><p className="mt-1 text-xs text-muted-foreground">{[w.metadata?.department, w.metadata?.jobTitle].filter(Boolean).join(" · ")}</p></td>
         <td className="py-3 pr-4">
           <StatusPill status={w.payType} />
         </td>
@@ -143,6 +151,7 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
         </td>
         <td className="py-3 text-right">
           <div className="flex flex-wrap justify-end gap-2">
+            {canEdit && <Button type="button" variant="outline" className={small} onClick={() => toggle("metadata")}>Worker details</Button>}
             <Button type="button" variant="ghost" className={small} onClick={() => toggle("history")}>
               History ({w.history.length})
             </Button>
@@ -173,6 +182,7 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
         <tr>
           <td colSpan={6} className="pb-5">
             {note && <p className="mb-3 text-sm">{note}</p>}
+            {panel === "metadata" && <form className="grid gap-4 rounded-box bg-secondary p-5 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); run(`/api/workers/${w.id}/metadata`, metadataFrom(new FormData(e.currentTarget)), () => "Worker details saved. Existing approved snapshots stay unchanged; new calculations use this evidence."); }}><MetadataFields prefix={w.id} metadata={w.metadata} /><div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={busy} className={big}>Save worker details</Button>{cancel}</div></form>}
             {panel === "history" && (
               <ul className="space-y-1 text-sm">
                 {w.history.map((h) => (
@@ -315,4 +325,22 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
       )}
     </tbody>
   );
+}
+
+/** HR amounts remain editable only until calculation. The server independently enforces that boundary. */
+export function RunAdjustmentsForm({ runId, workers, initial = {} }: { runId: string; workers: { id: string; pseudonym: string }[]; initial?: Record<string, PayAdjustment[]> }) {
+  const router = useRouter();
+  const [workerId, setWorkerId] = useState(workers[0]?.id ?? "");
+  const [rows, setRows] = useState<PayAdjustment[]>(initial[workers[0]?.id ?? ""] ?? []);
+  const [drafts, setDrafts] = useState<Record<string, PayAdjustment[]>>(initial);
+  const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null), [saved, setSaved] = useState(false);
+  const update = (id: string, field: "kind" | "amount" | "reason", value: string) => { setSaved(false); setRows(v => v.map(r => r.id === id ? { ...r, [field]: value } as PayAdjustment : r)); };
+  return <form className="panel mt-6 space-y-4" onSubmit={async e => { e.preventDefault(); setBusy(true); setError(null); setSaved(false); const result = await postJson(`/api/runs/${runId}/adjustments`, { workerId, adjustments: rows }); if (result.ok) { setSaved(true); router.refresh(); } else setError(result.error ?? "Could not save pay adjustments"); setBusy(false); }}>
+    <div><h2 className="text-lg">Pay additions and fixed deductions</h2><p className="mt-2 text-sm text-muted-foreground">HR enters each amount and reason. They become part of the immutable calculation and its hash; calculate after saving. To change calculated inputs, create a new run.</p></div>
+    <div className="max-w-sm"><Label htmlFor={`adjust-worker-${runId}`}>Worker</Label><select id={`adjust-worker-${runId}`} className={selectClass} value={workerId} disabled={busy} onChange={e => { setDrafts(v => ({ ...v, [workerId]: rows })); setWorkerId(e.target.value); setRows(drafts[e.target.value] ?? []); setSaved(false); setError(null); }}>{workers.map(w => <option key={w.id} value={w.id}>{w.pseudonym}</option>)}</select></div>
+    {rows.length === 0 && <p className="text-sm text-muted-foreground">No additions or fixed deductions for this worker.</p>}
+    {rows.map((row, index) => <fieldset key={row.id} disabled={busy} className="grid gap-3 rounded-box border border-border p-4 sm:grid-cols-2"><legend className="px-1 text-sm font-medium">Adjustment {index + 1}</legend><div><Label htmlFor={`kind-${row.id}`}>Kind</Label><select id={`kind-${row.id}`} className={selectClass} value={row.kind} onChange={e => update(row.id, "kind", e.target.value)}><option value="BONUS">Bonus</option><option value="COMMISSION">Commission</option><option value="REIMBURSEMENT">Reimbursement</option><option value="FIXED_DEDUCTION">Fixed deduction</option></select></div><div><Label htmlFor={`amount-${row.id}`}>Amount (USDC)</Label><Input id={`amount-${row.id}`} inputMode="decimal" pattern={amountPattern} maxLength={30} value={row.amount} onChange={e => update(row.id, "amount", e.target.value)} required /></div><div className="sm:col-span-2"><Label htmlFor={`reason-${row.id}`}>Reason</Label><Input id={`reason-${row.id}`} value={row.reason} maxLength={300} onChange={e => update(row.id, "reason", e.target.value)} required /></div><div className="sm:col-span-2"><Button type="button" variant="ghost" className={small} onClick={() => { setRows(v => v.filter(r => r.id !== row.id)); setSaved(false); }}>Remove adjustment {index + 1}</Button></div></fieldset>)}
+    <div className="flex flex-wrap gap-3"><Button type="button" variant="outline" disabled={busy || rows.length >= 50 || !workerId} className={big} onClick={() => { setRows(v => [...v, { id: crypto.randomUUID(), kind: "BONUS", amount: "", reason: "" }]); setSaved(false); }}>Add adjustment</Button><Button type="submit" disabled={busy || !workerId} className={big}>{busy ? "Saving…" : "Save this worker’s adjustments"}</Button></div>
+    {saved && <p role="status" className="text-sm">Saved. Calculate this run to review the new totals and trace.</p>}{error && <p role="alert" className="text-sm text-signal">{error}</p>}
+  </form>;
 }

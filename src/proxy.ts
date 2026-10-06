@@ -12,7 +12,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const GATE = "x-kleeno-admin-gate"; // same name as ADMIN_GATE_HEADER in src/server/site.ts
 const WAITLIST_PATHS = new Set(["/", "/privacy", "/api/waitlist", "/api/waitlist/survey", "/robots.txt", "/sitemap.xml", "/icon.svg", "/favicon.ico"]);
 const WAITLIST_PREFIXES = ["/_next/", "/_vercel/", "/opengraph-image"];
-const APP_PUBLIC = ["/", "/login", "/privacy"];
+const APP_PUBLIC = ["/", "/login", "/privacy", "/auth/callback"]; // /auth/callback: Google sign-in lands here signed out (P4g, S74); not in WAITLIST_PATHS, so it 404s there
 const isAppPublic = (path: string) => APP_PUBLIC.includes(path) || path.startsWith("/receipt/") || path.startsWith("/invite/") || path.startsWith("/api/");
 
 const adminPath = () => {

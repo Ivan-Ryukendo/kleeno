@@ -2,14 +2,15 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { auditEvent, newCorrelationId } from "@/core/audit";
-import { ClausesSchema, ConfigParamsSchema, configProblems, type Clauses, type ConfigParams, type PayrollConfig } from "@/core/config";
-import { configMachine, type ConfigState } from "@/core/domain/machines";
+import { ClausesSchema, ConfigParamsSchema, configProblems, scopeReview, scopeOverrideKey, validatedPolicyDocuments, type PolicyDocuments, type Clauses, type ConfigParams, type PayrollConfig } from "@/core/config";
+import { configMachine, TransitionError, type ConfigState } from "@/core/domain/machines";
 import { applyTransition } from "@/core/domain/transition";
 import { isPayrollRole, WorkflowError, type Role } from "@/core/workflow";
 import { openJson, sealJson } from "@/server/crypto";
 import { writeAudit } from "./audit";
 import { db, must } from "./client";
 import { dbStore } from "./store";
+import { listWorkers } from "./workers";
 
 const store = dbStore<ConfigState>("payroll_configurations");
 interface Who {
@@ -20,8 +21,8 @@ interface Who {
 }
 
 /** New DRAFT version. Params and clauses are validated here: the DB only backstops ranges (S35). */
-export async function createConfigDraft(who: Who, input: { params: ConfigParams; clauses: Clauses; ai?: { executionId: string; flags: string[] } }) {
-  const params = ConfigParamsSchema.parse(input.params);
+export async function createConfigDraft(who: Who, input: { params: ConfigParams; clauses: Clauses; documents?: PolicyDocuments; ai?: { executionId: string; flags: string[] }; warnings?: string[] }) {
+  const params = ConfigParamsSchema.parse({ ...input.params, prorationMethod: input.params.prorationMethod ?? "ACTUAL_CALENDAR_DAYS" }); // owner-approved method, never inferred from an AI amount.
   const clauses = ClausesSchema.parse(input.clauses);
   const problems = configProblems(params, clauses);
   if (problems.length) throw new WorkflowError("FORBIDDEN", problems.join("; "));
@@ -30,7 +31,11 @@ export async function createConfigDraft(who: Who, input: { params: ConfigParams;
   const id = randomUUID();
   const version = (last?.version ?? 0) + 1; // unique (company, version): a concurrent draft fails instead of overwriting
   const clauses_enc = await sealJson(who.companyId, "payroll_configurations", "clauses_enc", id, clauses);
-  must(await db().from("payroll_configurations").insert({ id, company_id: who.companyId, version, params, clauses_enc, created_by: who.userId, ai_execution_id: input.ai?.executionId ?? null, validation: { flags: input.ai?.flags ?? [] } }).select("id"), "config insert");
+  const documents = input.documents?.length ? validatedPolicyDocuments(clauses.map(c => c.text).join("\n"), input.documents).documents : [];
+  const params_enc = await sealJson(who.companyId, "payroll_configurations", "params_enc", id, params);
+  const documents_enc = await sealJson(who.companyId, "payroll_configurations", "documents_enc", id, documents);
+  const plainParams = { ...params }; delete plainParams.scopedRules; // structured non-pay numeric parameters remain as legacy DB backstops; confidential scope selectors only in ciphertext.
+  must(await db().from("payroll_configurations").insert({ id, company_id: who.companyId, version, params: plainParams, params_enc, documents_enc, clauses_enc, created_by: who.userId, ai_execution_id: input.ai?.executionId ?? null, validation: { flags: input.ai?.flags ?? [], warnings: input.warnings ?? [] } }).select("id"), "config insert");
   await writeAudit(auditEvent({ companyId: who.companyId, event: "config.create", entityType: "config", entityId: id, actor: who.userId, actorType: "user", correlationId: who.correlationId ?? newCorrelationId(), refs: { version, ai: !!input.ai } }));
   return { id, version };
 }
@@ -43,32 +48,42 @@ export async function advanceAiConfig(who: Who, id: string) {
   return applyTransition(store, configMachine, { ...base, action: "request_review", actor: "validation", actorType: "system" });
 }
 
-/** Lifecycle step by action name. `approve` records the approver first; `activate` supersedes the current ACTIVE version first. */
-export async function configAction(who: Who, id: string, action: string, opts: { confirmFlags?: boolean } = {}): Promise<ConfigState> {
+/** Lifecycle step by action name. Activation replaces the active version and audits both states atomically. */
+export async function configAction(who: Who, id: string, action: string, opts: { confirmFlags?: boolean; confirmOverrides?: string[] } = {}): Promise<ConfigState> {
   if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side manages configuration");
   const correlationId = who.correlationId ?? newCorrelationId();
   const req = { id, companyId: who.companyId, action, actor: who.userId, actorType: "user" as const, correlationId };
   if (action === "approve") {
     // Values the cited clauses do not support need an explicit yes from HR, recorded with who and when (ARCHITECTURE 7).
-    const row = (await db().from("payroll_configurations").select("validation").eq("id", id).eq("company_id", who.companyId).maybeSingle()).data;
+    const row = (await db().from("payroll_configurations").select("id, params, params_enc, validation").eq("id", id).eq("company_id", who.companyId).maybeSingle()).data;
+    if (!row) throw new WorkflowError("FORBIDDEN", "configuration not found");
+    const params = await paramsFor(who.companyId, row);
+    const review = scopeReview(params, (await listWorkers(db(), who.companyId)).map(w => ({ ...w.metadata, workerId: w.id, pseudonym: w.pseudonym, payType: w.payType })));
+    if (review.problems.length) throw new WorkflowError("FORBIDDEN", "equal-rank scope clashes block approval");
+    const overrideKeys = review.overrides.map(scopeOverrideKey);
+    if (overrideKeys.some(key => !opts.confirmOverrides?.includes(key))) throw new WorkflowError("FLAGS_UNCONFIRMED", "confirm each scoped rule override before approving");
     const flags: string[] = row?.validation?.flags ?? [];
     if (flags.length && !opts.confirmFlags) throw new WorkflowError("FLAGS_UNCONFIRMED", "confirm the flagged values before approving");
-    if (flags.length) must(await db().from("payroll_configurations").update({ validation: { ...row?.validation, confirmedBy: who.userId, confirmedAt: new Date().toISOString() } }).eq("id", id).eq("company_id", who.companyId).eq("status", "HUMAN_REVIEW").select("id"), "config confirm");
+    if (flags.length || overrideKeys.length) must(await db().from("payroll_configurations").update({ validation: { ...row?.validation, confirmedBy: who.userId, confirmedAt: new Date().toISOString(), overrideKeys } }).eq("id", id).eq("company_id", who.companyId).eq("status", "HUMAN_REVIEW").select("id"), "config confirm");
     must(await db().from("payroll_configurations").update({ approved_by: who.userId, approved_at: new Date().toISOString() }).eq("id", id).eq("company_id", who.companyId).eq("status", "HUMAN_REVIEW").select("id"), "config approver");
   }
   if (action === "activate") {
-    const active = (await db().from("payroll_configurations").select("id").eq("company_id", who.companyId).eq("status", "ACTIVE").maybeSingle()).data;
-    if (active) await applyTransition(store, configMachine, { ...req, id: active.id, action: "supersede" });
+    const result = must(await db().rpc("activate_payroll_config", { p_company: who.companyId, p_id: id, p_actor: who.userId, p_correlation: correlationId }), "config activate");
+    if (result === "FORBIDDEN") throw new WorkflowError("FORBIDDEN", "only the payroll side manages configuration");
+    if (result === "NOT_FOUND" || result === "INVALID_TRANSITION") throw new TransitionError(result, "configuration must be approved before activation");
+    if (result !== "ACTIVE") throw new TransitionError("STALE_STATE", "configuration changed concurrently");
+    return "ACTIVE";
   }
   return applyTransition(store, configMachine, req);
 }
 
-export async function loadConfig(companyId: string, version: number): Promise<{ id: string; status: ConfigState; config: PayrollConfig; clauses: Clauses } | null> {
-  const row = (await db().from("payroll_configurations").select("id, status, params, clauses_enc").eq("company_id", companyId).eq("version", version).maybeSingle()).data;
+export async function loadConfig(companyId: string, version: number): Promise<{ id: string; status: ConfigState; config: PayrollConfig; clauses: Clauses; confirmedOverrideKeys: string[] } | null> {
+  const row = (await db().from("payroll_configurations").select("id, status, params, params_enc, clauses_enc, validation").eq("company_id", companyId).eq("version", version).maybeSingle()).data;
   if (!row) return null;
   const clauses = await openJson<Clauses>(companyId, "payroll_configurations", "clauses_enc", row.id, row.clauses_enc);
-  return { id: row.id, status: row.status, config: { ...ConfigParamsSchema.parse(row.params), version }, clauses };
+  return { id: row.id, status: row.status, config: { ...await paramsFor(companyId, row), version }, clauses, confirmedOverrideKeys: row.validation?.overrideKeys ?? [] };
 }
+const paramsFor = async (companyId: string, row: { id: string; params: unknown; params_enc?: string | null }) => ConfigParamsSchema.parse(row.params_enc ? await openJson(companyId, "payroll_configurations", "params_enc", row.id, row.params_enc) : row.params);
 
 export interface ConfigView {
   id: string;
@@ -80,22 +95,29 @@ export interface ConfigView {
   confirmed: boolean;
   aiAssisted: boolean;
   createdAt: string;
+  documents: PolicyDocuments;
+  scope: ReturnType<typeof scopeReview>;
+  warnings: string[];
 }
 
 /** Page read on the user-scoped client (RLS): newest first. Clauses are decrypted here, on the server. */
 export async function listConfigs(client: SupabaseClient, companyId: string): Promise<ConfigView[]> {
-  const rows = must(await client.from("payroll_configurations").select("id, version, status, params, clauses_enc, validation, ai_execution_id, created_at").eq("company_id", companyId).order("version", { ascending: false }), "configs read");
+  const rows = must(await client.from("payroll_configurations").select("id, version, status, params, params_enc, clauses_enc, documents_enc, validation, ai_execution_id, created_at").eq("company_id", companyId).order("version", { ascending: false }), "configs read");
+  const workers = (await listWorkers(client, companyId)).map(w => ({ ...w.metadata, workerId: w.id, pseudonym: w.pseudonym, payType: w.payType }));
   return Promise.all(
     rows.map(async (r) => ({
       id: r.id,
       version: r.version,
       status: r.status,
-      params: ConfigParamsSchema.parse(r.params),
+      params: await paramsFor(companyId, r),
       clauses: await openJson<Clauses>(companyId, "payroll_configurations", "clauses_enc", r.id, r.clauses_enc),
       flags: r.validation?.flags ?? [],
       confirmed: !!r.validation?.confirmedAt,
       aiAssisted: !!r.ai_execution_id,
       createdAt: r.created_at,
+      documents: r.documents_enc ? await openJson<PolicyDocuments>(companyId, "payroll_configurations", "documents_enc", r.id, r.documents_enc) : [],
+      scope: scopeReview(await paramsFor(companyId, r), workers),
+      warnings: r.validation?.warnings ?? [],
     })),
   );
 }

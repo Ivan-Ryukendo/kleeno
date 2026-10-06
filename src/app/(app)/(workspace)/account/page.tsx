@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { MfaSetup, PasswordForm } from "@/components/account-forms";
 import { StatusPill } from "@/components/status-pill";
 import { ROLE_LABELS } from "@/core/tenancy";
+import { linkedMethods } from "@/server/auth/oauth";
 import { pageSession } from "@/server/auth/page-session";
 
 export const metadata = { title: "Account · Kleeno" };
@@ -14,6 +15,8 @@ export default async function AccountPage() {
   const factors = (await client.auth.mfa.listFactors()).data?.totp ?? [];
   const company = session.companies.find((c) => c.companyId === actor.companyId); // not read through RLS: it hides the company until the second step is done
   const needsMfa = actor.mfaRequired && actor.aal !== "aal2";
+  const { data: userData } = await client.auth.getUser();
+  const linked = userData.user ? linkedMethods(userData.user) : [];
 
   return (
     <>
@@ -49,6 +52,24 @@ export default async function AccountPage() {
           <dd>{factors.length > 0 ? "On" : actor.mfaRequired ? "Required for your company: set it up below" : "Off"}</dd>
         </dl>
         {needsMfa && factors.length > 0 && <p className="mt-6 font-medium text-signal">Sign in again with your authenticator code to unlock your company data.</p>}
+      </section>
+
+      <section className="mt-6 panel">
+        <h2 className="text-lg">Sign-in methods</h2>
+        <p className="mt-2 text-muted-foreground">Google links automatically when you sign in with a Google account that uses this email.</p>
+        <ul className="mt-4 divide-y divide-border">
+          {(
+            [
+              ["password", "Password"],
+              ["google", "Google"],
+            ] as const
+          ).map(([method, label]) => (
+            <li key={method} className="flex items-center justify-between gap-3 py-2.5">
+              <span>{label}</span>
+              <span className={linked.includes(method) ? "text-sm font-medium" : "text-sm text-muted-foreground"}>{linked.includes(method) ? "Connected" : "Not connected"}</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {factors.length === 0 && (

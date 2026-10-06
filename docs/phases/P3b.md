@@ -1,6 +1,6 @@
 # P3b — Company system (Oct 3–4)
 
-Status: **built 2026-10-03; the user approved after the browser check; committed and in PR.** The decisions below came from the user interview of 2026-10-02 (the user said to go ahead on 2026-10-03). P4 Payments starts in parallel once slice 1 is merged (ESSENTIALS rule 36).
+Status: **merged to main** (`296354e`, PR #10). Git timestamp is 2026-10-02; the historical phase/user-check notes below label their work 2026-10-03. Preserve that discrepancy rather than assuming another merge is pending. P4 is also merged; current remaining sequence is in PRD §12 and `../p4-p5-readiness.md`.
 
 ## Goal
 Real businesses join by an approved invite, create their company, invite their team with roles and set up through a short wizard and a checklist. One login can belong to many companies and switch between them, like Notion or ClickUp workspaces. This makes Kleeno usable by pilot companies and accounting firms, not only by our scripted users.

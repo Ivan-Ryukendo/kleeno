@@ -1,0 +1,11 @@
+# Exact historical false positives only: identical CI-only synthetic receipt HMAC fallback.
+# Verified against each commit: test-marked fallback when no real key exists; not a provider credential.
+# No path/rule/value allowlist; current source and all other findings remain scanned.
+7c3e4d26c2719199723bb3e498236dd1cb6d1748:tests/db/receipts.test.ts:generic-api-key:6
+faa704a2fd6beaebc06f44a00ee1c6a6246b0251:tests/db/receipts.test.ts:generic-api-key:6
+c78fac36d93913323152b66e91c8c8849bf5dc49:tests/db/receipts.test.ts:generic-api-key:6
+fe307dca2db9907bf7a9ac4280d1cb303326791c:tests/db/receipts.test.ts:generic-api-key:6
+67dc3430edc562a41ec6e42cfa491dd9a3276e56:tests/db/receipts.test.ts:generic-api-key:6
+12f474e8a0b9f431c82e92a5219df74195cb41bf:tests/db/receipts.test.ts:generic-api-key:6
+0d98f0352d347f483c9beca69b4f09ffe961fc13:tests/db/receipts.test.ts:generic-api-key:6
+dc63c0acd4d91398b6e8469462bb73ac152a73b9:tests/db/receipts.test.ts:generic-api-key:6

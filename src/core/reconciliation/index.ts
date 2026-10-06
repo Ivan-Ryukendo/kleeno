@@ -1,5 +1,6 @@
-import type { PayrollConfig } from "../config";
-import type { PayType, WorkerInput } from "../engine";
+import { resolveScopedConfig, type PayrollConfig } from "../config";
+import { employmentDays, type PayType, type WorkerInput } from "../engine";
+import type { WorkerMetadata } from "../workers";
 import { div, mul, parseDecimal, ratio, type Ratio } from "../money";
 
 // Reconciliation (ARCHITECTURE 9): deterministic checks detect, humans resolve, and only resolved data becomes engine input.
@@ -29,8 +30,9 @@ export function describeFacts(category: ReconCategory, f: Record<string, string>
   return `${f.missingHours} h unaccounted for (scheduled ${f.scheduledHours}, worked ${f.workedHours}, leave ${f.leaveHours})`;
 }
 
-export interface ReconWorker {
+export interface ReconWorker extends Partial<WorkerMetadata> {
   id: string;
+  pseudonym?: string;
   payType: PayType;
 }
 export interface ReconTimesheet {
@@ -50,7 +52,7 @@ export interface ReconLeave {
   seq: number;
 }
 export interface ReconInput {
-  config: Pick<PayrollConfig, "scheduledHoursPerPeriod" | "weeklyOvertimeThresholdHours" | "hourlyCapHours">;
+  config: Pick<PayrollConfig, "scheduledHoursPerPeriod" | "weeklyOvertimeThresholdHours" | "hourlyCapHours"> & Pick<Partial<PayrollConfig>, "scopedRules" | "prorationMethod">;
   period: { start: string; end: string };
   workers: ReconWorker[];
   timesheets: ReconTimesheet[];
@@ -163,9 +165,12 @@ export function analyse(input: ReconInput, resolutions: ReadonlyMap<string, Reso
   if (stage1Open.length) return { exceptions, inputs: null }; // later checks wait for these decisions
 
   // ---- Stage 2: overtime and missing hours, on the settled rows ----
-  const t = hours(input.config.weeklyOvertimeThresholdHours);
   const inputs = new Map<string, WorkerInput>();
   for (const w of input.workers) {
+    const config = resolveScopedConfig(input.config, { ...w, workerId: w.id }).config;
+    const t = hours(config.weeklyOvertimeThresholdHours);
+    const days = employmentDays(input.period, w);
+    const partialEmployment = days.activeDays !== days.periodDays;
     const { work, leave } = effective.get(w.id)!;
     const worked = sum(work.map((r) => hours(r.hours)));
     const approvedExtra = sum(work.map((r) => hours(r.approvedExtraHours)));
@@ -193,21 +198,23 @@ export function analyse(input: ReconInput, resolutions: ReadonlyMap<string, Reso
       }
       const paid = sum(leave.filter((l) => l.leaveType === "PAID").map((l) => hours(l.hours)));
       const unpaid = sum(leave.filter((l) => l.leaveType === "UNPAID").map((l) => hours(l.hours)));
-      const missing = sub(hours(input.config.scheduledHoursPerPeriod), add(sub(worked, overAll), add(paid, unpaid)));
+      // ponytail: period-wide scheduled hours cannot establish a partial employment schedule; explicit dated leave still applies. Add a reviewed daily schedule before inferring missing hours here.
+      const missing = partialEmployment ? ZERO : sub(hours(config.scheduledHoursPerPeriod), add(sub(worked, overAll), add(paid, unpaid)));
       let paidTotal = paid;
       let unpaidTotal = unpaid;
       if (gt(missing, ZERO)) {
         const key = `mh|${w.id}`;
-        raise({ key, category: "UNEXPLAINED_MISSING_HOURS", workerId: w.id, severity: "HIGH", evidence: { recordIds: work.map((r) => r.id), facts: { scheduledHours: input.config.scheduledHoursPerPeriod, workedHours: toDecimal(sub(worked, overAll)), leaveHours: toDecimal(add(paid, unpaid)), missingHours: toDecimal(missing) } } });
+        raise({ key, category: "UNEXPLAINED_MISSING_HOURS", workerId: w.id, severity: "HIGH", evidence: { recordIds: work.map((r) => r.id), facts: { scheduledHours: config.scheduledHoursPerPeriod, workedHours: toDecimal(sub(worked, overAll)), leaveHours: toDecimal(add(paid, unpaid)), missingHours: toDecimal(missing) } } });
         const a = decided(key);
         if (a === "TREAT_AS_PAID_LEAVE") paidTotal = add(paid, missing);
         if (a === "TREAT_AS_UNPAID_LEAVE") unpaidTotal = add(unpaid, missing);
       }
       Object.assign(wi, { approvedOvertimeHours: toDecimal(approvedOt), paidLeaveHours: toDecimal(paidTotal), unpaidLeaveHours: toDecimal(unpaidTotal) });
+      if (partialEmployment && !gt(unpaidTotal, unpaid)) wi.unpaidLeave = leave.filter(l => l.leaveType === "UNPAID").map(l => ({ date: l.date, hours: l.hours }));
     } else if (w.payType === "HOURLY") {
       let approvedAbove = ZERO;
-      if (input.config.hourlyCapHours !== null) {
-        const over = pos(sub(worked, hours(input.config.hourlyCapHours)));
+      if (config.hourlyCapHours !== null) {
+        const over = pos(sub(worked, hours(config.hourlyCapHours)));
         if (gt(over, ZERO)) {
           const approved = min(approvedExtra, over);
           approvedAbove = approved;
