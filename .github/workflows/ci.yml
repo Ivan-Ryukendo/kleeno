@@ -64,14 +64,18 @@ jobs:
       - name: Export local Supabase settings and a throwaway data key
         run: |
           supabase status -o env > /tmp/supabase.env
+          TEST_DATA_KEY=$(openssl rand -base64 48)
+          TEST_WAITLIST_SECRET=$(openssl rand -base64 32)
+          echo "::add-mask::$TEST_DATA_KEY"
+          echo "::add-mask::$TEST_WAITLIST_SECRET"
           {
             echo "SUPABASE_URL=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
             echo "NEXT_PUBLIC_SUPABASE_URL=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
             echo "SUPABASE_SERVICE_ROLE_KEY=$(grep '^SERVICE_ROLE_KEY=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(grep '^ANON_KEY=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
-            echo "DATA_ENCRYPTION_KEY=$(openssl rand -base64 48)"
+            echo "DATA_ENCRYPTION_KEY=$TEST_DATA_KEY"
             echo "OPENROUTER_API_KEY=unused-in-db-tests"
-            echo "WAITLIST_SECRET=$(openssl rand -base64 32)"
+            echo "WAITLIST_SECRET=$TEST_WAITLIST_SECRET"
             echo "SITE_MODE=app"
           } >> "$GITHUB_ENV"
       - run: npm run test:db

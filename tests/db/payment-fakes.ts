@@ -13,7 +13,7 @@ export const USDC = "0x3600000000000000000000000000000000000000";
 
 /** The approver wallet and the guard's owner calls. */
 export class FakePort implements OwnerPort {
-  balance = 1_000_000_000_000_000_000n;
+  balance = 1_000_000_000_000_000n;
   opened = 0;
   failOpen = false;
   closed: string[] = [];

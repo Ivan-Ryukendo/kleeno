@@ -2,7 +2,7 @@ import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { auditEvent } from "@/core/audit";
 import { writeAudit } from "@/server/db/audit";
-import { db } from "@/server/db/client";
+import { db, must } from "@/server/db/client";
 import { env } from "@/server/env";
 import { AuthError } from "./session";
 
@@ -13,8 +13,8 @@ const MAX_FAILURES = 5;
 
 export async function assertNotThrottled(companyId: string, userId: string, event: "LOGIN_FAILED" | "MFA_FAILED" | "REAUTH_FAILED") {
   const since = new Date(Date.now() - WINDOW_MS).toISOString();
-  const { count } = await db().from("audit_events").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("entity_id", userId).eq("event", event).gte("created_at", since);
-  if ((count ?? 0) >= MAX_FAILURES) throw new AuthError(429, "THROTTLED", "too many attempts; try again in a few minutes");
+  const { count, error } = await db().from("audit_events").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("entity_id", userId).eq("event", event).gte("created_at", since);
+  if (must({ data: count, error }, "auth throttle") >= MAX_FAILURES) throw new AuthError(429, "THROTTLED", "too many attempts; try again in a few minutes");
 }
 
 export function recordAuthEvent(event: string, companyId: string, userId: string, correlationId: string) {

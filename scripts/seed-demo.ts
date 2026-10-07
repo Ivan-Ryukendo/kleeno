@@ -6,13 +6,21 @@ import { parseUsdc } from "../src/core/money";
 import { WorkerMetadataSchema } from "../src/core/workers";
 import { demo, PERIOD } from "../tests/fixtures/reconciliation/demo";
 
+function assertDemoLocation(url: string, production: string | undefined) {
+  if (!url || !["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(url).hostname) || (production && new URL(url).origin === new URL(production).origin)) {
+    throw new Error("seed requires a designated local demo company with live payments off");
+  }
+}
+
 export function assertDemoTarget(url: string, production: string | undefined, company: { is_demo: boolean; live_payments_enabled: boolean }) {
-  if (!url || !["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(url).hostname) || (production && new URL(url).origin === new URL(production).origin) || !company.is_demo || company.live_payments_enabled) {
+  assertDemoLocation(url, production);
+  if (!company.is_demo || company.live_payments_enabled) {
     throw new Error("seed requires a designated local demo company with live payments off");
   }
 }
 
 export async function seedSimulationDemo(companyId: string, userId: string) {
+  assertDemoLocation(process.env.SUPABASE_URL ?? "", process.env.SUPABASE_PROD_URL);
   const { db, must } = await import("../src/server/db/client");
   const { configAction, createConfigDraft, loadConfig } = await import("../src/server/db/configs");
   const { createWorker, listWorkers } = await import("../src/server/db/workers");
