@@ -19,7 +19,7 @@ const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(host);
 const namedTestProject = testRef === KLEENO_TEST_REF && host === `${KLEENO_TEST_REF}.supabase.co`;
 const forbidden = [process.env.SUPABASE_PROD_URL, readDotEnvUrl()].some((u) => u && new URL(u).origin === new URL(target ?? "http://x").origin);
 if (!target || forbidden || !(loopback || namedTestProject)) {
-  throw new Error("Database tests require a loopback SUPABASE_URL or the pinned kleeno-test project; every other remote target (dev, prod) is refused");
+  throw new Error("Database tests require an isolated loopback SUPABASE_URL or the pinned kleeno-test project; every other remote target (dev, prod) is refused");
 }
 // Owner-level fixtures (asOwner) connect straight to Postgres: that URL must be loopback or belong to the same pinned project.
 const dbUrl = process.env.SUPABASE_TEST_DB_URL;
