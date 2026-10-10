@@ -2,11 +2,11 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { loadHistoricalThresholds, saveHistoricalThresholds } from "@/server/db/historical-thresholds";
-import { admin, makeCompany, pendingRun, userClient } from "./helpers";
+import { admin, asOwner, makeCompany, pendingRun, userClient } from "./helpers";
 
 describe("encrypted immutable historical threshold acceptance", () => {
   it("checks current roles, exact replay/conflict/revisions, self-tenant reads and sign-off freeze", async () => {
-    const company = await makeCompany(); const fixture = await pendingRun(company);
+    const company = await makeCompany({ live: true }); const fixture = await pendingRun(company);
     const actor = { companyId: company.id, userId: company.payroll.id, roles: company.payroll.roles, correlationId: randomUUID() };
     const reader = await userClient(company.payroll);
     const input = { expectedRevision: 0, idempotencyKey: randomUUID(), rules: [{ id: "net-delta", component: null, absolute: "1000000", percent: null }] };
@@ -27,8 +27,7 @@ describe("encrypted immutable historical threshold acceptance", () => {
     expect((await foreignReader.from("historical_threshold_versions").select("id").eq("run_id", fixture.runId)).data).toEqual([]);
     const calc = (await admin.from("calculations").select("id,calculation_hash").eq("company_id", company.id).eq("run_id", fixture.runId).single()).data!;
     // An immutable signed-review fixture exercises the settings freeze without inventing import readiness evidence.
-    const signed = await admin.from("payroll_review_events").insert({ id: randomUUID(), company_id: company.id, run_id: fixture.runId, calculation_id: calc.id, calculation_hash: calc.calculation_hash, revision: 1, action: "SIGNOFF", actor_id: actor.userId, idempotency_key: randomUUID(), command_hash: "a".repeat(64), payload_enc: null, related_id: null });
-    if (signed.error) throw new Error("threshold sign-off fixture failed");
+    await asOwner("insert into public.payroll_review_events(id, company_id, run_id, calculation_id, calculation_hash, revision, action, actor_id, idempotency_key, command_hash, payload_enc, related_id) values ($1, $2, $3, $4, $5, 1, 'SIGNOFF', $6, $7, $8, null, null)", [randomUUID(), company.id, fixture.runId, calc.id, calc.calculation_hash, actor.userId, randomUUID(), "a".repeat(64)]);
     expect((await loadHistoricalThresholds(reader, actor, fixture.runId)).canConfigure).toBe(false);
     await expect(saveHistoricalThresholds(reader, actor, fixture.runId, { ...input, expectedRevision: 1, idempotencyKey: randomUUID(), rules: [] })).rejects.toMatchObject({ code: "CONFLICT" });
     expect((await saveHistoricalThresholds(reader, actor, fixture.runId, input)).version).toBe(version.version);

@@ -2,6 +2,7 @@
 // Immutable rows (audit, runs, calculations) can never be deleted by design, so test companies are left in place: dev DB only.
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { Client } from "pg";
 import { keccak256, toHex } from "viem";
 import type { ConfigParams } from "@/core/config";
 import { obligationMachine, runMachine, type ObligationState, type RunState } from "@/core/domain/machines";
@@ -186,3 +187,10 @@ export async function proposedBatch(c: TestCompany, r: BuiltRun, authorizerId: s
 }
 
 export const stores = { obligations: dbStore<ObligationState>("obligations"), obligationMachine };
+
+/** Runs one statement as the table owner (the service role has least-privilege grants, e.g. SELECT-only on billing_worker_usage). Only for isolated fixtures. */
+export async function asOwner(sql: string, params: unknown[] = []) {
+  const client = new Client({ connectionString: process.env.SUPABASE_TEST_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres" });
+  await client.connect();
+  try { return await client.query(sql, params); } finally { await client.end(); }
+}

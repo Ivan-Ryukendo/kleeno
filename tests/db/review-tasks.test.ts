@@ -6,7 +6,7 @@ import { POST } from "@/app/api/runs/[id]/tasks/route";
 import { admin, call, cookieFor, makeCompany, pendingRun, userClient, withId } from "./helpers";
 
 async function fixture() {
-  const company = await makeCompany(), run = await pendingRun(company);
+  const company = await makeCompany({ live: true }), run = await pendingRun(company);
   expect((await admin.from("payroll_review_settings").insert({ company_id: company.id, run_id: run.runId, revision: 1, cutoff_at: new Date(Date.now() + 3600000).toISOString(), time_zone: "UTC", required_types: ["TIMESHEETS"], updated_by: company.payroll.id })).error).toBeNull();
   const who = { companyId: company.id, userId: company.payroll.id, roles: company.payroll.roles, correlationId: randomUUID() };
   const create = { action: "create" as const, taskId: randomUUID(), idempotencyKey: randomUUID(), expectedRevision: 0 as const, source: { kind: "MISSING_EVIDENCE" as const, importType: "TIMESHEETS" as const }, assigneeId: who.userId, dueAt: new Date(Date.now() + 3600000).toISOString(), severity: "HIGH" as const, status: "OPEN" as const, nextAction: "PRIVATE-task-request", evidenceRefs: ["PRIVATE-evidence-ref"] };
