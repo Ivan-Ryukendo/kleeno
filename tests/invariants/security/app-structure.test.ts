@@ -27,6 +27,7 @@ const OPEN_ROUTES = [
   "src/app/api/waitlist/survey/route.ts",
   "src/app/api/admin/login/route.ts",
   "src/app/api/circle/webhook/route.ts", // P4: Circle signs the raw body (S27); the handler only triggers a re-check
+  "src/app/api/stripe/webhook/route.ts", // Billing TEST: raw-byte timestamp/HMAC verification; durable hints only, no session or entitlement.
   "src/app/api/x402/verify/route.ts", // P4 slice 6: Kleeno Verify is public and paid over x402: no session, the price + rate limit + unguessable target gate it (S68)
 ]; // the receipt page is a page, not a route: it checks its own signed token (S36)
 

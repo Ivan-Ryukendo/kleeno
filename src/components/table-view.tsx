@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { ResourceInputForm, type ResourceColumn } from "@/components/resource-column-form";
 import { OPS, type ColumnDef, type TableId, type TableResult, type ViewDef } from "@/core/views";
 import { postJson } from "@/lib/api";
+import { NamedViewSelector } from "@/components/named-view-selector";
 
 const field = "h-8 rounded-field border border-field-border bg-white px-3 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 const OP_LABEL: Record<string, string> = { contains: "contains", equals: "is", is: "is", isNot: "is not", eq: "=", gt: ">", gte: "≥", lt: "<", lte: "≤", on: "on", before: "before", after: "after" };
@@ -46,19 +47,34 @@ function TableViewState({ table, runId, columns, initialView, initial, empty = "
   const [layoutVersion, setLayoutVersion] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [denied, setDenied] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [context, setContext] = useState<{ rowId: string; column: ColumnDef; label: string; meta?: { formula: string; sources: string[]; status: string; editable: boolean }; startAtComments?: boolean } | null>(null);
   const [revision, setRevision] = useState(0);
   const dragColumn = useRef<string | null>(null);
   const requestId = useRef(0);
+  const appliedNamedView = useRef<ViewDef | null>(null);
+  const accessAlert = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (denied) accessAlert.current?.focus(); }, [denied]);
   const available = [...new Map([...columns, ...(result.availableColumns ?? [])].map((c) => [c.id, c])).values()];
   const byId = new Map(available.map((c) => [c.id, c]));
+  function deny(message: string) { requestId.current++; setDenied(true); setContext(null); setResult({ columns: [], rows: [], total: 0, totals: {}, truncated: false }); setError(message); }
+
+  async function applyNamed(next: ViewDef) {
+    const current = ++requestId.current; setLoading(true);
+    const response = await postJson<TableResult>("/api/views/query", { view: next, runId });
+    if (current !== requestId.current) return { ok: false, error: "The table changed while the saved view loaded. Retry the selected view." };
+    setLoading(false);
+    if (response.ok && response.data) { appliedNamedView.current = next === view ? null : next; setView(next); setResult(response.data); setError(null); setLayoutLoaded(true); }
+    else if ([401, 403].includes(response.status ?? 0)) deny(response.error ?? "Table access changed.");
+    return response;
+  }
 
   async function loadLayout() {
     try {
       const response = await fetch(`/api/views/layout?table=${table}`);
       const saved = await response.json();
-      if (!response.ok) throw new Error("Could not load your saved layout.");
+      if (!response.ok) { if ([401, 403].includes(response.status)) deny("Table access changed."); throw new Error("Could not load your saved layout."); }
       setLayoutVersion(saved.version);
       if (saved.view) setView(saved.view);
       setLayoutLoaded(true); setError(null);
@@ -68,14 +84,15 @@ function TableViewState({ table, runId, columns, initialView, initial, empty = "
     let cancelled = false;
     fetch(`/api/views/layout?table=${table}`).then(async (response) => {
       const saved = await response.json();
-      if (!response.ok) throw new Error("layout read failed");
+      if (!response.ok) { if ([401, 403].includes(response.status) && !cancelled) deny("Table access changed."); throw new Error("layout read failed"); }
       if (!cancelled) { setLayoutVersion(saved.version); if (saved.view) setView(saved.view); setLayoutLoaded(true); }
     }).catch(() => { if (!cancelled) { setError("Could not load your saved layout. Reload it before saving changes."); setLayoutLoaded(true); } });
     return () => { cancelled = true; };
   }, [table]);
 
   useEffect(() => {
-    if (!layoutLoaded) return;
+    if (!layoutLoaded || denied) return;
+    if (appliedNamedView.current === view) { appliedNamedView.current = null; return; }
     const current = ++requestId.current;
     let cancelled = false;
     const t = setTimeout(async () => {
@@ -86,17 +103,17 @@ function TableViewState({ table, runId, columns, initialView, initial, empty = "
       if (r.ok && r.data) {
         setResult(r.data);
         setError(null);
-      } else setError(r.error ?? "Could not load the table");
+      } else { if ([401, 403].includes(r.status ?? 0)) deny(r.error ?? "Table access changed."); else setError(r.error ?? "Could not load the table"); }
     }, 250);
     return () => { clearTimeout(t); cancelled = true; };
-  }, [view, runId, layoutLoaded, revision]);
+  }, [view, runId, layoutLoaded, revision, denied]);
 
   async function saveLayout() {
     setSaving(true);
     const response = await postJson<{ version: number }>("/api/views/layout", { view, expectedVersion: layoutVersion });
     setSaving(false);
     if (response.ok && response.data) { setLayoutVersion(response.data.version); setError(null); setAnnouncement("Your personal layout was saved."); }
-    else setError(response.error ?? "Could not save your layout. Reload it if another tab changed it.");
+    else { if ([401, 403].includes(response.status ?? 0)) deny(response.error ?? "Table access changed."); else setError(response.error ?? "Could not save your layout. Reload it if another tab changed it."); }
   }
   function move(source: string, target: string) {
     const reordered = reorderColumns(view.columns, source, target);
@@ -114,7 +131,7 @@ function TableViewState({ table, runId, columns, initialView, initial, empty = "
 
   async function exportCsv() {
     const res = await fetch("/api/views/export", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ view, runId }) });
-    if (!res.ok) return setError("Could not export");
+    if (!res.ok) { if ([401, 403].includes(res.status)) deny("Table access changed."); else setError("Could not export"); return; }
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement("a");
     a.href = url;
@@ -129,8 +146,10 @@ function TableViewState({ table, runId, columns, initialView, initial, empty = "
     return <span className={c.id === "match" && v === "EXCEPTION" ? "font-medium text-signal" : ""}>{text}</span>;
   };
 
+  if (denied) return <section className="mt-4 rounded-box border p-4"><h3 className="font-medium">Table access changed</h3><p role="alert" tabIndex={-1} ref={accessAlert} className="mt-3 text-sm">{error}</p><button type="button" className="mt-3 min-h-11 rounded-field border px-4 text-sm" onClick={() => window.location.reload()}>Reload current access</button></section>;
   return (
     <div className="mt-4">
+      <NamedViewSelector table={table} currentView={view} columns={available} onApply={applyNamed} onDenied={deny} />
       <div className="flex flex-wrap items-center gap-3">
         <Input aria-label="Search" placeholder="Search" value={view.search} onChange={(e) => set({ search: e.target.value })} className="h-9 w-48" />
         <details className="relative">

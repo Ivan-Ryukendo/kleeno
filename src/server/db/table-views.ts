@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describeFacts } from "@/core/reconciliation";
 import { formatUsdc } from "@/core/money";
 import { applyView, columnsFor, defaultView, totalsFor, validateView, ViewError, type Row, type TableId, type TableResult, type ViewDef } from "@/core/views";
-import type { Role } from "@/core/tenancy";
+import { isPayrollRole, isPaymentRole, type Role } from "@/core/tenancy";
 import { openField } from "@/server/crypto";
 import { loadLines } from "./calculations";
 import { must } from "./client";
@@ -15,7 +15,8 @@ import { latestResourceInputs, resourceColumnDef, resourceColumns } from "./reso
 const MAX_ROWS = 500;
 
 /** Loads every row of a table for the caller's company (and run), through the user-scoped client so RLS is the second wall (S11, S59). */
-export async function loadTableRows(client: SupabaseClient, companyId: string, table: TableId, runId: string | null): Promise<Row[]> {
+export async function loadTableRows(client: SupabaseClient, companyId: string, table: TableId, runId: string | null, roles: readonly Role[] = []): Promise<Row[]> {
+  const financial = isPayrollRole(roles) || isPaymentRole(roles);
   if (table === "runs") {
     const rows: Row[] = [];
     let before: { createdAt: string; id: string } | null = null;
@@ -34,13 +35,21 @@ export async function loadTableRows(client: SupabaseClient, companyId: string, t
     return rows;
   }
   if (table === "workers") {
+    if (!financial) {
+      const read = await client.from("worker_directory").select("id, pseudonym, pay_type, active, left_on", { count: "exact" }).eq("company_id", companyId).order("pseudonym").limit(10001);
+      const workers = must(read, "worker table");
+      if (workers.length > 10000 || read.count !== workers.length) throw new ViewError("worker table is incomplete or exceeds this view's supported limit");
+      return workers.map((w) => ({ __rowId: w.id, code: w.pseudonym, payType: w.pay_type, status: w.active ? "ACTIVE" : "LEFT", leftOn: w.left_on }));
+    }
     const workers = await listWorkers(client, companyId);
     return workers.map((w) => ({ __rowId: w.id, code: w.pseudonym, payType: w.payType, status: w.active ? "ACTIVE" : "LEFT", base: w.compensation ? formatUsdc(w.compensation.baseAmount) : "", hourly: w.compensation ? formatUsdc(w.compensation.hourlyRate) : "", leftOn: w.leftOn }));
   }
   if (!runId) throw new ViewError("choose a run");
-  const run = (await client.from("payroll_runs").select("id").eq("id", runId).eq("company_id", companyId).maybeSingle()).data;
+  const runRead = await client.from("payroll_runs").select("id").eq("id", runId).eq("company_id", companyId).maybeSingle();
+  if (runRead.error) throw new ViewError("run table read unavailable");
+  const run = runRead.data;
   if (!run) throw new ViewError("run not found"); // S13: another company's run looks the same as a missing one
-  const codes = new Map(must(await client.from("workers").select("id, pseudonym").eq("company_id", companyId), "workers read").map((w) => [w.id, w.pseudonym as string]));
+  const codes = new Map(must(await client.from(financial ? "workers" : "worker_directory").select("id, pseudonym").eq("company_id", companyId), "workers read").map((w) => [w.id, w.pseudonym as string]));
 
   if (table === "timesheets" || table === "leave") {
     const flagged = await flaggedRecords(client, companyId, runId);
@@ -56,8 +65,16 @@ export async function loadTableRows(client: SupabaseClient, companyId: string, t
   }
 
   // lines: the engine's result beside what the business actually paid
-  const calc = (await client.from("calculations").select("id").eq("company_id", companyId).eq("run_id", runId).maybeSingle()).data;
+  const calcRead = await client.from("calculations").select("id").eq("company_id", companyId).eq("run_id", runId).maybeSingle();
+  if (calcRead.error) throw new ViewError("pay-line calculation read unavailable");
+  const calc = calcRead.data;
   if (!calc) return [];
+  if (!financial) {
+    const read = await client.from("calculation_line_metadata").select("id, worker_id", { count: "exact" }).eq("company_id", companyId).eq("calculation_id", calc.id).limit(10001);
+    const lines = must(read, "pay-line table");
+    if (lines.length > 10000 || read.count !== lines.length) throw new ViewError("pay-line table is incomplete or exceeds this view's supported limit");
+    return lines.map((l) => ({ __rowId: l.id, worker: codes.get(l.worker_id) ?? "?" }));
+  }
   const paid = new Map<string, bigint>();
   for (const p of must(await client.from("actual_payments").select("id, worker_id, amount_enc").eq("company_id", companyId).eq("run_id", runId), "actual payments read"))
     paid.set(p.worker_id, (paid.get(p.worker_id) ?? 0n) + BigInt(await openField(companyId, "actual_payments", "amount_enc", p.id, p.amount_enc)));
@@ -69,7 +86,7 @@ export async function queryTable(client: SupabaseClient, companyId: string, role
   const resources = def.table === "workers" ? await resourceColumns(client, companyId, roles) : [];
   const custom = resources.map(resourceColumnDef);
   validateView(def, roles, custom);
-  const rows = await loadTableRows(client, companyId, def.table, runId);
+  const rows = await loadTableRows(client, companyId, def.table, runId, roles);
   const cells: Record<string, Record<string, ResourceCell>> = {};
   for (let offset = 0; offset < rows.length && resources.length; offset += MAX_ROWS) {
     const group = rows.slice(offset, offset + MAX_ROWS);

@@ -11,12 +11,14 @@ import { compareVariance } from "@/core/variance";
 import { isPayrollRole, WorkflowError, type Role } from "@/core/workflow";
 import { openField, openJson, sealJson } from "@/server/crypto";
 import { writeAudit } from "./audit";
-import { saveCalculation } from "./calculations";
+import { loadLines, saveCalculation } from "./calculations";
+import { verifyCapturedCalculation } from "@/core/workflow/evidence-pack";
 import { db, must } from "./client";
 import { loadConfig } from "./configs";
 import { loadInput, loadResolutions, loadRun } from "./reconciliation";
 import { runStore } from "./runs";
 import { listWorkers } from "./workers";
+import { effectiveCompensationAccess, effectiveScheduleRevisions, loadEffectiveCompensation } from "./effective-compensation";
 
 interface Who {
   companyId: string;
@@ -38,9 +40,26 @@ export async function calculateRun(who: Who, runId: string) {
 
   const cfg = await loadConfig(who.companyId, run.config_version);
   if (!cfg) throw new WorkflowError("NO_ACTIVE_CONFIG", "the configuration of this run is missing");
+  const effectiveWho = { ...who, correlationId };
+  await effectiveCompensationAccess(db(), effectiveWho, true);
+  const capturedResult = await db().from("calculations").select("id,config_version,calculation_hash,snapshot_enc").eq("company_id", who.companyId).eq("run_id", runId).maybeSingle();
+  if (capturedResult.error) throw new Error("captured calculation unavailable");
+  const captured = capturedResult.data;
+  if (captured) {
+    // Recovery never re-prices a captured run using compensation/configuration records edited afterward.
+    const snapshot = await openJson(who.companyId, "calculations", "snapshot_enc", captured.id, captured.snapshot_enc);
+    const verified = verifyCapturedCalculation({ snapshot, run: { id: runId, periodStart: run.period_start, periodEnd: run.period_end }, calculation: { id: captured.id, calculationHash: captured.calculation_hash, configVersion: captured.config_version }, lines: await loadLines(db(), who.companyId, captured.id) });
+    await effectiveCompensationAccess(db(), effectiveWho, true);
+    const step = (action: string) => applyTransition(runStore, runMachine, { id: runId, companyId: who.companyId, action, actor: who.userId, actorType: "user", correlationId, refs: { calculationId: captured.id } });
+    if (run.status === "READY_FOR_CALCULATION") await step("calculate");
+    const variance = await saveVariance(who.companyId, runId, captured.id, verified.calculated.lines, cfg.config.varianceTolerance);
+    const status = await step("validate_calculation");
+    return { calculationId: captured.id, calculationHash: captured.calculation_hash, status, workers: verified.calculated.lines.length, variance };
+  }
   const input = await loadInput(who.companyId, run);
   const resolutions = await loadResolutions(who.companyId, runId);
-  const analysis = analyse(input, resolutions);
+  const scheduledRevisions = await effectiveScheduleRevisions(db(), who.companyId);
+  const analysis = analyse(input, resolutions, new Set(scheduledRevisions.keys()));
   if (!analysis.inputs) throw new TransitionError("INVALID_TRANSITION", "resolve every exception before calculating");
 
   const workers = new Map((await listWorkers(db(), who.companyId)).map((w) => [w.id, w]));
@@ -53,6 +72,12 @@ export async function calculateRun(who: Who, runId: string) {
     if (!w?.compensation) throw new WorkflowError("CALCULATION_BLOCKED", `${code(workerId)} has no pay set up`);
     return { worker: { workerId, pseudonym: w.pseudonym, payType: w.payType, baseAmount: w.compensation.baseAmount, hourlyRate: w.compensation.hourlyRate, ...w.metadata }, input: { ...wi, adjustments: adjustments.get(workerId) ?? [] }, period: { start: run.period_start, end: run.period_end } };
   });
+  for (const entry of entries) {
+    if (!scheduledRevisions.has(entry.worker.workerId)) continue;
+    const timeline = await loadEffectiveCompensation(db(), effectiveWho, entry.worker.workerId, { period: entry.period });
+    if (timeline.revision !== scheduledRevisions.get(entry.worker.workerId) || !timeline.segments) throw new WorkflowError("CALCULATION_BLOCKED", "Effective compensation changed; calculate again from current reviewed evidence");
+    entry.compensationSegments = timeline.segments;
+  }
   const scope = scopeReview(cfg.config, entries.map(e => e.worker));
   if (scope.problems.length || scope.overrides.some(o => !cfg.confirmedOverrideKeys.includes(scopeOverrideKey(o)))) throw new WorkflowError("CALCULATION_BLOCKED", "worker scope evidence changed; approve a new configuration with the current overrides");
   let calc;
@@ -65,7 +90,12 @@ export async function calculateRun(who: Who, runId: string) {
 
   const existing = (await db().from("calculations").select("id, calculation_hash").eq("company_id", who.companyId).eq("run_id", runId).maybeSingle()).data;
   if (existing && existing.calculation_hash !== calc.calculationHash) throw new TransitionError("STALE_STATE", "a different calculation already exists for this run");
-  const evidence = async (table: string) => must(await db().from(table).select("id, source_hash").eq("company_id", who.companyId).eq("run_id", runId).order("id"), `${table} refs`);
+  const evidence = async (table: string) => {
+    const result = await db().from(table).select("id, source_hash", { count: "exact" }).eq("company_id", who.companyId).eq("run_id", runId).order("id");
+    const rows = must(result, `${table} refs`);
+    if (result.count !== rows.length) throw new Error(`${table} reference evidence is incomplete`);
+    return rows;
+  };
   const calculationId =
     existing?.id ??
     (
@@ -73,7 +103,7 @@ export async function calculateRun(who: Who, runId: string) {
         evidence: { timesheets: await evidence("timesheets"), leave: await evidence("leave_records"), actualPayments: await evidence("actual_payments") },
         decisions: Object.fromEntries(resolutions),
         adjustmentRevision,
-      })
+      }, Object.fromEntries(entries.map(entry => [entry.worker.workerId, scheduledRevisions.get(entry.worker.workerId) ?? 0])), who.userId)
     ).calculationId;
 
   const step = (action: string) => applyTransition(runStore, runMachine, { id: runId, companyId: who.companyId, action, actor: who.userId, actorType: "user", correlationId, refs: { calculationId } });
@@ -90,7 +120,9 @@ export async function calculateRun(who: Who, runId: string) {
 }
 
 export async function loadRunAdjustments(reader: import("@supabase/supabase-js").SupabaseClient, companyId: string, runId: string): Promise<Map<string, PayAdjustment[]>> {
-  const rows = must(await reader.from("run_adjustments").select("id,worker_id,payload_enc").eq("company_id", companyId).eq("run_id", runId), "run adjustments");
+  const result = await reader.from("run_adjustments").select("id,worker_id,payload_enc", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId);
+  const rows = must(result, "run adjustments");
+  if (result.count !== rows.length) throw new Error("adjustment evidence is incomplete");
   const values = await Promise.all(rows.map(async r => [r.worker_id as string, PayAdjustmentsSchema.parse(await openJson(companyId, "run_adjustments", "payload_enc", r.id, r.payload_enc))] as const));
   return new Map(values);
 }
@@ -111,7 +143,9 @@ export async function setRunAdjustments(who: Who, runId: string, workerId: strin
 
 /** Null when no amounts actually paid were imported for the run (there is no report to make); otherwise the number of findings. */
 async function saveVariance(companyId: string, runId: string, calculationId: string, lines: { workerId: string; net: bigint }[], tolerance: string) {
-  const paid = must(await db().from("actual_payments").select("id, worker_id, amount_enc").eq("company_id", companyId).eq("run_id", runId), "actual payments read");
+  const result = await db().from("actual_payments").select("id, worker_id, amount_enc", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId);
+  const paid = must(result, "actual payments read");
+  if (result.count !== paid.length) throw new Error("actual payment evidence is incomplete");
   if (paid.length === 0) return null;
   const actual = new Map<string, bigint>();
   for (const p of paid) actual.set(p.worker_id, (actual.get(p.worker_id) ?? 0n) + BigInt(await openField(companyId, "actual_payments", "amount_enc", p.id, p.amount_enc)));

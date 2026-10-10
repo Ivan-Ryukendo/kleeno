@@ -22,9 +22,12 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     if (!run.data) notFound();
   }
   const timeline = await auditView(client, actor.companyId, { runId: query.run, before: query.before, entityType: query.entity });
-  const next = new URLSearchParams({ ...(query.run ? { run: query.run } : {}), ...(query.entity ? { entity: query.entity } : {}), ...(timeline.next ? { before: timeline.next } : {}) });
+  const filters = new URLSearchParams({ ...(query.run ? { run: query.run } : {}), ...(query.entity ? { entity: query.entity } : {}) });
+  const next = new URLSearchParams(filters);
+  if (timeline.next) next.set("before", timeline.next);
+  const newestHref = `/audit${filters.size ? `?${filters}` : ""}`;
   return <>
-    <PageHeader title="Audit" description="The recorded chain from policy and imported evidence to human decisions and verified settlement." actions={<Link className="text-sm underline underline-offset-4" href="/dashboard">Back to Home</Link>} />
+    <PageHeader title="Audit" description="The recorded chain from policy and imported evidence to human decisions and verified settlement." actions={<Link className="inline-flex min-h-11 items-center rounded-field text-sm underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={query.run ? `/runs/${query.run}` : "/dashboard"}>{query.run ? "Back to run" : "Back to Home"}</Link>} />
     <section className="mt-6 panel">
       <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-lg">{query.run ? "Selected run timeline" : "Company timeline"}</h2><p className="mt-1 text-xs text-muted-foreground">Newest first · References only · UTC</p>{query.run && <Link className="mt-2 inline-block text-sm underline underline-offset-4" href="/audit">Show all company activity</Link>}</div>
         <form action="/audit" className="flex flex-wrap items-end gap-2">{query.run && <input type="hidden" name="run" value={query.run} />}<label className="text-xs text-muted-foreground">Entity<select name="entity" defaultValue={query.entity ?? ""} className="mt-1 block h-10 rounded-field border bg-background px-3 text-sm"><option value="">All entities</option>{types.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label><Button variant="outline" type="submit">Filter</Button></form>
@@ -32,7 +35,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
       {timeline.graphTruncated && <p role="status" className="mt-4 rounded-field border p-3 text-sm text-muted-foreground">This run exceeds the linked-view limit. Use the company timeline to inspect all recorded activity.</p>}
       <AuditTimeline items={timeline.items} empty="No audit events match this view." />
       {timeline.next && <Link className="mt-4 inline-flex min-h-11 items-center rounded-field border px-4 text-sm" href={`/audit?${next}`}>Older events</Link>}
-      {query.before && <Link className="ml-4 text-sm underline underline-offset-4" href={`/audit${query.run ? `?run=${query.run}` : ""}`}>Newest events</Link>}
+      {query.before && <Link className="ml-4 inline-flex min-h-11 items-center rounded-field text-sm underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={newestHref}>Newest events</Link>}
     </section>
   </>;
 }

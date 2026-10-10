@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleUser } from "lucide-react";
+import { CircleHelp, CircleUser } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar } from "@/components/ui/sidebar";
@@ -51,6 +51,12 @@ export function AppSidebar({ roles, companies, activeId, canCreate, openExceptio
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton render={<Link href="/support" onClick={close} />} isActive={pathname === "/support"} tooltip={tip("Help")}>
+              <CircleHelp aria-hidden />
+              <span>Help</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton render={<Link href="/account" onClick={close} />} isActive={pathname === "/account"} tooltip={tip("Account")}>
               <CircleUser aria-hidden />

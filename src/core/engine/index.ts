@@ -3,6 +3,8 @@ import { resolveScopedConfig, type PayrollConfig } from "../config";
 import { div, mul, parseDecimal, parseUsdc, ratio, roundRatioToCent, type MicroUsdc, type Ratio } from "../money";
 import { CalendarDateSchema, type WorkerMetadata } from "../workers";
 import { z } from "zod";
+import { segmentedComponents, type CompensationSegment, type DatedHours } from "./effective-compensation";
+import { CompensationSegmentsSchema, DatedHoursSchema } from "./effective-compensation-schema";
 
 export const PayAdjustmentsSchema = z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/), kind: z.enum(["BONUS", "COMMISSION", "REIMBURSEMENT", "FIXED_DEDUCTION"]), amount: z.string().regex(/^\d+(\.\d{1,6})?$/).refine(v => parseUsdc(v) <= 1_000_000_000_000_000n, "amount exceeds supported cap"), reason: z.string().trim().min(1).max(300) }).strict()).max(50).refine(a => new Set(a.map(v => v.id)).size === a.length, "duplicate adjustment ID");
 export type PayAdjustment = z.infer<typeof PayAdjustmentsSchema>[number];
@@ -31,6 +33,7 @@ export interface EngineWorker extends Partial<WorkerMetadata> {
 
 /** Reconciled period totals (P3 buckets them by ISO week, docs/phases/P2.md). Decimal strings, default "0". */
 export interface WorkerInput {
+  datedHours?: DatedHours;
   adjustments?: PayAdjustment[];
   unpaidLeave?: { date: string; hours: string }[];
   workedHours?: string;
@@ -43,6 +46,7 @@ export interface WorkerInput {
 }
 
 export interface EngineEntry {
+  compensationSegments?: CompensationSegment[];
   worker: EngineWorker;
   input: WorkerInput;
   period?: PayrollPeriod;
@@ -98,7 +102,20 @@ const IGNORED_INPUTS: Record<PayType, InputKey[]> = {
   RETAINER: ["paidLeaveHours", "unpaidLeaveHours", "approvedOvertimeHours", "approvedAboveCapHours"],
 };
 
-function calculateLine(baseConfig: PayrollConfig, { worker: w, input, period }: EngineEntry): PayrollLine {
+function calculateLine(baseConfig: PayrollConfig, entry: EngineEntry): PayrollLine {
+  const { worker: w, input, period } = entry;
+  if (entry.compensationSegments !== undefined) {
+    const parsed = CompensationSegmentsSchema.safeParse(entry.compensationSegments);
+    if (!parsed.success) throw new EngineBlocked(w.workerId, "invalid effective compensation segments");
+    if (parsed.data.length === 1) {
+      const segment = parsed.data[0];
+      if (!period || segment.start !== period.start || segment.end !== period.end || segment.start > segment.end || segment.effectiveFrom > segment.start || segment.payType !== w.payType || !DatedHoursSchema.safeParse(input.datedHours ?? []).success) throw new EngineBlocked(w.workerId, "whole-period compensation requires one compatible immutable rate");
+      // A single rate needs no date allocation: preserve approved legacy OT/leave/cap/proration semantics.
+      const result = calculateLine(baseConfig, { worker: { ...w, baseAmount: BigInt(segment.baseAmount), hourlyRate: BigInt(segment.hourlyRate) }, input, period });
+      const pricedRules = new Set(["BASE_SALARY", "FIXED_RETAINER", "HOURLY_RATE", "OVERTIME", "UNPAID_LEAVE", "PRORATION"]);
+      return { ...result, trace: result.trace.map(row => pricedRules.has(row.rule) ? { ...row, source: `compensation.effective.${segment.sourceId}`, inputs: { ...row.inputs, pricedInputSource: row.source, compensationSourceId: segment.sourceId, compensationVersion: String(segment.sourceVersion), effectiveFrom: segment.effectiveFrom } } : row) };
+    }
+  }
   const resolved = resolveScopedConfig(baseConfig, w);
   const config = resolved.config;
   const v = config.version;
@@ -132,7 +149,9 @@ function calculateLine(baseConfig: PayrollConfig, { worker: w, input, period }: 
   };
   for (const d of resolved.decisions) add("scope", "config.scopedRules", d.winner, { parameter: d.parameter, category: d.category, winningRule: d.winner, overriddenRules: d.overridden.join(",") }, 0n);
 
-  if (w.payType === "SALARIED") {
+  if (entry.compensationSegments !== undefined) {
+    for (const component of segmentedComponents(config, entry)) trace.push({ ...component, step: trace.length + 1 });
+  } else if (w.payType === "SALARIED") {
     const scheduled = parseDecimal(config.scheduledHoursPerPeriod);
     const rate = div(micro(w.baseAmount), scheduled); // exact hourly rate, never rounded on its own
     base("base", "BASE_SALARY");

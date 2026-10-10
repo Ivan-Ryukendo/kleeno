@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { LivePaymentsPanel, PayControls, PlanForm, ReceiptLinkButton, SignForm, StandingAuthorizationsPanel, TopUpPanel } from "@/components/settlement-actions";
 import { StatusPill } from "@/components/status-pill";
-import { isOwner } from "@/core/tenancy";
+import { isOwner, isPayrollRole } from "@/core/tenancy";
 import { isPaymentRole } from "@/core/workflow";
 import { pageSession } from "@/server/auth/page-session";
 import { settlementView } from "@/server/db/settlement";
@@ -20,10 +20,19 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
   const session = await pageSession();
   const { actor, client } = session;
   const { run: wanted } = await searchParams;
-  const view = await settlementView(client, actor.companyId, actor.userId, wanted && UUID.test(wanted) ? wanted : undefined);
+  const owner = isOwner(actor.roles);
+  if (!isPayrollRole(actor.roles) && !isPaymentRole(actor.roles)) {
+    const result = owner ? await client.from("companies").select("live_status, live_payments_enabled, is_demo, is_sandbox").eq("id", actor.companyId).single() : null;
+    const metadata = result && !result.error ? result.data : null;
+    return <>
+      <PageHeader title="Payments" description="Settlement amounts and payment details require financial reviewer access." />
+      <section className={card} aria-labelledby="financial-access-heading"><h2 id="financial-access-heading" className="text-lg">Financial access required</h2><p className="mt-3 text-sm text-muted-foreground">Your current membership cannot inspect payment amounts, recipients or wallet details. HR, payroll and payment reviewers can inspect this evidence.</p><Link href="/dashboard" className="mt-3 inline-flex min-h-11 items-center rounded-field text-sm underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Return to Home</Link></section>
+      {owner && <section className={card} aria-labelledby="live-control-heading"><h2 id="live-control-heading" className="text-lg">Live payments</h2>{metadata ? <><div className="mt-3"><StatusPill status={metadata.live_payments_enabled ? "ON" : "OFF"} /></div>{metadata.is_demo || metadata.is_sandbox ? <p className="mt-3 text-sm text-muted-foreground">This is a demo company: it runs in simulation only and never pays.</p> : <LivePaymentsPanel liveStatus={metadata.live_status} enabled={metadata.live_payments_enabled} isOwner canSwitchOff />}</> : <p role="alert" className="mt-3 text-sm text-signal">Live-payment controls could not be loaded. Reload this page to check current status.</p>}<p className="mt-3 text-sm text-muted-foreground">Owner controls do not grant financial reviewer access or authorize an individual payment.</p></section>}
+    </>;
+  }
+  const view = await settlementView(client, actor.companyId, actor.userId, wanted && UUID.test(wanted) ? wanted : undefined, actor.roles);
   const { company, run, runs } = view;
   const canPay = isPaymentRole(actor.roles);
-  const owner = isOwner(actor.roles);
   const live = company.live_payments_enabled;
   const standing = canPay && !company.is_demo && !company.is_sandbox
     ? await listStanding({ companyId: actor.companyId, userId: actor.userId, roles: actor.roles })

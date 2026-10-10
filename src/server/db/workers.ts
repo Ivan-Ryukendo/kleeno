@@ -67,6 +67,9 @@ export async function addCompensationVersion(who: Who, workerId: string, c: Comp
   const w = (await db().from("workers").select("id, active, pay_type").eq("id", workerId).eq("company_id", who.companyId).maybeSingle()).data;
   if (!w) return false;
   if (!w.active) throw new TransitionError("INVALID_TRANSITION", "this worker has left; reactivate before changing pay");
+  const scheduled = await db().from("effective_compensations").select("id").eq("company_id", who.companyId).eq("worker_id", workerId).limit(1);
+  if (scheduled.error) throw new Error("effective compensation history unavailable");
+  if (scheduled.data?.length) throw new WorkflowError("CONFLICT", "This worker uses effective compensation history; schedule a dated change instead");
   const last = (await db().from("compensations").select("version").eq("worker_id", workerId).eq("company_id", who.companyId).order("version", { ascending: false }).limit(1).maybeSingle()).data;
   await insertCompensation(who, workerId, (last?.version ?? 0) + 1, c, reason); // unique (worker, version): a concurrent edit fails instead of overwriting
   if (payType && payType !== w.pay_type) {
@@ -159,8 +162,13 @@ export interface WorkerRow {
 
 /** Reads through `reader` (the user-scoped client, so RLS applies) and decrypts on the server. */
 export async function listWorkers(reader: SupabaseClient, companyId: string, opts: { activeOnly?: boolean } = {}): Promise<WorkerRow[]> {
-  const workers = must(await reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason, metadata_enc, employment_start, employment_end").eq("company_id", companyId).order("pseudonym"), "workers read").filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
-  const comps = must(await reader.from("compensations").select("id, worker_id, version, reason, created_at, payload_enc").eq("company_id", companyId).order("version", { ascending: false }), "compensations read");
+  const workerResult = await reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason, metadata_enc, employment_start, employment_end", { count: "exact" }).eq("company_id", companyId).order("pseudonym");
+  const allWorkers = must(workerResult, "workers read");
+  if (workerResult.count !== allWorkers.length) throw new Error("worker evidence is incomplete");
+  const workers = allWorkers.filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
+  const compResult = await reader.from("compensations").select("id, worker_id, version, reason, created_at, payload_enc", { count: "exact" }).eq("company_id", companyId).order("version", { ascending: false });
+  const comps = must(compResult, "compensations read");
+  if (compResult.count !== comps.length) throw new Error("compensation evidence is incomplete");
   return Promise.all(
     workers.map(async (w) => {
       const history = await Promise.all(

@@ -20,7 +20,8 @@ export async function authenticateAdmin(jar: CookieJar, opts: { allowAal1?: bool
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) throw new AuthError(401, "UNAUTHENTICATED", "sign in required");
   if (!(await isPlatformAdmin(data.user.id))) throw new AuthError(403, "FORBIDDEN", "not an admin");
-  const { data: level } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  const { data: level, error: levelError } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (levelError || !level?.currentLevel) throw new AuthError(401, "UNAUTHENTICATED", "sign in required");
   if (!amrMethods(level?.currentAuthenticationMethods).includes("password")) throw new AuthError(403, "FORBIDDEN", "not an admin");
   if (level?.currentLevel !== "aal2" && !opts.allowAal1) throw new AuthError(401, "MFA_REQUIRED", "multi-factor sign-in required");
   return { admin: { userId: data.user.id } as AdminActor, client };

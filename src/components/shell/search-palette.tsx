@@ -1,11 +1,11 @@
 "use client";
 
-import { CalendarClock, CircleUser, Search, UserRound } from "lucide-react";
+import { CalendarClock, CircleHelp, CircleUser, CreditCard, Search, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import type { Role } from "@/core/tenancy";
+import { isOwner, type Role } from "@/core/tenancy";
 import type { SearchRun } from "@/server/db/shell";
 import { visibleNav } from "./nav-config";
 
@@ -49,6 +49,10 @@ export function SearchPalette({ roles, runs, workerCodes }: { roles: Role[]; run
           <CommandList>
             <CommandEmpty>Nothing found.</CommandEmpty>
             <CommandGroup heading="Pages">
+              {isOwner(roles) && <CommandItem value="page Billing" keywords={["settings", "subscription", "usage", "terms"]} onSelect={() => go("/settings/billing")}>
+                <CreditCard aria-hidden />
+                Billing
+              </CommandItem>}
               {pages.map((p) => (
                 <CommandItem key={p.href} value={`page ${p.label}`} keywords={p.keywords?.split(" ")} onSelect={() => go(p.href)}>
                   <p.icon aria-hidden />
@@ -58,6 +62,10 @@ export function SearchPalette({ roles, runs, workerCodes }: { roles: Role[]; run
               <CommandItem value="page account" keywords={["password", "mfa", "sign out"]} onSelect={() => go("/account")}>
                 <CircleUser aria-hidden />
                 Account
+              </CommandItem>
+              <CommandItem value="page help" keywords={["support", "request"]} onSelect={() => go("/support")}>
+                <CircleHelp aria-hidden />
+                Help
               </CommandItem>
             </CommandGroup>
             {runs.length > 0 && (
