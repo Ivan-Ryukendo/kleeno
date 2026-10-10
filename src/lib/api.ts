@@ -1,6 +1,7 @@
 // Browser helper for our route handlers. Errors carry the support code (correlation ID) so users can quote it.
 export interface ApiResult<T> {
   ok: boolean;
+  status?: number;
   data?: T;
   error?: string;
 }
@@ -11,7 +12,7 @@ export async function postJson<T = Record<string, unknown>>(url: string, body: u
     const json = await res.json().catch(() => ({}));
     if (res.ok) return { ok: true, data: json as T };
     const message = json?.error?.message ?? "Something went wrong";
-    return { ok: false, error: json?.correlationId ? `${message} (support code ${json.correlationId})` : message };
+    return { ok: false, status: res.status, error: json?.correlationId ? `${message} (support code ${json.correlationId})` : message };
   } catch {
     return { ok: false, error: "Could not reach the server" };
   }

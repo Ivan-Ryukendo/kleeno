@@ -14,8 +14,26 @@ import { ResourceColumnForm } from "@/components/resource-column-form";
 import { WorkerHistoryPanel } from "@/components/worker-history";
 import { workerHistoryView } from "@/server/db/views";
 import { uuid } from "@/server/schemas";
+import { newCorrelationId } from "@/core/audit";
+import { logError } from "@/server/log";
 
 export const metadata = { title: "Workers · Kleeno" };
+
+const pageHeader = <PageHeader title="Workers" description="Everyone you pay. Workers appear by code (W001…), never by name: names stay on your computer. Pay amounts are encrypted at rest." />;
+
+function unavailable(error: unknown) {
+  const supportCode = newCorrelationId();
+  logError("workers-page", supportCode, error);
+  return <>
+    {pageHeader}
+    <section role="alert" className="mt-6 panel space-y-3">
+      <h2 className="text-lg">Workers unavailable</h2>
+      <p className="text-sm">Worker records and pay history could not be loaded. Reload this page. If the problem continues, share the support code with your administrator.</p>
+      <p className="break-all text-xs text-muted-foreground">Support code: {supportCode}</p>
+      <a href="/workers" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-primary">Reload Workers</a>
+    </section>
+  </>;
+}
 
 const view = (w: Worker): WorkerView => ({
   id: w.id,
@@ -64,24 +82,33 @@ export default async function WorkersPage({ searchParams }: { searchParams: Prom
   const { actor, client } = session;
   const selected = (await searchParams).worker;
   if (selected && !uuid.safeParse(selected).success) notFound();
-  const history = selected ? await workerHistoryView(client, actor.companyId, selected, actor.roles) : null;
+  let history: Awaited<ReturnType<typeof workerHistoryView>> | null;
+  try {
+    history = selected ? await workerHistoryView(client, actor.companyId, selected, actor.roles) : null;
+  } catch (error) { return unavailable(error); }
   if (selected && !history) notFound();
-  const workers = (await listWorkers(client, actor.companyId)).map(view);
+  const financial = isPayrollRole(actor.roles) || isPaymentRole(actor.roles);
+  let workers: WorkerView[], overview: Awaited<ReturnType<typeof initialTable>>;
+  try {
+    workers = financial ? (await listWorkers(client, actor.companyId)).map(view) : [];
+    overview = await initialTable(client, actor.companyId, actor.roles, "workers", null);
+  } catch (error) { return unavailable(error); }
   const current = workers.filter((w) => w.active);
   const former = workers.filter((w) => !w.active);
   const canEdit = isPayrollRole(actor.roles);
   const canConfirm = isPaymentRole(actor.roles);
-  const overview = await initialTable(client, actor.companyId, actor.roles, "workers", null);
+  const directory = financial ? workers : overview.initial.rows.map((row, i) => ({ id: overview.initial.rowIds![i], pseudonym: String(row.code) }));
 
   return (
     <>
-      <PageHeader title="Workers" description="Everyone you pay. Workers appear by code (W001…), never by name: names stay on your computer. Pay amounts are encrypted at rest." />
+      {pageHeader}
 
-      <LocalNameUnlock key={`${actor.companyId}:${actor.userId}`} contextKey={`${actor.companyId}:${actor.userId}`} workerCodes={workers.map((w) => w.pseudonym)} />
+      <LocalNameUnlock key={`${actor.companyId}:${actor.userId}`} contextKey={`${actor.companyId}:${actor.userId}`} workerCodes={directory.map((w) => w.pseudonym)} />
 
       <section className="mt-6 panel">
         <h2 className="text-lg">Payees</h2>
-        {current.length === 0 ? (
+        {canEdit && <p className="mt-2 text-sm text-muted-foreground">Use Schedule pay beside a worker to review effective dates, affected periods and immutable rate history before saving. Stored pay below is the original pay setup; scheduled rates are shown in the scheduling panel.</p>}
+        {!financial ? <p className="mt-6 text-muted-foreground">Your role cannot inspect pay amounts or wallet addresses. Use the worker directory below.</p> : current.length === 0 ? (
           <p className="mt-6 text-muted-foreground">No active workers. {canEdit ? "Add one below." : "The payroll approver adds workers."}</p>
         ) : (
           <WorkerTable workers={current} canEdit={canEdit} canConfirm={canConfirm} />
@@ -93,7 +120,7 @@ export default async function WorkersPage({ searchParams }: { searchParams: Prom
         <h2 className="text-lg">Table view</h2>
         <p className="mt-2 text-sm text-muted-foreground">Everyone in one table: choose columns, filter, sort, see totals and export. Changes to pay are made in the list above.</p>
         <TableView {...overview} empty="No workers yet." />
-        {workers.length > 0 && <details className="mt-4"><summary className="min-h-10 cursor-pointer text-sm">Worker history</summary><div className="mt-2 flex flex-wrap gap-3">{workers.map((w) => <Link key={w.id} className="inline-flex min-h-10 items-center rounded-field border px-3 text-sm underline underline-offset-4" href={`/workers?worker=${w.id}`}>{w.pseudonym} · History</Link>)}</div></details>}
+        {directory.length > 0 && <details className="mt-4"><summary className="min-h-10 cursor-pointer text-sm">Worker history</summary><div className="mt-2 flex flex-wrap gap-3">{directory.map((w) => <Link key={w.id} className="inline-flex min-h-10 items-center rounded-field border px-3 text-sm underline underline-offset-4" href={`/workers?worker=${w.id}`}>{w.pseudonym} · History</Link>)}</div></details>}
       </section>
 
       {canEdit && <section className="mt-6 panel"><h2 className="text-lg">Custom resource columns</h2><p className="mt-2 text-sm text-muted-foreground">Review source inputs and approved policy rules for leave, attendance and performance. These columns never edit calculated pay.</p><ResourceColumnForm key={`${actor.companyId}:${actor.userId}`} /></section>}

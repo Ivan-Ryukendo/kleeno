@@ -12,23 +12,36 @@ import { runView } from "@/server/db/views";
 import { RunAdjustmentsForm } from "@/components/worker-forms";
 import { listWorkers } from "@/server/db/workers";
 import { loadRunAdjustments } from "@/server/db/calculate";
+import { PayrollReviewPanel } from "@/components/payroll-review-panel";
+import { reviewerWorkspace } from "@/server/db/reviewer-workspace";
+import { ReviewTaskPanel } from "@/components/review-task-panel";
+import { RunViewNavigation } from "@/components/run-view-navigation";
+import { isPaymentRole } from "@/core/tenancy";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
+export default async function RunPage({ params, searchParams }: { params: Promise<{ runId: string }>; searchParams: Promise<{ baseline?: string | string[] }> }) {
   await connection();
   const session = await pageSession();
   const { actor, client } = session;
   const { runId } = await params;
   if (!UUID.test(runId)) notFound();
-  const view = await runView(client, actor.companyId, runId);
+  const view = await runView(client, actor.companyId, runId, actor.roles);
   if (!view) notFound();
   const { run, lines, obligations, calculationHash, netTotal, variance } = view;
+  const canInspect = view.financial;
   const canEdit = isPayrollRole(actor.roles);
   const canAdjust = canEdit && ["DRAFT", "DATA_IMPORTED", "RECONCILING", "EXCEPTIONS_PENDING", "READY_FOR_CALCULATION"].includes(run.status);
   const adjustmentWorkers = canAdjust ? await listWorkers(client, actor.companyId) : [];
   const adjustments = canAdjust ? Object.fromEntries(await loadRunAdjustments(client, actor.companyId, run.id)) : {};
-  const summary = lines.length ? await initialTable(client, actor.companyId, actor.roles, "lines", run.id) : null;
+  const summary = canInspect && lines.length ? await initialTable(client, actor.companyId, actor.roles, "lines", run.id) : null;
+  const { baseline } = await searchParams;
+  let reviewData: Awaited<ReturnType<typeof reviewerWorkspace>> | null = null;
+  try {
+    if (canInspect) reviewData = await reviewerWorkspace(client, actor, run.id, typeof baseline === "string" ? baseline : undefined);
+  } catch {
+    // A failed evidence read must not imply readiness or expose review actions.
+  }
   const link = "underline underline-offset-4";
 
   return (
@@ -39,7 +52,8 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
         <StatusPill status={run.status} />
         <span className="text-sm text-muted-foreground">config v{run.config_version}</span>
       </div>
-      {calculationHash && (
+      <RunViewNavigation runId={run.id} current="table" mode={run.mode} canPay={isPaymentRole(actor.roles)} />
+      {canInspect && calculationHash && (
         <p className="mt-4 break-all text-sm text-muted-foreground">
           calculation hash <span className="font-mono">{calculationHash}</span>
         </p>
@@ -66,12 +80,12 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
         {run.status === "CALCULATION_VALIDATED" && run.mode === "SIMULATION" && <p className="mt-3 font-medium">Simulation complete. This run cannot create obligations or pay (arc testnet USDC, no real funds). Start a live testnet run to pay.</p>}
         {run.status === "CALCULATION_VALIDATED" && run.mode !== "SIMULATION" && (
           <>
-            <p className="mt-3">Calculated and checked: {lines.length} payments, {netTotal} USDC. Send it to the payroll approver. Nothing is paid by this.</p>
+            <p className="mt-3">{canInspect ? <>Calculated and checked: {lines.length} payments, {netTotal} USDC. Send it to the payroll approver. Nothing is paid by this.</> : "The calculation is checked. A payroll reviewer can continue."}</p>
             {canEdit && <SubmitForApprovalButton runId={run.id} />}
           </>
         )}
         {run.status === "PENDING_APPROVAL" &&
-          (canEdit && calculationHash ? (
+          (canEdit && calculationHash && netTotal !== null ? (
             <ApproveRunForm runId={run.id} total={netTotal} count={lines.length} calculationHash={calculationHash} />
           ) : (
             <p className="mt-3">Waiting for the payroll approver to approve this calculation.</p>
@@ -90,7 +104,11 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
         {run.status === "REJECTED" && <p className="mt-3">This run was rejected. Start a new run to pay.</p>}
       </section>
 
+      {canInspect ? <>
+      {canEdit && <ReviewTaskPanel key={`${actor.companyId}:${run.id}`} runId={run.id} />}
       {canAdjust && <section className="mt-6 panel"><h2 className="text-lg">One-off pay inputs</h2><p className="mt-2 text-sm text-muted-foreground">Review bonuses, commissions, reimbursements and fixed deductions before calculation. Every input needs a reason.</p><RunAdjustmentsForm key={run.id} runId={run.id} workers={adjustmentWorkers.map((w) => ({ id: w.id, pseudonym: w.pseudonym }))} initial={adjustments} /></section>}
+
+      {reviewData ? <PayrollReviewPanel key={`${run.id}:${reviewData.review.calculationId ?? "uncalculated"}:${reviewData.review.revision}:${reviewData.settings?.revision ?? 0}:${reviewData.selectedBaselineId ?? "none"}`} runId={run.id} data={reviewData} /> : <section className="mt-6 panel"><h2 className="text-lg">Review workspace unavailable</h2><p role="alert" className="mt-3 text-sm text-signal">Readiness and review evidence could not be loaded. No review action is available until the evidence loads.</p><Link href={`/runs/${run.id}`} className="mt-3 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Reload this run</Link></section>}
 
       {summary && (
         <section className="mt-6 panel">
@@ -214,6 +232,7 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
           </div>
         ))}
       </section>
+      </> : <section className="mt-6 panel"><h2 className="text-lg">Financial details unavailable</h2><p className="mt-3 text-sm text-muted-foreground">Your role cannot inspect calculation amounts or review evidence. Ask the company owner for access.</p></section>}
     </>
   );
 }

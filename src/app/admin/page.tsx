@@ -5,6 +5,8 @@ import { AdminSignOut, LiveRequestActions } from "@/components/admin-forms";
 import { adminPageSession } from "@/server/auth/admin";
 import { PAGE_SIZE, listContacts, metricRows, type ContactFilter } from "@/server/db/growth";
 import { liveRequests } from "@/server/db/settlement";
+import { loadPlatformAccounts } from "@/server/db/platform-accounts";
+import type { PlatformAccounts } from "@/core/growth/accounts";
 
 type Search = Record<string, string | string[] | undefined>;
 
@@ -54,11 +56,41 @@ function Bars({ title, note, data }: { title: string; note: string; data: [strin
   );
 }
 
+function AccountInventory({ inventory }: { inventory: PlatformAccounts }) {
+  const facts = [
+    { label: "Registered accounts", value: inventory.accounts.registered, note: "Login accounts, including accounts without an active company membership" },
+    { label: "Companies", value: inventory.companies.total, note: "All currently stored companies; not a count of paying customers" },
+    { label: "Active memberships", value: inventory.memberships.active, note: "Company access records; one account can have several memberships" },
+    { label: "Worker records", value: inventory.workers.total, note: "Pseudonymous payroll records, not registered login accounts" },
+    { label: "Pending invitations", value: inventory.invitations.pending, note: "Unused invitations that have not expired or been revoked" },
+  ];
+  const cohorts: { label: string; rows: [string, number][] }[] = [
+    { label: "Account memberships", rows: [["Accounts with active membership", inventory.accounts.withActiveMembership], ["Accounts with only demo/sandbox memberships", inventory.accounts.onlyDemoSandboxMemberships], ["Accounts with unmarked company memberships", inventory.accounts.unmarkedMemberships], ["Accounts without active membership", inventory.accounts.withoutActiveMembership]] },
+    { label: "Company cohorts", rows: [["Demo companies", inventory.companies.demo], ["Sandbox companies", inventory.companies.sandbox], ["Demo or sandbox companies", inventory.companies.demoOrSandbox], ["Unmarked companies", inventory.companies.unmarked]] },
+    { label: "Membership records", rows: [["Total memberships", inventory.memberships.total], ["Active memberships", inventory.memberships.active], ["Removed memberships", inventory.memberships.removed]] },
+    { label: "Worker cohorts", rows: [["Workers in demo/sandbox companies", inventory.workers.inDemoOrSandboxCompanies], ["Workers in unmarked companies", inventory.workers.inUnmarkedCompanies]] },
+    { label: "Invitation records", rows: [["Total invitations", inventory.invitations.total], ["Pending", inventory.invitations.pending], ["Expired", inventory.invitations.expired], ["Used", inventory.invitations.used], ["Revoked", inventory.invitations.revoked]] },
+    { label: "Lead records", rows: [["Total lead records", inventory.leads.total], ["Marked test leads", inventory.leads.markedTest], ["Unmarked lead records", inventory.leads.unmarked]] },
+  ];
+  return <section aria-labelledby="accounts-title" className="mt-10 min-w-0">
+    <h2 id="accounts-title" className="text-2xl font-medium">Account inventory</h2>
+    <p className="mt-2 text-sm text-muted-foreground">Current database inventory as of <time dateTime={inventory.asOf}>{inventory.asOf}</time>. Lead date filters below do not filter these totals.</p>
+    <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">{facts.map(fact => <div key={fact.label} className="min-w-0 rounded-[2.5rem] bg-card p-6"><dt className="text-sm text-muted-foreground">{fact.label}</dt><dd className="mt-2 text-4xl font-medium tabular-nums tracking-tight">{fact.value}</dd><p className="mt-2 text-xs text-muted-foreground">{fact.note}</p></div>)}</dl>
+    <p className="mt-4 text-sm font-medium">Test exclusions are incomplete. Account and company test classification is unknown. Unmarked does not mean non-test or paying.</p>
+    <details className="mt-4 rounded-[2.5rem] bg-card p-6">
+      <summary className="min-h-11 cursor-pointer rounded-[1.25rem] py-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Inventory cohorts and exclusions</summary>
+      <p className="mt-2 text-sm text-muted-foreground">Demo and sandbox flags can overlap. The combined count avoids double-counting. Accounts with any unmarked active company are counted separately from accounts with only demo/sandbox memberships.</p>
+      <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{cohorts.map(cohort => <div key={cohort.label} className="min-w-0"><h3 className="font-medium">{cohort.label}</h3><dl className="mt-3 divide-y divide-border">{cohort.rows.map(([label, count]) => <div key={label} className="flex justify-between gap-4 py-2 text-sm"><dt className="min-w-0 break-words text-muted-foreground">{label}</dt><dd className="shrink-0 font-medium tabular-nums">{count}</dd></div>)}</dl></div>)}</div>
+    </details>
+    <div className="mt-4 rounded-[2.5rem] bg-card p-6"><h3 className="text-lg font-medium">Commercial measurements</h3><p className="mt-2 text-sm text-muted-foreground">These outcomes cannot be inferred from account, membership, worker or lead totals.</p><dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{["Paid companies", "Trials", "Subscriptions", "Activated reviewers"].map(label => <div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 font-medium">Unavailable</dd></div>)}</dl></div>
+  </section>;
+}
+
 export default async function AdminHome({ searchParams }: { searchParams: Promise<Search> }) {
   await connection();
-  const { base } = await adminPageSession();
+  const { base, admin } = await adminPageSession();
   const f = filterFrom(await searchParams);
-  const [m, { rows, total }, live] = await Promise.all([metricRows().then(leadMetrics), listContacts(f), liveRequests()]);
+  const [m, { rows, total }, live, inventory] = await Promise.all([metricRows().then(leadMetrics), listContacts(f), liveRequests(), loadPlatformAccounts(admin).catch(() => null)]);
   const filtered = Object.entries(f).some(([k, v]) => k !== "page" && v);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageHref = (p: number) => {
@@ -67,9 +99,9 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   };
 
   const tiles = [
-    { label: "Sign-ups", value: String(m.signups), note: "Real contacts (test records excluded)" },
-    { label: "Survey completion", value: pct(m.surveyRate), note: `${m.surveyed} with answers ÷ ${m.signups} sign-ups` },
-    { label: "Open to a call", value: String(m.wantsCall), note: `${pct(m.wantsCallRate)} of sign-ups said yes` },
+    { label: "Waitlist leads", value: String(m.signups), note: "Contacts not marked as tests; not registered app accounts" },
+    { label: "Survey completion", value: pct(m.surveyRate), note: `${m.surveyed} with answers ÷ ${m.signups} waitlist leads` },
+    { label: "Open to a call", value: String(m.wantsCall), note: `${pct(m.wantsCallRate)} of waitlist leads said yes` },
     { label: "Calls", value: `${m.byStatus.CALL_SCHEDULED} / ${m.byStatus.CALL_DONE}`, note: "Scheduled / done (current status)" },
     { label: "Pilot candidates", value: String(m.byStatus.PILOT_CANDIDATE), note: `Call → pilot: ${pct(m.callToPilot)} (pilots ÷ (call done + pilots))` },
   ];
@@ -82,15 +114,19 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
             <span aria-hidden className="mr-2 inline-block size-2 rounded-full bg-signal align-middle" />
             Team only
           </p>
-          <h1 className="mt-2 text-4xl font-medium tracking-[-0.02em]">Waitlist and leads</h1>
+          <h1 className="mt-2 text-4xl font-medium tracking-[-0.02em]">Accounts and leads</h1>
         </div>
         <div className="flex gap-3">
           <a href={`${base}/api/export`} className="inline-flex h-11 items-center rounded-[1.25rem] bg-primary px-6 text-sm font-medium text-primary-foreground hover:bg-primary/85">
             Export CSV
           </a>
+          <Link href={`${base}/support`} className="inline-flex min-h-11 items-center rounded-[1.25rem] border px-6 text-sm">Support</Link>
+          <Link href={`${base}/billing`} className="inline-flex min-h-11 items-center rounded-[1.25rem] border px-6 text-sm">Billing and demos</Link>
           <AdminSignOut base={base} />
         </div>
       </header>
+
+      {inventory ? <AccountInventory inventory={inventory} /> : <section className="mt-10 rounded-[2.5rem] bg-card p-8"><h2 className="text-2xl font-medium">Account inventory unavailable</h2><p role="alert" className="mt-3 text-sm text-signal">Account inventory could not be loaded. No account or company count is inferred.</p><Link href={base} className="mt-3 inline-flex min-h-11 items-center rounded-[1.25rem] text-sm underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Reload account inventory</Link></section>}
 
       <section aria-labelledby="live-title" className="mt-10">
         <h2 id="live-title" className="text-2xl font-medium">Live-payment requests</h2>
@@ -123,7 +159,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
       </section>
 
       {m.signups === 0 ? (
-        <p className="mt-10 rounded-[2.5rem] bg-card p-10 text-lg">No sign-ups yet. Metrics appear here once real people join; test records never count.</p>
+        <p className="mt-10 rounded-[2.5rem] bg-card p-10 text-lg">No waitlist leads yet. These lead metrics exclude records marked as tests and do not count registered app accounts.</p>
       ) : (
         <>
           <section aria-label="Key numbers" className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -138,9 +174,9 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             <Bars title="Biggest challenge" note={`Of ${m.surveyed} surveyed contacts`} data={PAINS.map((k) => [PAIN_LABELS[k], m.pains[k]])} />
             <Bars title="Stated monthly budget" note="Research answers, not commitments" data={BUDGETS.map((k) => [BUDGET_LABELS[k], m.budgets[k]])} />
-            <Bars title="Where sign-ups came from" note="utm_source, else referring site, else direct" data={m.sources.slice(0, 8)} />
+            <Bars title="Where waitlist leads came from" note="utm_source, else referring site, else direct" data={m.sources.slice(0, 8)} />
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">Visitor counts live in Vercel Web Analytics. Sign-up rate = sign-ups ÷ unique visitors for the same period.</p>
+          <p className="mt-3 text-sm text-muted-foreground">Visitor counts live in Vercel Web Analytics. Waitlist conversion = waitlist leads ÷ unique visitors for the same period; this does not measure app activation.</p>
         </>
       )}
 

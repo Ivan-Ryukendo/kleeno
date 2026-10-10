@@ -123,7 +123,7 @@ const by = <T>(xs: T[], key: (x: T) => string) => {
   return m;
 };
 
-export function analyse(input: ReconInput, resolutions: ReadonlyMap<string, ResolutionAction> = new Map()): Analysis {
+export function analyse(input: ReconInput, resolutions: ReadonlyMap<string, ResolutionAction> = new Map(), datedWorkerIds: ReadonlySet<string> = new Set()): Analysis {
   const exceptions: Detected[] = [];
   const raise = (e: Omit<Detected, "options" | "severity"> & { severity?: Detected["severity"]; options?: readonly ResolutionAction[] }) =>
     exceptions.push({ severity: "MEDIUM", options: OPTIONS[e.category], ...e });
@@ -228,6 +228,24 @@ export function analyse(input: ReconInput, resolutions: ReadonlyMap<string, Reso
       wi.approvedAboveCapHours = toDecimal(approvedAbove);
     } else {
       wi.approvedExtraHours = toDecimal(approvedExtra);
+    }
+    if (datedWorkerIds.has(w.id)) {
+      const dates = [...new Set([...work.map(row => row.date), ...leave.map(row => row.date)])].sort();
+      let capRemaining = config.hourlyCapHours === null ? worked : hours(config.hourlyCapHours);
+      wi.datedHours = dates.map(date => {
+        const records = work.filter(row => row.date === date), worked = sum(records.map(row => hours(row.hours)));
+        const projected: NonNullable<WorkerInput["datedHours"]>[number] = { date, workedHours: toDecimal(worked) };
+        if (w.payType === "SALARIED") {
+          // Existing weekly overtime and missing-time resolutions are pooled; never fabricate their dates.
+          projected.paidLeaveHours = toDecimal(sum(leave.filter(row => row.date === date && row.leaveType === "PAID").map(row => hours(row.hours))));
+          projected.unpaidLeaveHours = toDecimal(sum(leave.filter(row => row.date === date && row.leaveType === "UNPAID").map(row => hours(row.hours))));
+        } else if (w.payType === "HOURLY") {
+          const regular = min(worked, capRemaining), excess = sub(worked, regular);
+          capRemaining = sub(capRemaining, regular);
+          projected.approvedAboveCapHours = toDecimal(min(sum(records.map(row => hours(row.approvedExtraHours))), excess));
+        } else projected.approvedExtraHours = toDecimal(sum(records.map(row => hours(row.approvedExtraHours))));
+        return projected;
+      });
     }
     inputs.set(w.id, wi);
   }

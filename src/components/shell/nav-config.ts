@@ -61,8 +61,11 @@ export function isActive(item: NavItem, pathname: string): boolean {
 
 /** Breadcrumb for the top bar: [group, page] from the pathname. */
 export function crumbs(pathname: string): string[] {
+  const settings = { "/settings/company": "Company", "/settings/team": "Team", "/settings/billing": "Billing" };
+  if (pathname in settings) return ["Settings", settings[pathname as keyof typeof settings]];
   if (pathname.startsWith("/runs/")) return ["Payroll", "Pay runs", "Run"];
   if (pathname === "/account") return ["Account"];
+  if (pathname === "/support") return ["Help"];
   for (const g of NAV) for (const i of g.items) if (isActive(i, pathname)) return g.label ? [g.label, i.label] : [i.label];
   return [];
 }

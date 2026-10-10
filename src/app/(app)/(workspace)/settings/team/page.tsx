@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { PageHeader } from "@/components/shell/page-header";
+import { SettingsNavigation } from "@/components/settings-navigation";
 import { StatusPill } from "@/components/status-pill";
 import { InviteForm, MemberActions, RevokeInviteButton } from "@/components/team-forms";
 import { ROLE_LABELS, isOwner } from "@/core/tenancy";
@@ -21,7 +22,7 @@ export default async function TeamPage() {
   return (
     <>
       <PageHeader title="Team" description="The people who sign in. Workers you pay are managed on the Workers page. The person who approves a payroll run can never also sign its payment." />
-
+      <SettingsNavigation roles={actor.roles} current="/settings/team">
       <section className="mt-6 panel">
         <h2 className="text-lg">Members</h2>
         <ul className="mt-6 divide-y divide-border">
@@ -72,6 +73,7 @@ export default async function TeamPage() {
       ) : (
         <p className="mt-6 text-muted-foreground">Only an Owner can invite people or change roles.</p>
       )}
+      </SettingsNavigation>
     </>
   );
 }

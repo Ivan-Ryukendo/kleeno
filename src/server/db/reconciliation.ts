@@ -40,9 +40,13 @@ export async function loadRun(companyId: string, runId: string) {
 export async function loadInput(companyId: string, run: Awaited<ReturnType<typeof loadRun>>): Promise<ReconInput> {
   const cfg = await loadConfig(companyId, run.config_version);
   if (!cfg) throw new WorkflowError("NO_ACTIVE_CONFIG", "the run's configuration is missing");
-  const q = (table: string, cols: string) => db().from(table).select(cols).eq("company_id", companyId).eq("run_id", run.id).order("created_at").order("source_line").order("occurrence");
-  const sheets = must(await q("timesheets", "id, worker_id, work_date, hours, approved_extra_hours"), "timesheets read") as unknown as { id: string; worker_id: string; work_date: string; hours: number; approved_extra_hours: number }[];
-  const leave = must(await q("leave_records", "id, worker_id, leave_date, leave_type, hours"), "leave read") as unknown as { id: string; worker_id: string; leave_date: string; leave_type: "PAID" | "UNPAID"; hours: number }[];
+  const q = (table: string, cols: string) => db().from(table).select(cols, { count: "exact" }).eq("company_id", companyId).eq("run_id", run.id).order("created_at").order("source_line").order("occurrence");
+  const sheetsResult = await q("timesheets", "id, worker_id, work_date, hours, approved_extra_hours");
+  const sheets = must(sheetsResult, "timesheets read") as unknown as { id: string; worker_id: string; work_date: string; hours: number; approved_extra_hours: number }[];
+  if (sheetsResult.count !== sheets.length) throw new Error("timesheets evidence is incomplete");
+  const leaveResult = await q("leave_records", "id, worker_id, leave_date, leave_type, hours");
+  const leave = must(leaveResult, "leave read") as unknown as { id: string; worker_id: string; leave_date: string; leave_type: "PAID" | "UNPAID"; hours: number }[];
+  if (leaveResult.count !== leave.length) throw new Error("leave evidence is incomplete");
   const withEvidence = new Set([...sheets.map((s) => s.worker_id), ...leave.map((l) => l.worker_id)]);
   const workers = (await listWorkers(db(), companyId)).filter(w => w.active || withEvidence.has(w.id) || (w.metadata.employmentEnd && w.metadata.employmentEnd >= run.period_start && (!w.metadata.employmentStart || w.metadata.employmentStart <= run.period_end)));
   return {
@@ -56,7 +60,9 @@ export async function loadInput(companyId: string, run: Awaited<ReturnType<typeo
 
 /** The decisions taken so far, by exception identity. */
 export async function loadResolutions(companyId: string, runId: string) {
-  const rows = must(await db().from("exceptions").select("dedupe_key, resolution_action").eq("company_id", companyId).eq("run_id", runId).eq("status", "RESOLVED").in("category", RECON_CATEGORIES), "resolutions read");
+  const result = await db().from("exceptions").select("dedupe_key, resolution_action", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId).eq("status", "RESOLVED").in("category", RECON_CATEGORIES);
+  const rows = must(result, "resolutions read");
+  if (result.count !== rows.length) throw new Error("resolution evidence is incomplete");
   return new Map(rows.filter((e) => e.resolution_action).map((e) => [e.dedupe_key as string, e.resolution_action as ResolutionAction]));
 }
 
@@ -67,7 +73,9 @@ export async function loadResolutions(companyId: string, runId: string) {
 async function advance(who: Who, runId: string, correlationId: string, ai?: AiProvider) {
   const run = await loadRun(who.companyId, runId);
   const input = await loadInput(who.companyId, run);
-  const existing = must(await db().from("exceptions").select("id, dedupe_key, status, resolution_action").eq("company_id", who.companyId).eq("run_id", runId).in("category", RECON_CATEGORIES), "exceptions read");
+  const result = await db().from("exceptions").select("id, dedupe_key, status, resolution_action", { count: "exact" }).eq("company_id", who.companyId).eq("run_id", runId).in("category", RECON_CATEGORIES);
+  const existing = must(result, "exceptions read");
+  if (result.count !== existing.length) throw new Error("open-exception evidence is incomplete");
   const resolved = new Map(existing.filter((e) => e.status === "RESOLVED" && e.resolution_action).map((e) => [e.dedupe_key as string, e.resolution_action as ResolutionAction]));
   const analysis = analyse(input, resolved);
   const known = new Set(existing.map((e) => e.dedupe_key));

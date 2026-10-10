@@ -8,6 +8,7 @@ import { Input, Label } from "@/components/ui/input";
 import type { WorkerMetadata } from "@/core/workers";
 import type { PayAdjustment } from "@/core/engine";
 import { postJson } from "@/lib/api";
+import { EffectiveCompensationForm } from "@/components/effective-compensation-form";
 
 const selectClass = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 const amountPattern = "\\d+(\\.\\d{1,6})?";
@@ -96,12 +97,12 @@ const big = "h-9 rounded-field px-4 text-sm";
 /** One worker: the row, plus an inline panel to change pay (promotion), mark as left, reactivate, or see pay history. */
 export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: boolean; canConfirm: boolean }) {
   const router = useRouter();
-  const [panel, setPanel] = useState<"pay" | "leave" | "history" | "wallet" | "metadata" | null>(null);
+  const [panel, setPanel] = useState<"pay" | "schedule" | "leave" | "history" | "wallet" | "metadata" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const toggle = (p: "pay" | "leave" | "history" | "wallet" | "metadata") => {
+  const toggle = (p: "pay" | "schedule" | "leave" | "history" | "wallet" | "metadata") => {
     setPanel(panel === p ? null : p);
     setError(null);
   };
@@ -165,6 +166,9 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
                 <Button type="button" variant="outline" className={small} onClick={() => toggle("pay")}>
                   Change pay
                 </Button>
+                <Button type="button" variant="outline" className="min-h-11 rounded-field px-3 text-sm" aria-expanded={panel === "schedule"} onClick={() => toggle("schedule")}>
+                  Schedule pay
+                </Button>
                 <Button type="button" variant="outline" className={small} onClick={() => toggle("leave")}>
                   Mark as left
                 </Button>
@@ -181,6 +185,7 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
       {(panel || note || error) && (
         <tr>
           <td colSpan={6} className="pb-5">
+            {panel === "schedule" && <><EffectiveCompensationForm workerId={w.id} workerCode={w.pseudonym} /><div className="mt-3">{cancel}</div></>}
             {note && <p className="mb-3 text-sm">{note}</p>}
             {panel === "metadata" && <form className="grid gap-4 rounded-box bg-secondary p-5 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); run(`/api/workers/${w.id}/metadata`, metadataFrom(new FormData(e.currentTarget)), () => "Worker details saved. Existing approved snapshots stay unchanged; new calculations use this evidence."); }}><MetadataFields prefix={w.id} metadata={w.metadata} /><div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={busy} className={big}>Save worker details</Button>{cancel}</div></form>}
             {panel === "history" && (
@@ -202,6 +207,7 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
                   run(`/api/workers/${w.id}/compensation`, { reason: f.get("reason"), payType: f.get("payType"), baseAmount: f.get("baseAmount"), hourlyRate: f.get("hourlyRate") || "0" }, () => "Saved. The new pay applies from the next calculation; approved runs do not change.");
                 }}
               >
+                <p className="text-sm text-muted-foreground sm:col-span-2">For an effective date or a worker with scheduled pay, use Schedule pay. Once a schedule exists, immediate pay changes are blocked to preserve its pinned baseline.</p>
                 <div>
                   <Label htmlFor={`reason-${w.id}`}>Why</Label>
                   <select id={`reason-${w.id}`} name="reason" className={selectClass} defaultValue="PROMOTION">

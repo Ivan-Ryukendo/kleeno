@@ -1,6 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatUsdc } from "@/core/money";
+import { isPayrollRole, isPaymentRole, type Role } from "@/core/tenancy";
+import { WorkflowError } from "@/core/workflow";
 import { EXPLORER_TX, usdcBalanceOf } from "@/server/arc/reader";
 import { db, must } from "./client";
 
@@ -32,7 +34,8 @@ export interface SettlementBatch {
   authorizedBy: "you" | "another user" | null;
 }
 
-export async function settlementView(client: SupabaseClient, companyId: string, userId: string, runId?: string) {
+export async function settlementView(client: SupabaseClient, companyId: string, userId: string, runId?: string, roles: readonly Role[] = []) {
+  if (!isPayrollRole(roles) && !isPaymentRole(roles)) throw new WorkflowError("FORBIDDEN", "Financial reviewer membership is required to inspect settlement amounts");
   const company = must(await client.from("companies").select("name, live_status, live_payments_enabled, guard_address, per_payment_ceiling, is_demo, is_sandbox").eq("id", companyId).single(), "company");
   const wallets = must(await client.from("company_wallets").select("role, address").eq("company_id", companyId), "wallets");
   const approver = wallets.find((w) => w.role === "APPROVER")?.address ?? null;

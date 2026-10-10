@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { SettingsNavigation } from "@/components/settings-navigation";
 import { PageHeader } from "@/components/shell/page-header";
 import { BasicsForm, ScheduleForm } from "@/components/company-form";
 import { countryOptions, timezoneOptions } from "@/core/company";
@@ -18,7 +19,7 @@ export default async function CompanySettingsPage() {
   return (
     <>
       <PageHeader title="Company" description={canEdit ? "Details and pay schedule for this company." : "Only an Owner can change these details."} />
-
+      <SettingsNavigation roles={actor.roles} current="/settings/company">
       <section className="mt-6 panel">
         <h2 className="mb-4 text-lg">Details</h2>
         <BasicsForm profile={company.profile} options={{ countries: countryOptions(), zones: timezoneOptions() }} disabled={!canEdit} />
@@ -38,6 +39,7 @@ export default async function CompanySettingsPage() {
           <dd>USD (USDC on Arc testnet)</dd>
         </dl>
       </section>
+      </SettingsNavigation>
     </>
   );
 }

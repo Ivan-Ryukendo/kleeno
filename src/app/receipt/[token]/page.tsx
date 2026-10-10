@@ -7,7 +7,7 @@ import { allow, keyFromHeaders } from "@/server/db/growth";
 import { receiptByToken } from "@/server/db/receipts";
 import { siteMode } from "@/server/site";
 
-export const metadata = { title: "Payment receipt · Kleeno", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
+export const metadata = { title: { absolute: "Payment receipt · Kleeno" }, robots: { index: false, follow: false }, referrer: "no-referrer" as const };
 
 // Public receipt for one payment (S36). Outside the app shell and the (app) layout, so it checks the site lockdown itself:
 // in waitlist mode it is a 404 like every other payroll page. It shows only the net amount, the status and the on-chain proof.

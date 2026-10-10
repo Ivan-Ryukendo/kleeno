@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Role } from "@/core/tenancy";
+import { isPayrollRole, isPaymentRole, type Role } from "@/core/tenancy";
 import { columnsFor, TABLES, validateView, ViewError, ViewSchema, type TableId, type ViewDef } from "@/core/views";
 import { TransitionError } from "@/core/domain/machines";
 import { openJson, sealJson } from "@/server/crypto";
@@ -21,7 +21,8 @@ export async function authorizeCell(reader: SupabaseClient, companyId: string, r
   if (!allowed.some((c) => c.id === target.columnId)) throw new ViewError("column unavailable");
   const scope = TABLES[target.table].scope;
   if ((scope === "company" && target.runId !== null) || (scope === "run" && !target.runId)) throw new ViewError("choose the correct table period");
-  const source = { workers: "workers", runs: "payroll_runs", timesheets: "timesheets", leave: "leave_records", exceptions: "exceptions", lines: "calculation_lines" }[target.table];
+  const financial = isPayrollRole(roles) || isPaymentRole(roles);
+  const source = { workers: financial ? "workers" : "worker_directory", runs: "payroll_runs", timesheets: "timesheets", leave: "leave_records", exceptions: "exceptions", lines: financial ? "calculation_lines" : "calculation_line_metadata" }[target.table];
   let query = reader.from(source).select(target.table === "lines" ? "id,calculation_id" : "id").eq("company_id", companyId).eq("id", target.rowId);
   if (scope === "run" && target.table !== "lines") query = query.eq("run_id", target.runId);
   const record = await query.maybeSingle();

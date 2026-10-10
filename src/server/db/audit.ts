@@ -30,9 +30,11 @@ export async function auditView(client: SupabaseClient, companyId: string, opts:
   let graphTruncated = false;
   if (opts.runId) {
     if (!UUID.test(opts.runId)) return { items: [] as AuditItem[], next: null, graphTruncated: false };
-    const run = (await client.from("payroll_runs").select("id, config_version").eq("company_id", companyId).eq("id", opts.runId).maybeSingle()).data;
+    const runRead = await client.from("payroll_runs").select("id, config_version").eq("company_id", companyId).eq("id", opts.runId).maybeSingle();
+    if (runRead.error) throw new Error("audit run read failed");
+    const run = runRead.data;
     if (!run) return { items: [] as AuditItem[], next: null, graphTruncated: false };
-    const relations = await Promise.all(["import_batches", "calculations", "payroll_approvals", "exceptions", "obligations", "payment_batches"].map((table) => {
+    const relations = await Promise.all(["import_batches", "calculations", "payroll_approvals", "exceptions", "obligation_metadata", "payment_batch_metadata"].map((table) => {
       const query = table === "exceptions" ? client.from("exceptions").select("id, ai_execution_id") : client.from(table).select("id");
       return query.eq("company_id", companyId).eq("run_id", opts.runId!).limit(501);
     }));

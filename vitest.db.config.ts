@@ -1,12 +1,17 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
 
-// DB tests run against a real Supabase (kleeno-dev locally; the local Supabase stack in CI, which sets the variables itself).
-// Never against prod (tests/db/helpers.ts refuses).
+// Disposable loopback Supabase only; reject remote targets before test repositories load.
 try {
   process.loadEnvFile(".env");
 } catch {
   // no .env (CI): variables come from the environment
+}
+
+const target = process.env.SUPABASE_URL;
+if (!target || !["localhost", "127.0.0.1", "[::1]"].includes(new URL(target).hostname)
+  || (process.env.SUPABASE_PROD_URL && new URL(target).origin === new URL(process.env.SUPABASE_PROD_URL).origin)) {
+  throw new Error("Database tests require an isolated loopback SUPABASE_URL; remote and production targets are refused");
 }
 
 export default defineConfig({
