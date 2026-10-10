@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { billingAdminCommand } from "@/server/db/billing";
-import { admin, makeCompany, pendingRun, userClient } from "./helpers";
+import { admin, asOwner, makeCompany, pendingRun, userClient } from "./helpers";
 
 it("closed-month commands dedupe, fence provider stages/late usage, retain UNKNOWN and separate financial authority", async () => {
   const company = await makeCompany({ live: true }), foreign = await makeCompany();
@@ -45,7 +45,7 @@ it("closed-month commands dedupe, fence provider stages/late usage, retain UNKNO
   expect((await finish(1, { itemId: `ii_${suffix}` }, false)).data).toMatchObject({ code: "OK" });
   token = randomUUID(); expect((await claim()).data).toMatchObject({ code: "OK", stage: 2 });
   // Deliberate isolated late-source fixture: same valid review/worker/assignment, arriving after final-stage claim.
-  expect((await admin.from("billing_worker_usage").insert({ company_id: company.id, month, worker_id: run.workerId, review_event_id: event.id, assignment_id: assignment.data!.id, created_at: at.toISOString() })).error).toBeNull();
+  await asOwner("insert into public.billing_worker_usage(company_id, month, worker_id, review_event_id, assignment_id, created_at) values ($1, $2, $3, $4, $5, $6)", [company.id, month, run.workerId, event.id, assignment.data!.id, at.toISOString()]);
   expect((await finish(2, { invoiceId: `in_${suffix}`, invoiceStatus: "open" }, true)).data).toMatchObject({ code: "CONFLICT" });
   await admin.rpc("mark_billing_collection_unknown", { p_company: company.id, p_actor: actor, p_id: commandId, p_token: token });
   expect((await claim()).data).toMatchObject({ code: "UNKNOWN" });
