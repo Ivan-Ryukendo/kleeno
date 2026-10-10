@@ -1,6 +1,6 @@
 # R1.3 — Review the recovery direction and first implementation slice
 
-Status: prepared for owner approval, 2026-10-10. No implementation, remote action or owner approval is implied.
+Status: continuation authorised, 2026-10-10. After this concrete recovery/CI proposal, the owner instructed agents to code quickly, work through as much as possible without routine per-step approval pauses and request review afterwards. This authorises the described recovery direction and reviewed private integration CI procedure alongside existing D1. Main merges, deployment, cloud database changes, visibility changes, provider activation, spending and payments remain excluded. Routine bounded cards must still be written and reviewed by agents before implementation; owner review happens after local work.
 
 ## Why this is next
 
