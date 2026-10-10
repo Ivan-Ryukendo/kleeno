@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sofia_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { cn } from "@/lib/utils";
 import { env } from "@/server/env";
 
-const sofia = Sofia_Sans({ subsets: ["latin"], variable: "--font-sans" });
+const sofia = localFont({ src: "./fonts/SofiaSans-Variable.ttf", weight: "1 1000", style: "normal", display: "swap", variable: "--font-sans" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.SITE_URL),
