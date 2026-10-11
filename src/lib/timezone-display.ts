@@ -79,3 +79,8 @@ export function localTimeParts(instant: string, timeZone: string): { text: strin
     return null;
   }
 }
+
+/** zoneDisplay that never throws on an invalid configured zone (shows the raw value instead). */
+export function zoneDisplaySafe(timeZone: string, instant: string | number | Date = new Date()): string {
+  try { return zoneDisplay(timeZone, instant); } catch { return timeZone; }
+}
