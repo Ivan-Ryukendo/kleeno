@@ -83,7 +83,7 @@ describe("settings location and search", () => {
 });
 describe("settings frame on pay policy and account", () => {
   it.each(["/configuration", "/account"])("marks %s as the one current section", (current) => {
-    const html = renderToStaticMarkup(createElement(SettingsNavigation, { roles: ["OWNER", "HR_APPROVER"], current, children: createElement("section", null, "body") }));
+    const html = renderToStaticMarkup(SettingsNavigation({ roles: ["OWNER", "HR_APPROVER"], current, children: createElement("section", null, "body") }));
     const nav = navigation(html);
     expect(hrefs(nav)).toEqual(["/settings/company", "/settings/team", "/configuration", "/settings/billing", "/account"]);
     expect(nav.match(/aria-current="page"/g)).toHaveLength(1);
@@ -91,7 +91,7 @@ describe("settings frame on pay policy and account", () => {
     expect(nav).toContain("Personal");
   });
   it("leaves the frame out where company pages are not available yet (account during required MFA setup)", () => {
-    const html = renderToStaticMarkup(createElement(SettingsNavigation, { roles: ["VIEWER"], current: "/account", nav: false, children: createElement("section", null, "body") }));
+    const html = renderToStaticMarkup(SettingsNavigation({ roles: ["VIEWER"], current: "/account", nav: false, children: createElement("section", null, "body") }));
     expect(html).not.toContain("Settings sections");
     expect(html).toContain("body");
   });
