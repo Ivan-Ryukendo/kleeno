@@ -29,6 +29,7 @@ test.beforeAll(async () => {
   expect((await admin.from("workers").update({ wallet_address: ADDR(1), wallet_confirmed_address: ADDR(1), wallet_source: "CIRCLE" }).eq("id", workers[0].id)).error).toBeNull(); // a wallet Kleeno created is confirmed at once
   expect((await admin.from("workers").update({ wallet_address: ADDR(2), wallet_source: "EXTERNAL", wallet_set_by: company.payroll.id }).eq("id", workers[1].id)).error).toBeNull();
   workerIds = workers.map((w) => w.id);
+  expect((await admin.from("companies").update({ pay_frequency: "MONTHLY", pay_day: 25, timezone: "UTC", country: "US", size_range: "1_10", industry: "SOFTWARE" }).eq("id", company.id)).error).toBeNull();
 });
 
 test.afterAll(async () => {
@@ -105,4 +106,64 @@ test("All Workers at 375: compact list, cards layout, nothing scrolls sideways",
   await page.getByText("Cards", { exact: true }).click();
   await noSidewaysScroll(page, 375);
   await shot(page, "workers-cards-375");
+});
+
+test("Settings > Company at 1280: details, schedule preview, run mode; nothing without data is shown", async ({ page }) => {
+  await page.setViewportSize(DESKTOP);
+  await signIn(page, company!.payroll);
+  await page.goto("/settings/company");
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Settings sections" }).getByRole("link", { name: "Company" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText("Owner view.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Company details" })).toBeVisible();
+  await expect(page.getByLabel("Time zone", { exact: true })).toBeVisible(); // RT.2 picker stays
+  await expect(page.getByText("Can't be changed")).toBeVisible(); // currency is fixed
+  await expect(page.getByRole("heading", { name: "Pay schedule" })).toBeVisible();
+  await expect(page.getByText(/Pay date \w{3}, \w{3} \d+/).first()).toBeVisible(); // derived from the saved monthly day 25
+  await expect(page.getByText("OFF", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open Payments" })).toBeVisible();
+  for (const absent of ["Legal name", "Danger zone", "Delete company", "Last changed"]) await expect(page.getByText(absent)).toHaveCount(0); // no backing data or action
+  await shot(page, "settings-company-1280");
+  const name = page.getByLabel("Display name");
+  const renamed = `${await name.inputValue()}-x`;
+  await name.fill(renamed);
+  await page.getByRole("button", { name: "Save", exact: true }).first().click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved." }).first()).toBeVisible();
+  expect((await admin.from("companies").select("name").eq("id", company!.id).single()).data!.name).toBe(renamed);
+  await page.setViewportSize(MOBILE);
+  await page.goto("/settings/company");
+  await noSidewaysScroll(page, 375);
+  await shot(page, "settings-company-375");
+});
+
+test("Settings > Team: members table, invite disclosure, pending invite with revoke, role dialog", async ({ page }) => {
+  await page.setViewportSize(DESKTOP);
+  await signIn(page, company!.payroll);
+  await page.goto("/settings/team");
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  const table = page.getByRole("table", { name: "Team members of this company" });
+  await expect(table.getByRole("row")).toHaveCount(3); // header + two members
+  await expect(table.getByText("You", { exact: true })).toBeVisible();
+  await expect(page.getByText("Last Owner is protected.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What each role can do" })).toBeVisible();
+  for (const absent of ["Last active", "Two-step"]) await expect(table.getByRole("columnheader", { name: absent })).toHaveCount(0); // no data: not shown as a column
+  await page.getByText("Invite member", { exact: true }).click();
+  const email = `invitee-${Date.now()}@example.com`;
+  await page.getByLabel("Email address").fill(email);
+  await page.getByRole("button", { name: "Create invite link" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Share this link" })).toBeVisible();
+  await expect(table.getByText(email, { exact: true })).toBeVisible();
+  await expect(table.getByText(/Invite pending/)).toBeVisible();
+  await shot(page, "settings-team-1280");
+  // Role dialog for the other member; Cancel leaves roles untouched.
+  await table.getByRole("button", { name: /^Change roles/ }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Save roles" })).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await table.getByRole("button", { name: /^Revoke/ }).click();
+  await expect(table.getByText(email, { exact: true })).toHaveCount(0);
+  await page.setViewportSize(MOBILE);
+  await page.goto("/settings/team");
+  await noSidewaysScroll(page, 375);
+  await shot(page, "settings-team-375");
 });
