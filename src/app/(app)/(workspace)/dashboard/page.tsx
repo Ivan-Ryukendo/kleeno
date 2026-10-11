@@ -19,7 +19,7 @@ import { uuid } from "@/server/schemas";
 import { initialTable } from "@/server/db/table-views";
 import { reviewerSummary } from "@/server/db/reviewer-summary";
 
-export const metadata = { title: "Home · Kleeno" };
+export const metadata = { title: "Dashboard · Kleeno" };
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ run?: string }> }) {
   await connection();
@@ -66,7 +66,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title="Home" description={company.name} />
+      <PageHeader title="Dashboard" description={company.name} />
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-foreground">Live payments</span>

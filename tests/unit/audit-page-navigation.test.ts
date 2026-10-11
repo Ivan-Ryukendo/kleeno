@@ -42,7 +42,7 @@ it("retains an entity-only filter without adding a run scope", async () => {
   const html = await page({ entity: "worker", before });
   const newest = new URL(hrefFor(html, "Newest events")!, "https://example.invalid");
   expect(Object.fromEntries(newest.searchParams)).toEqual({ entity: "worker" });
-  expect(hrefFor(html, "Back to Home")).toBe("/dashboard");
+  expect(hrefFor(html, "Back to Dashboard")).toBe("/dashboard");
   expect(state.eq).not.toHaveBeenCalled();
 });
 

@@ -1,17 +1,18 @@
 "use client";
 
-import { CalendarClock, CircleHelp, CircleUser, CreditCard, Search, UserRound } from "lucide-react";
+import { CalendarClock, Search, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { isOwner, type Role } from "@/core/tenancy";
-import type { SearchRun } from "@/server/db/shell";
-import { visibleNav } from "./nav-config";
+import type { Role } from "@/core/tenancy";
+import type { SearchRun, SearchWorker } from "@/server/db/shell";
+import { periodLabel, searchPages } from "./nav-config";
 
-// Ctrl/Cmd+K palette over pages, recent runs and worker codes. The index is loaded with the page (scoped by the session's
-// company and role on the server), so searching needs no extra request, and it holds worker codes, never names.
-export function SearchPalette({ roles, runs, workerCodes }: { roles: Role[]; runs: SearchRun[]; workerCodes: string[] }) {
+// Ctrl/Cmd+K palette over pages (including the payroll and settings screens that are not sidebar items), recent runs and
+// worker codes. The index is loaded with the page (scoped by the session's company and role on the server), so searching
+// needs no extra request, and it holds worker codes, never names.
+export function SearchPalette({ roles, runs, workers }: { roles: Role[]; runs: SearchRun[]; workers: SearchWorker[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -34,8 +35,6 @@ export function SearchPalette({ roles, runs, workerCodes }: { roles: Role[]; run
     [router],
   );
 
-  const pages = visibleNav(roles).flatMap((g) => g.items);
-
   return (
     <>
       <Button type="button" variant="outline" size="sm" className="h-8 w-8 justify-center px-0 text-muted-foreground md:w-56 md:justify-start md:px-2.5" onClick={() => setOpen(true)} aria-label="Search" aria-keyshortcuts="Control+K Meta+K">
@@ -49,42 +48,30 @@ export function SearchPalette({ roles, runs, workerCodes }: { roles: Role[]; run
           <CommandList>
             <CommandEmpty>Nothing found.</CommandEmpty>
             <CommandGroup heading="Pages">
-              {isOwner(roles) && <CommandItem value="page Billing" keywords={["settings", "subscription", "usage", "terms"]} onSelect={() => go("/settings/billing")}>
-                <CreditCard aria-hidden />
-                Billing
-              </CommandItem>}
-              {pages.map((p) => (
+              {searchPages(roles).map((p) => (
                 <CommandItem key={p.href} value={`page ${p.label}`} keywords={p.keywords?.split(" ")} onSelect={() => go(p.href)}>
                   <p.icon aria-hidden />
                   {p.label}
                 </CommandItem>
               ))}
-              <CommandItem value="page account" keywords={["password", "mfa", "sign out"]} onSelect={() => go("/account")}>
-                <CircleUser aria-hidden />
-                Account
-              </CommandItem>
-              <CommandItem value="page help" keywords={["support", "request"]} onSelect={() => go("/support")}>
-                <CircleHelp aria-hidden />
-                Help
-              </CommandItem>
             </CommandGroup>
             {runs.length > 0 && (
               <CommandGroup heading="Recent pay runs">
                 {runs.map((r) => (
-                  <CommandItem key={r.id} value={`run ${r.label} ${r.status} ${r.mode}`} onSelect={() => go(`/runs/${r.id}`)}>
+                  <CommandItem key={r.id} value={`run ${r.label} ${periodLabel(r.label)} ${r.status} ${r.mode}`} onSelect={() => go(`/runs/${encodeURIComponent(r.id)}`)}>
                     <CalendarClock aria-hidden />
-                    <span>{r.label}</span>
+                    <span>{periodLabel(r.label)}</span>
                     <span className="ml-auto text-xs text-muted-foreground">{r.status.replaceAll("_", " ").toLowerCase()}</span>
                   </CommandItem>
                 ))}
               </CommandGroup>
             )}
-            {workerCodes.length > 0 && (
+            {workers.length > 0 && (
               <CommandGroup heading="Workers">
-                {workerCodes.map((code) => (
-                  <CommandItem key={code} value={`worker ${code}`} onSelect={() => go("/workers")}>
+                {workers.map((w) => (
+                  <CommandItem key={w.id} value={`worker ${w.code}`} onSelect={() => go(`/workers?${new URLSearchParams({ worker: w.id })}`)}>
                     <UserRound aria-hidden />
-                    {code}
+                    {w.code}
                   </CommandItem>
                 ))}
               </CommandGroup>

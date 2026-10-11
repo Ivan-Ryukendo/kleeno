@@ -76,7 +76,7 @@ describe("settings location and search", () => {
     expect(crumbs(`/settings/${section}`)).toEqual(["Settings", section[0].toUpperCase() + section.slice(1)]);
   });
   it.each(["OWNER", "HR_APPROVER", "VIEWER", "PAYMENT_APPROVER"] as const)("discovers Billing only for Owner, tested as %s", role => {
-    const html = renderToStaticMarkup(createElement(SearchPalette, { roles: [role], runs: [], workerCodes: [] }));
+    const html = renderToStaticMarkup(createElement(SearchPalette, { roles: [role], runs: [], workers: [] }));
     expect(html.includes('data-value="page Billing"')).toBe(role === "OWNER");
   });
 });
