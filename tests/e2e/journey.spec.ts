@@ -1,16 +1,11 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { admin, makeCompany, type TestCompany } from "../db/helpers";
+import { seedDemo } from "./seed";
 import { assertDisposableTarget } from "./target";
 
 // R2.6: authenticated SIMULATION journey on a disposable Supabase (loopback in CI, pinned kleeno-test locally).
 // Uses its own uniquely named company and removes it afterwards; live payments stay OFF throughout.
-// The seed runs as its own tsx process (same entry as npm run seed:demo): Playwright's loader cannot resolve @/ aliases in lazily imported server modules on newer Node 22.
-function seedDemo(companyId: string, userId: string) {
-  const out = execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--conditions=react-server", "scripts/seed-demo.ts"], { env: { ...process.env, DEMO_COMPANY_ID: companyId, DEMO_OWNER_ID: userId }, encoding: "utf8", timeout: 600_000 });
-  return JSON.parse(out.trim().split(String.fromCharCode(10)).pop()!.trim()) as { runId: string; mode: string };
-}
 const ORIGIN = { origin: "http://localhost:3000" };
 let company: TestCompany | undefined;
 
@@ -52,10 +47,14 @@ test("owner signs in, walks a seeded SIMULATION run, and no live payment path op
 
   // No live path: a LIVE_TESTNET run is refused, submission for approval is refused, and no batch can be opened or executed.
   const live = await page.request.post("/api/runs", { headers: ORIGIN, data: { mode: "LIVE_TESTNET", periodStart: "2031-01-01", periodEnd: "2031-01-14" } });
-  expect(live.ok()).toBe(false);
+  expect(live.status()).toBe(409); // WorkflowError LIVE_PAYMENTS_DISABLED: the kill switch is off for this company
+  expect((await live.json()).error.code).toBe("LIVE_PAYMENTS_DISABLED");
   expect((await page.request.post(`/api/runs/${demo.runId}/submit`, { headers: ORIGIN })).status()).toBe(409);
+  // This user is Owner + payroll approver, not a payment approver: the role check refuses before any batch is looked up.
   for (const step of ["open", "sign", "execute"]) {
-    expect((await page.request.post(`/api/batches/${randomUUID()}/${step}`, { headers: ORIGIN, data: {} })).ok()).toBe(false);
+    const res = await page.request.post(`/api/batches/${randomUUID()}/${step}`, { headers: ORIGIN, data: step === "sign" ? { password: company.payroll.password } : {} });
+    expect(res.status(), step).toBe(403);
+    expect((await res.json()).error.code, step).toBe("FORBIDDEN");
   }
   expect((await admin.from("payroll_runs").select("id").eq("company_id", company.id).eq("mode", "LIVE_TESTNET")).data).toEqual([]);
   expect((await admin.from("obligations").select("id").eq("run_id", demo.runId)).data).toEqual([]);

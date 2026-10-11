@@ -1,15 +1,15 @@
 import { expect, test } from "@playwright/test";
-import { seedSimulationDemo } from "../../scripts/seed-demo";
 import { admin, makeCompany } from "../db/helpers";
+import { seedDemo } from "./seed";
 import { assertDisposableTarget } from "./target";
 
 test("human resolutions lead to checked simulation pay and cannot authorize payment", async ({ page }) => {
   // This suite creates disposable users/evidence. Cloud targets require a separate reviewed rehearsal.
   assertDisposableTarget();
   const company = await makeCompany();
-  expect((await admin.from("companies").update({ is_demo: true }).eq("id", company.id)).error).toBeNull();
-  const demo = await seedSimulationDemo(company.id, company.payroll.id);
-  expect(await seedSimulationDemo(company.id, company.payroll.id)).toEqual(demo);
+  expect((await admin.from("companies").update({ is_demo: true, onboarded_at: new Date().toISOString() }).eq("id", company.id)).error).toBeNull();
+  const demo = seedDemo(company.id, company.payroll.id);
+  expect(seedDemo(company.id, company.payroll.id)).toEqual(demo);
 
   await page.goto("/login");
   await page.getByLabel("Email", { exact: true }).fill(company.payroll.email);
