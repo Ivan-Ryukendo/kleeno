@@ -2,7 +2,8 @@ import { connection } from "next/server";
 import { SettingsNavigation } from "@/components/settings-navigation";
 import { PageHeader } from "@/components/shell/page-header";
 import { BasicsForm, ScheduleForm } from "@/components/company-form";
-import { countryOptions, timezoneOptions } from "@/core/company";
+import { countryOptions } from "@/core/company";
+import { timeZoneChoices } from "@/lib/timezone-display";
 import { isOwner } from "@/core/tenancy";
 import { pageSession } from "@/server/auth/page-session";
 import { getCompany } from "@/server/db/company";
@@ -22,7 +23,7 @@ export default async function CompanySettingsPage() {
       <SettingsNavigation roles={actor.roles} current="/settings/company">
       <section className="mt-6 panel">
         <h2 className="mb-4 text-lg">Details</h2>
-        <BasicsForm profile={company.profile} options={{ countries: countryOptions(), zones: timezoneOptions() }} disabled={!canEdit} />
+        <BasicsForm profile={company.profile} options={{ countries: countryOptions(), zones: timeZoneChoices() }} disabled={!canEdit} />
       </section>
       <section className="mt-6 panel">
         <h2 className="mb-4 text-lg">Pay schedule</h2>

@@ -86,3 +86,15 @@ describe("TimezonePicker markup", () => {
     expect(render({ name: "timezone" })).toContain('type="hidden" name="timezone" value="Asia/Dhaka"');
   });
 });
+
+describe("company basics form", () => {
+  it("edits the company timezone with the same picker and keeps the existing save flow", async () => {
+    const { BasicsForm } = await import("@/components/company-form");
+    const profile = { name: "Acme", country: "BD", timezone: "Asia/Dhaka", sizeRange: null, industry: null, payFrequency: null, payDay: null, onboardedAt: null } as unknown as Parameters<typeof BasicsForm>[0]["profile"];
+    const html = renderToStaticMarkup(createElement(BasicsForm, { profile, options: { countries: [{ code: "BD", name: "Bangladesh" }], zones: winter } }));
+    expect(html).toMatch(/id="timezone"[^>]*role="combobox"|role="combobox"[^>]*id="timezone"/);
+    expect(html).toContain('value="Dhaka (UTC+6)"');
+    expect(html).not.toContain("Use company default");
+    expect(renderToStaticMarkup(createElement(BasicsForm, { profile, options: { countries: [], zones: winter }, disabled: true }))).toMatch(/role="combobox"[^>]*disabled/);
+  });
+});
