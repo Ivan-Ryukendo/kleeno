@@ -67,7 +67,7 @@ export async function loadResolutions(companyId: string, runId: string) {
  * Re-runs the deterministic checks with the decisions taken so far, stores newly found exceptions (once, by identity),
  * and moves the run: no open exception -> READY_FOR_CALCULATION; otherwise EXCEPTIONS_PENDING (rule 14).
  */
-async function advance(who: Who, runId: string, correlationId: string, ai?: AiProvider) {
+async function advance(who: Who, runId: string, correlationId: string, ai?: AiProvider, onWin?: (known: number) => Promise<void>) {
   const run = await loadRun(who.companyId, runId);
   const input = await loadInput(who.companyId, run);
   const existing = await loadAllRows<{ id: string; dedupe_key: string; status: string; resolution_action: string | null }>((after, size) => keyset(db().from("exceptions").select("id, dedupe_key, status, resolution_action", { count: "exact" }).eq("company_id", who.companyId).eq("run_id", runId).in("category", RECON_CATEGORIES), after, size), "open-exception");
@@ -83,13 +83,16 @@ async function advance(who: Who, runId: string, correlationId: string, ai?: AiPr
       evidence: e.evidence, options: e.options, dedupe_key: e.key, ai_execution_id: suggestions.executionId, ai_suggestion: suggestions.byKey.get(e.key) ?? null,
     }));
     must(await db().from("exceptions").upsert(rows, { onConflict: "company_id,run_id,dedupe_key", ignoreDuplicates: true }).select("id"), "exceptions insert");
-    await writeAudit(auditEvent({ companyId: who.companyId, event: "reconciliation.raise", entityType: "payroll_run", entityId: runId, actor: who.userId, actorType: "system", correlationId, refs: { raised: fresh.length } }));
+    if (!onWin) await writeAudit(auditEvent({ companyId: who.companyId, event: "reconciliation.raise", entityType: "payroll_run", entityId: runId, actor: who.userId, actorType: "system", correlationId, refs: { raised: fresh.length } }));
   }
 
   const open = existing.filter((e) => OPEN_STATES.includes(e.status)).length + fresh.length;
   const req = (action: string) => ({ id: runId, companyId: who.companyId, action, actor: who.userId, actorType: "user" as const, correlationId });
   let status = run.status;
-  if (status === "RECONCILING") status = await applyTransition(runStore, runMachine, req(open ? "raise_exceptions" : "finish_reconciliation"));
+  if (status === "RECONCILING") {
+    status = await applyTransition(runStore, runMachine, req(open ? "raise_exceptions" : "finish_reconciliation"));
+    await onWin?.(existing.length + fresh.length); // only the compare-and-set winner gets here
+  }
   else if (status === "EXCEPTIONS_PENDING" && !open) status = await applyTransition(runStore, runMachine, req("resolve_exceptions"));
   return { status, open };
 }
@@ -115,9 +118,16 @@ export async function retryReconciliation(who: Who, runId: string, ai?: AiProvid
     if (run.status === "EXCEPTIONS_PENDING" || run.status === "READY_FOR_CALCULATION") return { status: run.status, open: null, resumed: false };
     throw new TransitionError("INVALID_TRANSITION", `reconciliation can only be retried while RECONCILING, not ${run.status}`);
   }
-  await writeAudit(auditEvent({ companyId: who.companyId, event: "reconciliation.retry", entityType: "payroll_run", entityId: runId, actor: who.userId, actorType: "user", correlationId, refs: { from: "RECONCILING" } }));
+  // Audits belong to the compare-and-set winner: the retry marker once, and the raise marker once (also when a failed
+  // earlier pass stored exceptions but died before auditing them; an existing marker is never repeated).
+  const onWin = async (stored: number) => {
+    await writeAudit(auditEvent({ companyId: who.companyId, event: "reconciliation.retry", entityType: "payroll_run", entityId: runId, actor: who.userId, actorType: "user", correlationId, refs: { from: "RECONCILING" } }));
+    if (!stored) return;
+    const marked = must(await db().from("audit_events").select("id").eq("company_id", who.companyId).eq("entity_id", runId).eq("event", "reconciliation.raise").limit(1), "raise audit read");
+    if (!marked.length) await writeAudit(auditEvent({ companyId: who.companyId, event: "reconciliation.raise", entityType: "payroll_run", entityId: runId, actor: who.userId, actorType: "system", correlationId, refs: { raised: stored } }));
+  };
   try {
-    return { ...(await advance(who, runId, correlationId, ai)), resumed: true };
+    return { ...(await advance(who, runId, correlationId, ai, onWin)), resumed: true };
   } catch (e) {
     if (!(e instanceof TransitionError) || !["STALE_STATE", "INVALID_TRANSITION"].includes(e.code)) throw e;
     const now = await loadRun(who.companyId, runId); // another retry won the compare-and-set

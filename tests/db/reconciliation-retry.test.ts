@@ -11,7 +11,7 @@ import { importRows } from "@/server/db/imports";
 import { reconcileRun, retryReconciliation } from "@/server/db/reconciliation";
 import { runStore } from "@/server/db/runs";
 import { createWorker } from "@/server/db/workers";
-import { admin, makeCompany, type TestCompany } from "./helpers";
+import { admin, asOwner, makeCompany, type TestCompany } from "./helpers";
 
 let a: TestCompany;
 let b: TestCompany;
@@ -76,7 +76,24 @@ describe("retryReconciliation", () => {
     expect(await statusOf(id)).toBe("EXCEPTIONS_PENDING");
     expect(await exceptionsOf(id)).toHaveLength(1);
     expect(await auditCount(id, "run.raise_exceptions")).toBe(1);
-  }, 120_000);
+    expect(await auditCount(id, "reconciliation.retry")).toBe(1);
+    expect(await auditCount(id, "reconciliation.raise")).toBe(1);
+  }, 180_000);
+
+  it("a half-written exception (stored, never audited) still gets its raise audit exactly once from the winning retry", async () => {
+    const id = await stranded(a, version, ["8", "8", "8", "8", "0"]);
+    const wk = (await admin.from("workers").select("id").eq("company_id", a.id).eq("pseudonym", "W201").single()).data!.id as string;
+    // First pass died between the exception insert and its audit: the exception exists, the audit does not.
+    await asOwner("insert into exceptions (id, company_id, run_id, worker_id, category, severity, dedupe_key) values ($1, $2, $3, $4, 'UNEXPLAINED_MISSING_HOURS', 'MEDIUM', 'half-written')", [randomUUID(), a.id, id, wk]);
+    expect(await auditCount(id, "reconciliation.raise")).toBe(0);
+    const r = await Promise.allSettled([retryReconciliation(who(a), id, off), retryReconciliation(who(a), id, off)]);
+    expect(r.every((x) => x.status === "fulfilled")).toBe(true);
+    expect(await statusOf(id)).toBe("EXCEPTIONS_PENDING");
+    expect(await auditCount(id, "reconciliation.raise")).toBe(1);
+    expect(await auditCount(id, "reconciliation.retry")).toBe(1);
+    expect(await retryReconciliation(who(a), id, off)).toMatchObject({ resumed: false });
+    expect(await auditCount(id, "reconciliation.raise")).toBe(1);
+  }, 180_000);
 
   it("keeps role and company checks; refuses runs that are not stranded", async () => {
     const id = await stranded(a, version, ["8", "8", "8", "8", "8"]);
