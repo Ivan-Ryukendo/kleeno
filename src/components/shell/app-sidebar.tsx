@@ -40,11 +40,11 @@ export function AppSidebar({ roles, companies, activeId, canCreate, openExceptio
                           isActive={active}
                           tooltip={tip(count > 0 ? `${i.label}, ${count} open` : i.label)}
                           aria-current={active ? "page" : undefined}
+                          aria-label={count > 0 ? `${i.label}, ${count} open ${count === 1 ? "exception" : "exceptions"}` : undefined}
                           className="gap-2.5 font-medium text-muted-foreground data-active:text-foreground hover:text-foreground"
                         >
                           <i.icon aria-hidden />
                           <span>{i.label}</span>
-                          {count > 0 && <span className="sr-only">, {count} open {count === 1 ? "exception" : "exceptions"}</span>}
                         </SidebarMenuButton>
                         {count > 0 && (
                           // Signal Orange text on a white chip: risk text stays AA (never small orange text on the sidebar tint, DESIGN.md §11).
