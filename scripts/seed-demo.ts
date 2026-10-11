@@ -32,7 +32,7 @@ export function assertDemoTarget(url: string, production: string | undefined, co
 }
 
 export async function seedSimulationDemo(companyId: string, userId: string) {
-  assertDemoLocation(process.env.SUPABASE_URL ?? "", process.env.SUPABASE_PROD_URL);
+  assertDemoLocation(process.env.SUPABASE_URL ?? "", process.env.DB_TEST_FORBIDDEN_URL);
   const { db, must } = await import("../src/server/db/client");
   const { configAction, createConfigDraft, loadConfig } = await import("../src/server/db/configs");
   const { createWorker, listWorkers } = await import("../src/server/db/workers");
@@ -40,7 +40,7 @@ export async function seedSimulationDemo(companyId: string, userId: string) {
   const { reconcileRun } = await import("../src/server/db/reconciliation");
   const { runDeps } = await import("../src/server/db/runs");
   const company = must(await db().from("companies").select("is_demo, live_payments_enabled").eq("id", companyId).single(), "demo company");
-  assertDemoTarget(process.env.SUPABASE_URL ?? "", process.env.SUPABASE_PROD_URL, company);
+  assertDemoTarget(process.env.SUPABASE_URL ?? "", process.env.DB_TEST_FORBIDDEN_URL, company);
   const member = must(await db().from("memberships").select("roles").eq("company_id", companyId).eq("user_id", userId).is("removed_at", null).single(), "demo actor");
   if (!member.roles.includes("OWNER") || !member.roles.includes("PAYROLL_APPROVER")) throw new Error("demo actor must be its Owner and payroll approver");
   const who = () => ({ companyId, userId, roles: member.roles as Role[], correlationId: randomUUID() });
