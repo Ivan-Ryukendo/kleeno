@@ -38,7 +38,7 @@ test.afterAll(async () => {
   for (const u of [company.payroll, company.payment]) await admin.auth.admin.deleteUser(u.id);
 });
 
-const ORIGIN = { origin: "http://localhost:3000" };
+const ORIGIN = { origin: process.env.PW_ORIGIN ?? "http://localhost:3000" };
 const LABELS = [["Chief Executive", "Management", "EMPLOYEE", "2025-01-01"], ["Front-end developer", "Engineering", "CONTRACTOR", "2026-02-01"], ["Product designer", "Design", "CONTRACTOR", "2025-11-01"], ["HR lead", "People", "EMPLOYEE", "2025-09-01"]] as const;
 // Worker details (job, department, type, start date) go through the existing guarded metadata endpoint, as HR would.
 async function describeWorkers(page: Page) {
@@ -166,4 +166,33 @@ test("Settings > Team: members table, invite disclosure, pending invite with rev
   await page.goto("/settings/team");
   await noSidewaysScroll(page, 375);
   await shot(page, "settings-team-375");
+});
+
+test("Help: labelled static guide with search, tickets list, create and reply keep working", async ({ page }) => {
+  await page.setViewportSize(DESKTOP);
+  await signIn(page, company!.payroll);
+  await page.goto("/support");
+  await expect(page.getByRole("heading", { name: "Help", exact: true })).toBeVisible();
+  await expect(page.getByText("not a searchable article library")).toBeVisible(); // the guide is static copy and says so
+  await expect(page.getByText(/All Kleeno services normal|min read/)).toHaveCount(0); // no status feed or read times exist
+  await page.getByRole("searchbox", { name: "Search help guides" }).fill("exception");
+  await expect(page.getByRole("link", { name: /Resolve exceptions/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Import the period/ })).toHaveCount(0);
+  await page.getByRole("searchbox", { name: "Search help guides" }).fill("");
+  await page.getByLabel("Subject").fill("Two timesheet rows rejected");
+  await page.getByLabel("Category").selectOption("IMPORT");
+  await page.getByLabel("Message", { exact: true }).fill("W014 and W027 were rejected on import.");
+  await page.getByLabel("I intend to share this message and its references with platform support").check();
+  await page.getByRole("button", { name: "Submit request" }).click();
+  await expect(page.getByRole("heading", { name: "Two timesheet rows rejected" })).toBeVisible();
+  await page.getByLabel("Reply message").fill("Thanks, re-mapped the hours column.");
+  await page.getByLabel("I intend to share this reply and its references with platform support").check();
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await expect(page.getByText("Thanks, re-mapped the hours column.")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Select a request" }).getByRole("button")).toHaveCount(1);
+  await shot(page, "help-1280");
+  await page.setViewportSize(MOBILE);
+  await page.goto("/support");
+  await noSidewaysScroll(page, 375);
+  await shot(page, "help-375");
 });

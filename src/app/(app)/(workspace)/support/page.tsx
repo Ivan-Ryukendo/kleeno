@@ -1,5 +1,4 @@
 import { connection } from "next/server";
-import { PageHeader } from "@/components/shell/page-header";
 import { SupportPanel } from "@/components/support-panel";
 import { ReviewHelp } from "@/components/review-help";
 import type { SupportTicketMeta } from "@/core/support";
@@ -21,9 +20,12 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
   const validTicket = ticket && uuid.safeParse(ticket).success ? ticket : null;
   if (ticket && !validTicket) error = "The requested support link is invalid.";
   return <>
-    <PageHeader title="Help and support" description={company?.name ?? "Current company"} />
-    <ReviewHelp />
-    <p className="mt-3 text-sm text-muted-foreground">Your requests in this company. Share only the message and evidence references you deliberately want platform support to inspect.</p>
+    <header>
+      <h1 className="text-2xl font-medium tracking-tight">Help</h1>
+      <p className="mt-1 text-muted-foreground">Answers about reviewing and approving payroll, or ask the Kleeno team{company ? ` about ${company.name}` : ""}.</p>
+    </header>
+    <div className="mt-5"><ReviewHelp /></div>
+    <p className="mt-8 max-w-3xl text-sm text-muted-foreground">Your requests in this company. Share only the message and evidence references you deliberately want platform support to inspect.</p>
     <SupportPanel key={`${actor.companyId}:${actor.userId}`} mode="requester" apiBase="/api/support" initialTickets={tickets} initialHasMore={hasMore} initialTicketId={validTicket} initialError={error} currentUserId={actor.userId} />
   </>;
 }
