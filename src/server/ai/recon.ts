@@ -19,9 +19,9 @@ export async function suggestForExceptions(who: { companyId: string; correlation
   if (batch.length === 0) return { executionId: null, byKey };
   const payTypes = new Map(input.workers.map((w) => [w.id, w.payType]));
   const refs = batch.map((e, i) => ({ ref: `e${i + 1}`, category: e.category, payType: payTypes.get(e.workerId)!, facts: e.evidence.facts, options: [...e.options] })) as ReconItem[];
-  const p = provider ?? defaultProvider();
+  const p = provider ?? defaultProvider(who.companyId);
   const result = await runValidated(p, reconSpec(refs), reconInput(refs, `${who.correlationId}`));
-  const executionId = await recordExecution(who, { operation: "RECON_CLASSIFY", inputRef: who.correlationId, schemaVersion: RECON_SCHEMA_VERSION, promptVersion: RECON_PROMPT_VERSION, provider: p.name, result });
+  const executionId = await recordExecution(who, { operation: "RECON_CLASSIFY", inputRef: who.correlationId, schemaVersion: RECON_SCHEMA_VERSION, promptVersion: RECON_PROMPT_VERSION, provider: p.name, telemetry: p.telemetry?.(), result });
   if (result.status !== "NEEDS_HUMAN_REVIEW" && result.output)
     for (const s of result.output.suggestions) {
       const idx = refs.findIndex((r) => r.ref === s.ref);
@@ -29,3 +29,4 @@ export async function suggestForExceptions(who: { companyId: string; correlation
     }
   return { executionId, byKey };
 }
+

@@ -20,7 +20,7 @@ describe("S21 input privacy: the adapter's serialized request", () => {
     let body = "";
     const fetchFn = (async (_u: unknown, init?: RequestInit) => {
       body = String(init?.body);
-      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(GOOD) } }] }));
+      return new Response(JSON.stringify({ model: "m1", choices: [{ message: { content: JSON.stringify(GOOD) } }] }));
     }) as typeof fetch;
     const provider = openRouterProvider({ apiKey: "sk-or-CANARY-SECRET", models: ["m1"], fetchFn });
     await runValidated(provider, policySpec(clauses), policyInput(clauses, "ref"));
@@ -42,7 +42,7 @@ describe("S21 input privacy: the adapter's serialized request", () => {
     const fetchFn = (async (_u: unknown, init?: RequestInit) => {
       const model = JSON.parse(String(init?.body)).model;
       seen.push(model);
-      return model === "m1" ? new Response("x", { status: 500 }) : new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(GOOD) } }] }));
+      return model === "m1" ? new Response("x", { status: 500 }) : new Response(JSON.stringify({ model, choices: [{ message: { content: JSON.stringify(GOOD) } }] }));
     }) as typeof fetch;
     const r = await runValidated(openRouterProvider({ apiKey: "k", models: ["m1", "m2"], fetchFn }), policySpec(clauses), policyInput(clauses, "r"));
     expect([r.status, r.model, seen]).toEqual(["ACCEPTED", "m2", ["m1", "m2"]]);
@@ -89,3 +89,4 @@ describe("S23 injection fixtures", () => {
     expect(safe, JSON.stringify(r)).toBe(true);
   });
 });
+
