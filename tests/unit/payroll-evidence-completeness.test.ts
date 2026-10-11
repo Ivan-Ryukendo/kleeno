@@ -12,7 +12,7 @@ vi.mock("@/server/db/calculations", () => ({ saveCalculation: mocks.saved, loadL
 const run = { id: "run", status: "DATA_IMPORTED", config_version: 1, period_start: "2026-01-01", period_end: "2026-01-31" };
 const reader = { from(table: string) {
   let columns = "";
-  const query = { select: (...args: unknown[]) => { columns = String(args[0]); mocks.select(table, ...args); return query; }, eq: () => query, order: () => query, range: () => query, in: () => query, single: async () => ({ data: { adjustment_revision: 0 }, error: null }), maybeSingle: async () => ({ data: table === "calculations" ? null : { ...run, status: mocks.runStatus }, error: null }), then: (resolve: (value: unknown) => unknown) => resolve(table === mocks.refsTable && columns.includes("source_hash") ? { data: [], error: null, count: mocks.refsCount } : mocks.results.get(table) ?? { data: [], error: null, count: 0 }) };
+  const query = { select: (...args: unknown[]) => { columns = String(args[0]); mocks.select(table, ...args); return query; }, eq: () => query, order: () => query, range: () => query, gt: () => query, limit: () => query, in: () => query, single: async () => ({ data: { adjustment_revision: 0 }, error: null }), maybeSingle: async () => ({ data: table === "calculations" ? null : { ...run, status: mocks.runStatus }, error: null }), then: (resolve: (value: unknown) => unknown) => resolve(table === mocks.refsTable && columns.includes("source_hash") ? { data: [], error: null, count: mocks.refsCount } : mocks.results.get(table) ?? { data: [], error: null, count: 0 }) };
   return query;
 } };
 import { loadInput, loadResolutions, reconcileRun } from "@/server/db/reconciliation";
@@ -32,7 +32,7 @@ it.each(["timesheets", "leave_records", "exceptions", "workers", "compensations"
 });
 it("rejects a full 1000-row API page when one imported work row is omitted", async () => {
   mocks.results.set("timesheets", { data: Array.from({ length: 1000 }, (_, index) => ({ id: `t${index}`, worker_id: "worker", work_date: "2026-01-01", hours: 1, approved_extra_hours: 0 })), error: null, count: 1001 });
-  await expect(loadInput("company", run)).rejects.toThrow(/incomplete/i);
+  await expect(loadInput("company", run)).rejects.toThrow(/incomplete|changed/i);
 });
 it("cannot advance a run with an incomplete open-exception read", async () => {
   mocks.results.set("exceptions", { data: [], error: null, count: 1 });

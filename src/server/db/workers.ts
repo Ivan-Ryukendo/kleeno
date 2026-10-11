@@ -9,7 +9,7 @@ import { WorkerMetadataSchema, type WorkerMetadata } from "@/core/workers";
 import { openJson, sealJson } from "@/server/crypto";
 import { writeAudit } from "./audit";
 import { db, must } from "./client";
-import { loadAllRows } from "./paged";
+import { keyset, loadAllRows } from "./paged";
 
 // Compensation is encrypted at rest (S41): { baseAmount, hourlyRate } as micro-USDC strings, versioned and immutable.
 export interface Compensation {
@@ -163,9 +163,11 @@ export interface WorkerRow {
 
 /** Reads through `reader` (the user-scoped client, so RLS applies) and decrypts on the server. */
 export async function listWorkers(reader: SupabaseClient, companyId: string, opts: { activeOnly?: boolean } = {}): Promise<WorkerRow[]> {
-  const allWorkers = await loadAllRows<{ id: string; pseudonym: string; pay_type: PayType; wallet_address: string | null; wallet_source: string; wallet_confirmed_address: string | null; active: boolean; left_on: string | null; left_reason: string | null; metadata_enc: string | null; employment_start: string | null; employment_end: string | null }>((from, to) => reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason, metadata_enc, employment_start, employment_end", { count: "exact" }).eq("company_id", companyId).order("pseudonym").order("id").range(from, to), "workers");
+  const allWorkers = await loadAllRows<{ id: string; pseudonym: string; pay_type: PayType; wallet_address: string | null; wallet_source: string; wallet_confirmed_address: string | null; active: boolean; left_on: string | null; left_reason: string | null; metadata_enc: string | null; employment_start: string | null; employment_end: string | null }>((after, size) => keyset(reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason, metadata_enc, employment_start, employment_end", { count: "exact" }).eq("company_id", companyId), after, size), "workers");
+  allWorkers.sort((a, b) => (a.pseudonym < b.pseudonym ? -1 : a.pseudonym > b.pseudonym ? 1 : a.id < b.id ? -1 : 1)); // business order in memory; paging is by id
   const workers = allWorkers.filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
-  const comps = await loadAllRows<{ id: string; worker_id: string; version: number; reason: string; created_at: string; payload_enc: string }>((from, to) => reader.from("compensations").select("id, worker_id, version, reason, created_at, payload_enc", { count: "exact" }).eq("company_id", companyId).order("version", { ascending: false }).order("id").range(from, to), "compensations");
+  const comps = await loadAllRows<{ id: string; worker_id: string; version: number; reason: string; created_at: string; payload_enc: string }>((after, size) => keyset(reader.from("compensations").select("id, worker_id, version, reason, created_at, payload_enc", { count: "exact" }).eq("company_id", companyId), after, size), "compensations");
+  comps.sort((a, b) => b.version - a.version || (a.id < b.id ? -1 : 1));
   return Promise.all(
     workers.map(async (w) => {
       const history = await Promise.all(

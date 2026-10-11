@@ -8,7 +8,8 @@ import { parseUsdc } from "@/core/money";
 import { isPayrollRole, WorkflowError, type Role } from "@/core/workflow";
 import { fingerprint, sealField } from "@/server/crypto";
 import { writeAudit } from "./audit";
-import { db, must } from "./client";
+import { db } from "./client";
+import { keyset, loadAllRows } from "./paged";
 import { runStore } from "./runs";
 
 interface Who {
@@ -44,7 +45,7 @@ export async function importRows(who: Who, input: { runId: string; type: ImportT
   if (!OPEN_FOR_IMPORT.includes(run.status)) throw new WorkflowError("RUN_FROZEN", `data can no longer be added in ${run.status}; start a new run`);
 
   const { good, rejected } = validateRows(input.type, input.items);
-  const workers = new Map(must(await db().from("workers").select("id, pseudonym").eq("company_id", who.companyId), "workers read").map((w) => [w.pseudonym, w.id]));
+  const workers = new Map((await loadAllRows<{ id: string; pseudonym: string }>((after, size) => keyset(db().from("workers").select("id, pseudonym", { count: "exact" }).eq("company_id", who.companyId), after, size), "workers")).map((w) => [w.pseudonym, w.id]));
   const dated = input.type !== "ACTUAL_PAID";
   const accepted = good.filter(({ row, value }) => {
     const v = value as { workerRef: string; date?: string };

@@ -10,26 +10,14 @@ import { TransitionError } from "@/core/domain/machines";
 import type { PayrollPeriod } from "@/core/engine";
 import { fingerprint, openJson, sealJson } from "@/server/crypto";
 import { db, must } from "./client";
+import { keyset, loadAllRows } from "./paged";
 
 const payloadSchema = EffectiveRateSchema.pick({ baseAmount: true, hourlyRate: true }).extend({ reason: ScheduleCompensationSchema.shape.reason, source: ScheduleCompensationSchema.shape.source }).strict();
 type ScheduleRow = { id: string; worker_id: string; revision: number; effective_from: string; pay_type: EffectiveRate["payType"]; baseline_compensation_id: string; baseline_compensation_version: number; supersedes_id: string | null; payload_enc: string; actor_id: string; created_at: string };
 const financial = (roles: readonly Role[]) => isPayrollRole(roles) || isPaymentRole(roles);
 const rateOnly = (value: EffectiveRate) => ({ id: value.id, version: value.version, effectiveFrom: value.effectiveFrom, payType: value.payType, baseAmount: value.baseAmount, hourlyRate: value.hourlyRate, supersedesId: value.supersedesId });
-type RowQuery = { range: (start: number, end: number) => PromiseLike<{ data: unknown[] | null; error: unknown; count: number | null }> };
-async function completeRows(query: RowQuery) {
-  const rows: unknown[] = [], ids = new Set<string>(); let expected: number | null = null;
-  for (;;) {
-    const result = await query.range(rows.length, rows.length + 499);
-    if (result.error || !result.data || result.count === null || !Number.isSafeInteger(result.count) || result.count < 0 || result.count > 10000 || expected !== null && result.count !== expected) throw new WorkflowError("CALCULATION_BLOCKED", "Effective compensation evidence is incomplete or exceeds the supported bound");
-    expected = result.count;
-    for (const value of result.data) {
-      const id = (value as { id?: unknown }).id;
-      if (typeof id !== "string" || ids.has(id)) throw new WorkflowError("CALCULATION_BLOCKED", "Effective compensation evidence contains duplicate or missing IDs");
-      ids.add(id); rows.push(value);
-    }
-    if (rows.length === expected) return rows;
-    if (!result.data.length || rows.length > expected) throw new WorkflowError("CALCULATION_BLOCKED", "Effective compensation evidence is incomplete");
-  }
+async function completeRows<T extends { id: string }>(page: (after: string | null, size: number) => PromiseLike<{ data: T[] | null; error: { code?: string } | null; count: number | null }>): Promise<T[]> {
+  try { return await loadAllRows<T>(page, "effective compensation"); } catch { throw new WorkflowError("CALCULATION_BLOCKED", "Effective compensation evidence is incomplete or exceeds the supported bound"); }
 }
 export async function effectiveCompensationAccess(reader: SupabaseClient, who: Ctx, write = false) {
   const permitted = write ? isPayrollRole : financial;
@@ -39,7 +27,7 @@ export async function effectiveCompensationAccess(reader: SupabaseClient, who: C
   if (!membership.data || membership.data.removed_at !== null || !permitted(membership.data.roles ?? [])) throw new WorkflowError("FORBIDDEN", "Current membership cannot access effective compensation");
 }
 export async function effectiveScheduleRevisions(reader: SupabaseClient, companyId: string) {
-  const rows = await completeRows(reader.from("effective_compensations").select("id,worker_id,revision", { count: "exact" }).eq("company_id", companyId).order("id")) as { id: string; worker_id: string; revision: number }[];
+  const rows = await completeRows<{ id: string; worker_id: string; revision: number }>((after, size) => keyset(reader.from("effective_compensations").select("id,worker_id,revision", { count: "exact" }).eq("company_id", companyId), after, size));
   const revisions = new Map<string, number>();
   for (const row of rows) revisions.set(row.worker_id, Math.max(revisions.get(row.worker_id) ?? 0, row.revision));
   return revisions;
@@ -51,7 +39,7 @@ export async function loadEffectiveCompensation(reader: SupabaseClient, who: Ctx
   if (workerResult.error) throw new Error("effective compensation worker unavailable");
   if (!workerResult.data) throw new TransitionError("NOT_FOUND", "Worker not found");
   const worker = workerResult.data;
-  const rows = await completeRows(reader.from("effective_compensations").select("id,worker_id,revision,effective_from,pay_type,baseline_compensation_id,baseline_compensation_version,supersedes_id,payload_enc,actor_id,created_at", { count: "exact" }).eq("company_id", who.companyId).eq("worker_id", workerId).order("revision")) as ScheduleRow[];
+  const rows = (await completeRows<ScheduleRow>((after, size) => keyset(reader.from("effective_compensations").select("id,worker_id,revision,effective_from,pay_type,baseline_compensation_id,baseline_compensation_version,supersedes_id,payload_enc,actor_id,created_at", { count: "exact" }).eq("company_id", who.companyId).eq("worker_id", workerId), after, size))).sort((x, y) => x.revision - y.revision);
   if (rows.some((row, index) => row.revision !== index + 1)) throw new WorkflowError("CALCULATION_BLOCKED", "Effective compensation history is incomplete");
   const first = rows[0];
   let query = reader.from("compensations").select("id,version,payload_enc").eq("company_id", who.companyId).eq("worker_id", workerId);
@@ -71,7 +59,7 @@ export async function loadEffectiveCompensation(reader: SupabaseClient, who: Ctx
   compensationSegments(baseline, history.map(rateOnly), options.period ?? { start: "0001-01-01", end: "9999-12-31" });
   let impacts: { id: string; status: string; period_start: string; period_end: string }[] = [];
   if (options.effectiveFrom) {
-    impacts = await completeRows(reader.from("payroll_runs").select("id,status,period_start,period_end", { count: "exact" }).eq("company_id", who.companyId).gte("period_end", options.effectiveFrom).order("id")) as typeof impacts;
+    impacts = await completeRows<(typeof impacts)[number]>((after, size) => keyset(reader.from("payroll_runs").select("id,status,period_start,period_end", { count: "exact" }).eq("company_id", who.companyId).gte("period_end", options.effectiveFrom!), after, size));
   }
   await effectiveCompensationAccess(reader, who);
   return { workerId, active: worker.active as boolean, revision: rows.length, baseline, history, impacts, segments: options.period && rows.length ? compensationSegments(baseline, history.map(rateOnly), options.period) : null };

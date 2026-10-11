@@ -14,7 +14,7 @@ import { writeAudit } from "./audit";
 import { loadLines, saveCalculation } from "./calculations";
 import { verifyCapturedCalculation } from "@/core/workflow/evidence-pack";
 import { db, must } from "./client";
-import { loadAllRows } from "./paged";
+import { keyset, loadAllRows } from "./paged";
 import { loadConfig } from "./configs";
 import { loadInput, loadResolutions, loadRun } from "./reconciliation";
 import { runStore } from "./runs";
@@ -91,7 +91,7 @@ export async function calculateRun(who: Who, runId: string) {
 
   const existing = (await db().from("calculations").select("id, calculation_hash").eq("company_id", who.companyId).eq("run_id", runId).maybeSingle()).data;
   if (existing && existing.calculation_hash !== calc.calculationHash) throw new TransitionError("STALE_STATE", "a different calculation already exists for this run");
-  const evidence = (table: string) => loadAllRows<{ id: string; source_hash: string }>((from, to) => db().from(table).select("id, source_hash", { count: "exact" }).eq("company_id", who.companyId).eq("run_id", runId).order("id").range(from, to), `${table} reference`);
+  const evidence = (table: string) => loadAllRows<{ id: string; source_hash: string }>((after, size) => keyset(db().from(table).select("id, source_hash", { count: "exact" }).eq("company_id", who.companyId).eq("run_id", runId), after, size), `${table} reference`);
   const calculationId =
     existing?.id ??
     (
@@ -116,7 +116,7 @@ export async function calculateRun(who: Who, runId: string) {
 }
 
 export async function loadRunAdjustments(reader: import("@supabase/supabase-js").SupabaseClient, companyId: string, runId: string): Promise<Map<string, PayAdjustment[]>> {
-  const rows = await loadAllRows<{ id: string; worker_id: string; payload_enc: string }>((from, to) => reader.from("run_adjustments").select("id,worker_id,payload_enc", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId).order("id").range(from, to), "run adjustments");
+  const rows = await loadAllRows<{ id: string; worker_id: string; payload_enc: string }>((after, size) => keyset(reader.from("run_adjustments").select("id,worker_id,payload_enc", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId), after, size), "run adjustments");
   const values = await Promise.all(rows.map(async r => [r.worker_id as string, PayAdjustmentsSchema.parse(await openJson(companyId, "run_adjustments", "payload_enc", r.id, r.payload_enc))] as const));
   return new Map(values);
 }
@@ -137,7 +137,7 @@ export async function setRunAdjustments(who: Who, runId: string, workerId: strin
 
 /** Null when no amounts actually paid were imported for the run (there is no report to make); otherwise the number of findings. */
 async function saveVariance(companyId: string, runId: string, calculationId: string, lines: { workerId: string; net: bigint }[], tolerance: string) {
-  const paid = await loadAllRows<{ id: string; worker_id: string; amount_enc: string }>((from, to) => db().from("actual_payments").select("id, worker_id, amount_enc", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId).order("id").range(from, to), "actual payments");
+  const paid = await loadAllRows<{ id: string; worker_id: string; amount_enc: string }>((after, size) => keyset(db().from("actual_payments").select("id, worker_id, amount_enc", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId), after, size), "actual payments");
   if (paid.length === 0) return null;
   const actual = new Map<string, bigint>();
   for (const p of paid) actual.set(p.worker_id, (actual.get(p.worker_id) ?? 0n) + BigInt(await openField(companyId, "actual_payments", "amount_enc", p.id, p.amount_enc)));

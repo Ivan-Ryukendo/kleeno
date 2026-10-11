@@ -26,7 +26,8 @@ function readerFixture(history: object[] = []) {
   const reader = { from(table: string) {
     const filters: Record<string, unknown> = {};
     const data = () => table === "memberships" ? { roles: allowed ? ["HR_APPROVER"] : ["OWNER"], removed_at: null } : table === "workers" ? { id, active: true, pay_type: "SALARIED" } : table === "compensations" ? { id, version: 3, payload_enc: "BASELINE" } : table === "effective_compensations" ? history : [];
-    const q = { select: () => q, eq: (key: string, value: unknown) => { filters[key] = value; return q; }, order: () => q, limit: () => q, gte: () => q,
+    const q = { select: () => q, eq: (key: string, value: unknown) => { filters[key] = value; return q; }, order: () => q, limit: () => q, gte: () => q, gt: () => q,
+      then: (resolve: (v: unknown) => unknown) => resolve({ data: Array.isArray(data()) ? data() : [], count: Array.isArray(data()) ? (data() as unknown[]).length : 0, error: null }),
       range: async () => ({ data: Array.isArray(data()) ? data() : [], count: Array.isArray(data()) ? (data() as unknown[]).length : 0, error: null }),
       maybeSingle: async () => ({ data: table === "effective_compensations" && filters.idempotency_key ? null : data(), error: null }) }; return q;
   } } as unknown as SupabaseClient;
