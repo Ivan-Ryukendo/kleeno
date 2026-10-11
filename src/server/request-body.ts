@@ -18,7 +18,7 @@ export async function readBoundedBody(request: Pick<Request, "body" | "headers">
       if (total > maxBytes) throw new BodyTooLarge(maxBytes);
       chunks.push(value);
     }
-    return Buffer.concat(chunks).toString("utf8");
+    return new TextDecoder("utf-8").decode(Buffer.concat(chunks)); // like request.text(): strips a leading BOM
   } catch (error) {
     await reader?.cancel().catch(() => {});
     throw error;

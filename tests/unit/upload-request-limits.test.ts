@@ -89,3 +89,8 @@ it("keeps the maximum policy provenance shape within its independent JSON budget
   const tooLong = { ...input, documents: documents.map(d => ({ ...d, clauses: d.clauses.map(c => ({ ...c, text: c.text + "xx" })) })) };
   expect((await policyRoute(request(text(tooLong)))).status).toBe(400); expect(calls.policy).not.toHaveBeenCalled();
 });
+
+it("accepts a UTF-8 BOM-prefixed JSON body like request.text() does", async () => {
+  const response = await importRoute(request("\uFEFF" + text(imports)));
+  expect(response.status).toBe(200); expect(calls.imports).toHaveBeenCalledOnce();
+});
