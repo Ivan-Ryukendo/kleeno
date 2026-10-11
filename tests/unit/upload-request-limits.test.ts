@@ -14,6 +14,7 @@ import { guarded } from "@/server/auth/guard";
 import { POST as importRoute } from "@/app/api/imports/route";
 import { POST as policyRoute } from "@/app/api/configs/route";
 import { CSV_LIMITS } from "@/core/ingest/csv";
+import { createHash } from "node:crypto";
 
 const imports = { runId: "11111111-1111-4111-8111-111111111111", type: "TIMESHEETS", mapping: { workerRef: 0, date: 1, hours: 2 }, items: [{ row: 2, data: { workerRef: "W001", date: "2026-10-01", hours: "8" } }] };
 const request = (body?: string, headers: Record<string, string> = {}) => new Request("http://localhost/api/test", { method: "POST", headers: { origin: "http://localhost", ...headers }, body });
@@ -26,6 +27,7 @@ it("stops a multi-chunk import over the normalized JSON budget before repository
   const r = new Request("http://localhost/api/imports", { method: "POST", headers: { origin: "http://localhost", "content-length": "1" }, body: stream, duplex: "half" } as RequestInit & { duplex: "half" });
   const response = await importRoute(r);
   expect(response.status).toBe(413); expect(pulls).toBe(41); expect(cancelled).toHaveBeenCalledOnce();
+  expect((await response.json()).error).toMatchObject({ code: "TOO_LARGE", message: expect.stringContaining("split rows by period") });
   expect(calls.imports).not.toHaveBeenCalled(); expect(calls.policy).not.toHaveBeenCalled();
 });
 
@@ -62,7 +64,8 @@ it("accepts maximum mapped row count and rejects excess rows or columns before r
   calls.imports.mockClear();
   const tooWide = { ...imports, items: [{ row: 2, data: Object.fromEntries(Array.from({ length: CSV_LIMITS.columns + 1 }, (_, i) => [`field${i}`, "1"])) }] };
   for (const input of [{ ...max, items: [...max.items, { ...imports.items[0], row: 2 }] }, tooWide]) {
-    expect((await importRoute(request(text(input)))).status).toBe(400);
+    const response = await importRoute(request(text(input))); expect(response.status).toBe(400);
+    if (input !== tooWide) expect((await response.json()).error.message).toContain("maximum 10000");
   }
   expect(calls.imports).not.toHaveBeenCalled();
 });
@@ -72,4 +75,17 @@ it("refuses an unknown mapped field and aggregate policy clause overflow before 
   const documents = Array.from({ length: 2 }, (_, i) => ({ id: `11111111-1111-4111-8111-11111111111${i}`, format: "txt", contentHash: "a".repeat(64), clauses: Array.from({ length: 251 }, (_, j) => ({ id: `C${i}-${j}`, text: "x", anchor: `paragraph:${j + 1}` })) }));
   expect((await policyRoute(request(text({ policyText: "x", documents })))).status).toBe(400);
   expect(calls.imports).not.toHaveBeenCalled(); expect(calls.policy).not.toHaveBeenCalled();
+});
+
+it("keeps the maximum policy provenance shape within its independent JSON budget, including UTF-8 and JSON escaping", async () => {
+  const documents = Array.from({ length: 10 }, (_, i) => {
+    const clauses = Array.from({ length: 50 }, (_, j) => ({ id: `C${i}-${j}-` + "界".repeat(70), text: "\u0001".repeat(79), anchor: "paragraph:" + "1".repeat(70) }));
+    return { id: `11111111-1111-4111-8111-1111111111${String(i).padStart(2, "0")}`, format: "txt", contentHash: createHash("sha256").update(clauses.map(c => c.text).join("\n")).digest("hex"), clauses };
+  });
+  const input = { policyText: documents.flatMap(d => d.clauses.map(c => c.text)).join("\n"), documents };
+  expect(input.policyText.length).toBe(39999); expect(new TextEncoder().encode(text(input)).length).toBeLessThan(1024 * 1024);
+  expect((await policyRoute(request(text(input)))).status).toBe(200); expect(calls.policy).toHaveBeenCalledOnce();
+  calls.policy.mockClear();
+  const tooLong = { ...input, documents: documents.map(d => ({ ...d, clauses: d.clauses.map(c => ({ ...c, text: c.text + "xx" })) })) };
+  expect((await policyRoute(request(text(tooLong)))).status).toBe(400); expect(calls.policy).not.toHaveBeenCalled();
 });

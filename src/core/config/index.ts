@@ -39,7 +39,9 @@ export type Clauses = z.infer<typeof ClausesSchema>;
 export const PolicyDocumentsSchema = z.array(z.object({
   id: z.string().uuid(), format: z.enum(["txt", "md", "docx", "pdf"]), contentHash: z.string().regex(/^[a-f0-9]{64}$/),
   clauses: z.array(z.object({ id: z.string().min(1).max(80), text: z.string().min(1).max(2000), anchor: z.string().regex(/^(?:page:[1-9]\d{0,2}:paragraph:[1-9]\d*|(?:reviewed:)?paragraph:[1-9]\d*)$/).max(80).refine(a => !a.startsWith("page:") || Number(a.split(":")[1]) <= 100, "page exceeds 100") }).strict()).min(1).max(500),
-}).strict()).max(10).refine(ds => new Set(ds.map(d => d.id)).size === ds.length, "duplicate document ID");
+}).strict()).max(10).refine(ds => new Set(ds.map(d => d.id)).size === ds.length, "duplicate document ID")
+  .refine(ds => ds.reduce((total, d) => total + d.clauses.length, 0) <= 500, "policy exceeds 500 clauses")
+  .refine(ds => ds.reduce((total, d) => total + d.clauses.reduce((chars, clause) => chars + clause.text.length, 0), 0) <= 40000, "policy exceeds 40,000 characters");
 export type PolicyDocuments = z.infer<typeof PolicyDocumentsSchema>;
 export function validatedPolicyDocuments(policyText: string, input: unknown): { documents: PolicyDocuments; clauses: Clauses } {
   const documents = PolicyDocumentsSchema.parse(input);
