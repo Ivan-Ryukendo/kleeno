@@ -68,3 +68,9 @@ it("a delayed earlier response cannot pair a later immutable compensation with a
   expect(state.audit.filter(event => event.event === "compensation.version")).toHaveLength(2);
   expect(state.audit.filter(event => event.event === "worker.pay_type").at(-1)?.refs.to).toBe("RETAINER");
 });
+
+it.each(["FORBIDDEN", "INVALID_TRANSITION", "CONFLICT"])("fails closed on atomic append %s without a separate pay-type write", async code => {
+  state.rpc.mockResolvedValue({ data: code, error: null });
+  await expect(addCompensationVersion({ companyId: "company", userId: "user", correlationId: "request" }, "worker", { baseAmount: 2n, hourlyRate: 0n }, "RETAINER")).rejects.toMatchObject({ code });
+  expect(state.payType).toBe("SALARIED"); expect(state.versions).toHaveLength(1); expect(state.audit).toEqual([]);
+});

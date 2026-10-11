@@ -60,3 +60,9 @@ it("the winning resolution audit and encrypted decision belong to the same comma
   expect(state.action).toBe(state.audit[0].action);
   expect(state.note).toBe(`encrypted:${state.action === "KEEP_FIRST" ? "first decision" : "later decision"}`);
 });
+
+it.each(["FORBIDDEN", "NOT_FOUND", "STALE_STATE"])("fails closed on resolution %s without changing human evidence", async code => {
+  state.rpc.mockResolvedValue({ data: code, error: null });
+  await expect(resolveException({ companyId: "company", userId: "user", roles: ["PAYROLL_APPROVER"] }, "exception", { action: "KEEP_FIRST", note: "reviewed decision" })).rejects.toMatchObject({ code });
+  expect(state.status).toBe("IN_REVIEW"); expect(state.action).toBeNull(); expect(state.audit).toEqual([]);
+});
