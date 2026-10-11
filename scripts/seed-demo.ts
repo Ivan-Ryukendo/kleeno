@@ -7,7 +7,9 @@ import { WorkerMetadataSchema } from "../src/core/workers";
 import { demo, PERIOD } from "../tests/fixtures/reconciliation/demo";
 
 function assertDemoLocation(url: string, production: string | undefined) {
-  if (!url || !["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(url).hostname) || (production && new URL(url).origin === new URL(production).origin)) {
+  const host = url ? new URL(url).hostname : "";
+  const pinnedTest = host === "axcgcjpmcdujxkvroqox.supabase.co" && process.env.SUPABASE_TEST_PROJECT_REF === "axcgcjpmcdujxkvroqox"; // the one hosted disposable project, never dev or prod
+  if (!url || !(["localhost", "127.0.0.1", "::1", "[::1]"].includes(host) || pinnedTest) || (production && new URL(url).origin === new URL(production).origin)) {
     throw new Error("seed requires a designated local demo company with live payments off");
   }
 }
