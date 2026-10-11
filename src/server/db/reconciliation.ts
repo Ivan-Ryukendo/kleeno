@@ -103,6 +103,29 @@ export async function reconcileRun(who: Who, runId: string, ai?: AiProvider) {
   return advance(who, runId, correlationId, ai);
 }
 
+/**
+ * Resumes a run stranded in RECONCILING (a read or the AI call failed after start_reconciliation committed).
+ * Same checks, same compare-and-set exits as the first pass: exceptions are stored once by identity, so a retry never duplicates.
+ * Already past RECONCILING: returns the current state unchanged (idempotent). Losing a concurrent retry also returns the new state.
+ */
+export async function retryReconciliation(who: Who, runId: string, ai?: AiProvider) {
+  const correlationId = need(who);
+  const run = await loadRun(who.companyId, runId);
+  if (run.status !== "RECONCILING") {
+    if (run.status === "EXCEPTIONS_PENDING" || run.status === "READY_FOR_CALCULATION") return { status: run.status, open: null, resumed: false };
+    throw new TransitionError("INVALID_TRANSITION", `reconciliation can only be retried while RECONCILING, not ${run.status}`);
+  }
+  await writeAudit(auditEvent({ companyId: who.companyId, event: "reconciliation.retry", entityType: "payroll_run", entityId: runId, actor: who.userId, actorType: "user", correlationId, refs: { from: "RECONCILING" } }));
+  try {
+    return { ...(await advance(who, runId, correlationId, ai)), resumed: true };
+  } catch (e) {
+    if (!(e instanceof TransitionError) || !["STALE_STATE", "INVALID_TRANSITION"].includes(e.code)) throw e;
+    const now = await loadRun(who.companyId, runId); // another retry won the compare-and-set
+    if (now.status === "RECONCILING") throw e;
+    return { status: now.status, open: null, resumed: false };
+  }
+}
+
 interface Row {
   id: string;
   run_id: string;
