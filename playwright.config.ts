@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Disposable target first: E2E_ENV_FILE, else .env.test (kleeno-test), else .env. Specs refuse any host that is not loopback or the pinned kleeno-test.
-for (const file of [process.env.E2E_ENV_FILE, ".env.test", ".env"]) { if (!file) continue; try { process.loadEnvFile(file); break; } catch { /* try the next file */ } }
+// CI supplies loopback settings; local runs may load only the designated test file.
+try { process.loadEnvFile(".env.test"); } catch { /* CI supplies its isolated environment. */ }
 
 export default defineConfig({
   testDir: "./tests/e2e",

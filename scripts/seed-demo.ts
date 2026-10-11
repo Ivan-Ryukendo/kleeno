@@ -6,10 +6,20 @@ import { parseUsdc } from "../src/core/money";
 import { WorkerMetadataSchema } from "../src/core/workers";
 import { demo, PERIOD } from "../tests/fixtures/reconciliation/demo";
 
-function assertDemoLocation(url: string, production: string | undefined) {
-  const host = url ? new URL(url).hostname : "";
-  const pinnedTest = host === "axcgcjpmcdujxkvroqox.supabase.co" && process.env.SUPABASE_TEST_PROJECT_REF === "axcgcjpmcdujxkvroqox"; // the one hosted disposable project, never dev or prod
-  if (!url || !(["localhost", "127.0.0.1", "::1", "[::1]"].includes(host) || pinnedTest) || (production && new URL(url).origin === new URL(production).origin)) {
+const TEST_REF = "axcgcjpmcdujxkvroqox"; // the one hosted disposable project, never dev or prod
+
+/** Loopback, the pinned kleeno-test project, or the owner's demo project named by SEED_JUDGE_TARGET_REF; never the production origin. */
+export function assertDemoLocation(url: string, production: string | undefined, env: Record<string, string | undefined> = process.env) {
+  const u = URL.canParse(url) ? new URL(url) : null;
+  const host = u?.hostname ?? "";
+  const ref = env.SEED_JUDGE_TARGET_REF;
+  const pinnedTest = host === `${TEST_REF}.supabase.co` && env.SUPABASE_TEST_PROJECT_REF === TEST_REF;
+  const optIn = !!ref && /^[a-z0-9]{20}$/.test(ref) && u?.protocol === "https:" && host === `${ref}.supabase.co`; // R4.4 owner demo deploy: explicit opt-in, exact project ref, https only
+  const prod = !!production && (!URL.canParse(production) || new URL(production).origin === u?.origin);
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
+  const p = production && URL.canParse(production) ? new URL(production) : null; // opt-in only: production must be named, valid and a different project
+  const optInSafe = !!p && p.origin !== u?.origin && !(p.hostname.endsWith(".supabase.co") && p.hostname.split(".")[0] === ref);
+  if (!u || prod || !(local || pinnedTest || (optIn && optInSafe))) {
     throw new Error("seed requires a designated local demo company with live payments off");
   }
 }
@@ -22,7 +32,7 @@ export function assertDemoTarget(url: string, production: string | undefined, co
 }
 
 export async function seedSimulationDemo(companyId: string, userId: string) {
-  assertDemoLocation(process.env.SUPABASE_URL ?? "", process.env.SUPABASE_PROD_URL);
+  assertDemoLocation(process.env.SUPABASE_URL ?? "", process.env.DB_TEST_FORBIDDEN_URL);
   const { db, must } = await import("../src/server/db/client");
   const { configAction, createConfigDraft, loadConfig } = await import("../src/server/db/configs");
   const { createWorker, listWorkers } = await import("../src/server/db/workers");
@@ -30,7 +40,7 @@ export async function seedSimulationDemo(companyId: string, userId: string) {
   const { reconcileRun } = await import("../src/server/db/reconciliation");
   const { runDeps } = await import("../src/server/db/runs");
   const company = must(await db().from("companies").select("is_demo, live_payments_enabled").eq("id", companyId).single(), "demo company");
-  assertDemoTarget(process.env.SUPABASE_URL ?? "", process.env.SUPABASE_PROD_URL, company);
+  assertDemoTarget(process.env.SUPABASE_URL ?? "", process.env.DB_TEST_FORBIDDEN_URL, company);
   const member = must(await db().from("memberships").select("roles").eq("company_id", companyId).eq("user_id", userId).is("removed_at", null).single(), "demo actor");
   if (!member.roles.includes("OWNER") || !member.roles.includes("PAYROLL_APPROVER")) throw new Error("demo actor must be its Owner and payroll approver");
   const who = () => ({ companyId, userId, roles: member.roles as Role[], correlationId: randomUUID() });
