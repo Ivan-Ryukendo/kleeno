@@ -38,7 +38,10 @@ export function TimezonePicker({ id, label, options, value, onChange, clearLabel
 
   function show(index: number) {
     setActive(index);
-    requestAnimationFrame(() => document.getElementById(optionId(index))?.scrollIntoView({ block: "nearest" }));
+    requestAnimationFrame(() => {
+      listRef.current?.scrollIntoView({ block: "nearest" }); // small screens: bring the whole list on screen
+      document.getElementById(optionId(index))?.scrollIntoView({ block: "nearest" });
+    });
   }
   function openList() {
     if (disabled || open) return;
