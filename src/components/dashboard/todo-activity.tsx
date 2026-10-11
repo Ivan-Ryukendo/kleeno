@@ -47,7 +47,7 @@ export function ActivityPanel({ items, unavailable, truncated, viewAllHref }: { 
                   <div className="min-w-0 flex-1">
                     <p className="m-0 font-medium break-words">{item.href ? <Link className="underline underline-offset-4" href={item.href}>{label(item)}</Link> : label(item)}</p>
                     <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                      {item.actorType === "ai" ? <Chip>Suggested by AI, not applied</Chip> : <span>Recorded by {item.actorType}</span>}
+                      {item.actorType === "ai" && SUGGESTION.test(item.event) ? <Chip>Suggested by AI, not applied</Chip> : <span>Recorded by {item.actorType === "ai" ? "AI" : item.actorType}</span>}
                       <span aria-hidden>·</span>
                       <time dateTime={item.at}>{new Date(item.at).toLocaleString("en", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC</time>
                     </p>
@@ -60,4 +60,6 @@ export function ActivityPanel({ items, unavailable, truncated, viewAllHref }: { 
     </Panel>
   );
 }
+/** AI audit events that are proposals a person still has to accept; any other AI event is only recorded as such. */
+const SUGGESTION = /^ai\.(recon_classify|policy_interpret|payment_plan)$/;
 const label = (item: AuditItem) => item.event.replaceAll("_", " ").replaceAll(".", " · ");

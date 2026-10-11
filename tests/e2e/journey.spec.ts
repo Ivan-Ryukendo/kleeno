@@ -44,6 +44,9 @@ test("owner signs in, walks a seeded SIMULATION run, and no live payment path op
   await expect(page.getByText("Duplicate timesheet lines").first()).toBeVisible();
   await page.goto(`/settlement?run=${demo.runId}`);
   await expect(page.getByRole("heading", { name: "Payments", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Live payments" }).first()).toBeVisible(); // the live-payments row and guard moved here from the dashboard
+  await expect(page.getByText("OFF", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Guard contract")).toBeVisible();
 
   // No live path: a LIVE_TESTNET run is refused, submission for approval is refused, and no batch can be opened or executed.
   const live = await page.request.post("/api/runs", { headers: ORIGIN, data: { mode: "LIVE_TESTNET", periodStart: "2031-01-01", periodEnd: "2031-01-14" } });

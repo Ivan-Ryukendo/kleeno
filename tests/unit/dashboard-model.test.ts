@@ -45,7 +45,9 @@ describe("dates", () => {
     expect(daysLeftText(daysUntil("2026-10-27T23:59:00Z", now))).toBe("17 days left");
     expect(daysLeftText(daysUntil("2026-10-11T12:00:00Z", now))).toBe("1 day left");
     expect(daysLeftText(daysUntil("2026-10-10T12:00:00Z", now))).toBe("Due today");
-    expect(daysLeftText(daysUntil("2026-10-08T12:00:00Z", now))).toBe("Passed 2 days ago");
+    expect(daysLeftText(daysUntil("2026-10-08T12:00:00Z", now))).toBe("Passed 1 day ago"); // 1.5 days ago rounds toward zero, never up
+    expect(daysLeftText(daysUntil("2026-10-07T12:00:00Z", now))).toBe("Passed 2 days ago");
+    expect(daysLeftText(daysUntil("2026-10-09T23:00:00Z", now))).toBe("Passed today"); // one hour ago is not a day
     expect(daysUntil("not a date", now)).toBeNull();
     expect(daysLeftText(null)).toBeNull();
   });
@@ -64,11 +66,17 @@ describe("dates", () => {
 
 describe("monthStrip", () => {
   const runs = [{ status: "SETTLED", period_end: "2026-01-31" }, { status: "RECONCILED", period_end: "2026-02-28" }, { status: "CALCULATION_VALIDATED", period_end: "2026-03-31" }, { status: "SETTLED", period_end: "2025-12-31" }];
-  it("counts only settled or reconciled runs of the year and marks the selected month pending", () => {
+  it("covers the whole calendar year, counts only settled or reconciled runs of that year and marks the selected month pending", () => {
     const { cells, settled } = monthStrip(runs, 2026, "2026-03-31");
+    expect(cells).toHaveLength(12);
     expect(settled).toBe(2);
-    expect(cells.map((c) => c.state)).toEqual(["settled", "settled", "pending"]);
+    expect(cells.map((c) => c.state)).toEqual(["settled", "settled", "pending", "none", "none", "none", "none", "none", "none", "none", "none", "none"]);
     expect(cells[2].label).toBe("March: not settled yet");
+  });
+  it("uses the same year rule for a past year: nothing is pending when the selected run is in another year", () => {
+    const { cells, settled } = monthStrip(runs, 2025, "2026-03-31");
+    expect(settled).toBe(1);
+    expect(cells.some((c) => c.state === "pending")).toBe(false);
   });
   it("never counts a simulation-only history", () => {
     expect(monthStrip([{ status: "CALCULATION_VALIDATED", period_end: "2026-10-31" }], 2026, "2026-10-31").settled).toBe(0);

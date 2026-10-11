@@ -77,13 +77,14 @@ export function readinessSteps(i: StepInput): ReadinessStep[] {
   ];
 }
 
-/** Whole days from `now` to `at`: positive while the cutoff is ahead, negative once it has passed. Null for an invalid instant. */
+/** Whole days from `now` to `at`, rounded toward zero: positive while the cutoff is ahead, negative (or -0 within the first day) once it has passed. Null for an invalid instant. */
 export function daysUntil(at: string, now: Date): number | null {
   const t = Date.parse(at);
-  return Number.isFinite(t) ? Math.floor((t - now.getTime()) / 86_400_000) : null;
+  return Number.isFinite(t) ? Math.trunc((t - now.getTime()) / 86_400_000) : null;
 }
 export function daysLeftText(days: number | null): string | null {
   if (days === null) return null;
+  if (Object.is(days, -0)) return "Passed today";
   if (days === 0) return "Due today";
   return days > 0 ? `${days} day${days === 1 ? "" : "s"} left` : `Passed ${-days} day${days === -1 ? "" : "s"} ago`;
 }
@@ -119,11 +120,14 @@ export interface RunLite { status: string; period_end: string }
 export interface MonthCell { month: number; letter: string; state: "settled" | "pending" | "none"; label: string }
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-/** January up to the selected run's month: settled when any run ending in that month is SETTLED or RECONCILED, pending for the selected month. */
-export function monthStrip(runs: readonly RunLite[], year: number, selectedEnd: string): { cells: MonthCell[]; settled: number } {
-  const selectedMonth = selectedEnd.startsWith(`${year}-`) ? Number(selectedEnd.slice(5, 7)) : 12;
-  const settledMonths = new Set(runs.filter((r) => ["SETTLED", "RECONCILED"].includes(r.status) && r.period_end.startsWith(`${year}-`)).map((r) => Number(r.period_end.slice(5, 7))));
-  const cells = MONTHS.slice(0, selectedMonth).map((name, i): MonthCell => {
+/**
+ * The twelve months of one calendar year (the selected run's year). A month is settled when a run ending in it is SETTLED or RECONCILED;
+ * the selected run's month is pending until then. `settledRuns` must be the complete list for the year (see settledRunsOfYear).
+ */
+export function monthStrip(settledRuns: readonly RunLite[], year: number, selectedEnd: string): { cells: MonthCell[]; settled: number } {
+  const selectedMonth = selectedEnd.startsWith(`${year}-`) ? Number(selectedEnd.slice(5, 7)) : 0;
+  const settledMonths = new Set(settledRuns.filter((r) => ["SETTLED", "RECONCILED"].includes(r.status) && r.period_end.startsWith(`${year}-`)).map((r) => Number(r.period_end.slice(5, 7))));
+  const cells = MONTHS.map((name, i): MonthCell => {
     const state = settledMonths.has(i + 1) ? "settled" : i + 1 === selectedMonth ? "pending" : "none";
     return { month: i + 1, letter: name[0], state, label: `${name}: ${state === "settled" ? "settled" : state === "pending" ? "not settled yet" : "no settled run"}` };
   });

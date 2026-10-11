@@ -24,7 +24,7 @@ import { initialTable } from "@/server/db/table-views";
 import { dashboardView, periodView } from "@/server/db/views";
 import { viewerTimeZone } from "@/server/display-timezone";
 import { uuid } from "@/server/schemas";
-import { paidYearToDate, workerFacts } from "./dashboard-data";
+import { paidInYear, settledRunsOfYear, workerFacts } from "./dashboard-data";
 
 export const metadata = { title: "Dashboard · Kleeno" };
 
@@ -40,27 +40,27 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const { actor, client } = session;
   const requested = (await searchParams).run;
   if (requested && !uuid.safeParse(requested).success) notFound();
-  const [{ company, runs, selected }, profile, facts] = await Promise.all([dashboardView(client, actor.companyId, requested), getCompany(actor.companyId), setupFacts(actor.companyId)]);
-  if (requested && !selected) notFound();
-  if (!profile.onboardedAt && isOwner(actor.roles)) redirect("/onboarding"); // new companies start with the three-step wizard
-  const setup = setupChecklist(facts);
-  let period: Awaited<ReturnType<typeof periodView>> = null;
-  let periodUnavailable = false;
-  if (selected) {
-    try { period = await periodView(client, actor, selected.id); }
-    catch { periodUnavailable = true; }
-  }
-  const runTable = await initialTable(client, actor.companyId, actor.roles, "runs", null);
   const payroll = isPayrollRole(actor.roles);
   const payment = isPaymentRole(actor.roles);
   const financial = payroll || payment;
-  let reviewSummary: Awaited<ReturnType<typeof reviewerSummary>> | null = null;
-  let reviewUnavailable = false;
-  if (selected && financial) {
-    try { reviewSummary = await reviewerSummary(client, actor, selected.id); }
-    catch { reviewUnavailable = true; }
-  }
-  const timeZone = selected && financial ? await viewerTimeZone(actor, profile.profile.timezone) : "UTC"; // display only
+  const [{ company, runs, selected }, profile, facts, workers] = await Promise.all([dashboardView(client, actor.companyId, requested), getCompany(actor.companyId), setupFacts(actor.companyId), workerFacts(client, actor.companyId, actor.roles)]);
+  if (requested && !selected) notFound();
+  if (!profile.onboardedAt && isOwner(actor.roles)) redirect("/onboarding"); // new companies start with the three-step wizard
+  const setup = setupChecklist(facts);
+  const year = selected ? Number(selected.period_end.slice(0, 4)) : 0;
+  // Everything that depends on the selected run is read together; a failed read degrades to "unavailable", never to an estimate.
+  const attempt = <T,>(read: Promise<T>) => read.then((value) => ({ value }), () => ({ value: null as T | null }));
+  const [periodRead, runTable, reviewRead, yearRead, timeZone] = await Promise.all([
+    selected ? attempt(periodView(client, actor, selected.id)) : null,
+    initialTable(client, actor.companyId, actor.roles, "runs", null),
+    selected && financial ? attempt(reviewerSummary(client, actor, selected.id)) : null,
+    selected ? settledRunsOfYear(client, actor.companyId, year).then(async (settledRuns) => ({ settledRuns, paid: await paidInYear(client, actor.companyId, settledRuns, year, actor.roles) })) : null,
+    selected && financial ? viewerTimeZone(actor, profile.profile.timezone) : "UTC", // display only
+  ]);
+  const period = periodRead?.value ?? null;
+  const periodUnavailable = !!periodRead && period === null && !!selected;
+  const reviewSummary = reviewRead?.value ?? null;
+  const reviewUnavailable = !!reviewRead && reviewSummary === null;
   const now = new Date();
   const cutoff = reviewSummary?.readiness.cutoff ?? null;
   const roleText = actor.roles.map((r) => ROLE_LABELS[r]).join(" · ");
@@ -92,9 +92,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       exceptionCards = open.slice(0, CARD_LIMIT).map((e) => ({ key: e.id, code: e.worker, tag: "Needs review", tone: "risk", text: `${CATEGORY[e.category] ?? e.category}: ${describeFacts(e.category, e.facts)}`, href: `/exceptions?run=${selected.id}`, action: "Review" }));
     } catch { exceptionCards = null; }
   }
-  const [tiles, paid, workers] = selected && period
-    ? await Promise.all([Promise.resolve(monthStrip(runs, Number(selected.period_end.slice(0, 4)), selected.period_end)), paidYearToDate(client, actor.companyId, runs, Number(selected.period_end.slice(0, 4)), actor.roles).catch(() => null), workerFacts(client, actor.companyId, actor.roles)])
-    : [null, null, null];
+  const months = selected && yearRead?.settledRuns ? monthStrip(yearRead.settledRuns, year, selected.period_end) : null;
 
   // Blockers: every readiness blocker, with the open exceptions expanded to one card per worker when they could be read.
   const blockers: BlockerCard[] = [];
@@ -177,10 +175,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         />
         {selected.mode === "SIMULATION" && <p className="mt-3 text-xs text-muted-foreground">Simulation ends with validated calculation and variance review. It creates no payment obligations.</p>}
 
-        {tiles && workers && <StatTiles data={{
-          months: { year: Number(selected.period_end.slice(0, 4)), cells: tiles.cells, settled: tiles.settled, capped: runs.length >= 20 },
+        {yearRead && <StatTiles data={{
+          months: months ? { year, cells: months.cells, settled: months.settled } : null,
           toPay: { month: monthName(selected.period_end), value: period.netTotal, hiddenForRole: !financial, openExceptions: period.openExceptions, simulation: selected.mode === "SIMULATION" },
-          paid,
+          paid: yearRead.paid,
           workers,
         }} />}
 

@@ -15,7 +15,8 @@ vi.mock("@/components/period-stepper", () => ({ PeriodStepper: () => null }));
 vi.mock("@/components/audit-timeline", () => ({ AuditTimeline: () => null }));
 vi.mock("@/server/db/reconciliation", () => ({ listExceptions: async () => state.exceptions }));
 vi.mock("@/app/(app)/(workspace)/dashboard/dashboard-data", () => ({
-  paidYearToDate: async () => ({ year: 2026, value: null, payments: 0, runs: 0, capped: false, hiddenForRole: false }),
+  settledRunsOfYear: async () => [],
+  paidInYear: async () => ({ year: 2026, value: null, payments: 0, runs: 0, hiddenForRole: false }),
   workerFacts: async () => ({ total: 1, employees: 1, contractors: 0, unspecified: 0, unconfirmedWallets: 0 }),
 }));
 vi.mock("@/server/db/views", () => ({
@@ -90,7 +91,8 @@ it("lists open exceptions by worker code under What blocks approval, never a nam
   expect(html).not.toContain("W014"); // resolved exceptions do not block
   expect(html).toContain("Hours above the limit without approval");
   expect(html).toContain("/exceptions?run=run-1");
-  expect(html).toMatch(/2 blockers?|3 blockers?/);
+  expect(html).toMatch(/>3 blockers</); // 2 open exceptions + the one readiness blocker ("Company cutoff is not configured")
+  expect(html).not.toContain(">4 blockers<");
 });
 it("labels planned and settled tiles and never shows an unknown figure as zero", async () => {
   const html = await render();
@@ -98,6 +100,8 @@ it("labels planned and settled tiles and never shows an unknown figure as zero",
   expect(html).toContain("Settled");
   expect(html).toContain("None settled yet");
   expect(html).toContain("Months paid in 2026");
+  expect(html).toContain("Paid in 2026");
+  expect(html).not.toContain("year to date");
   expect(html).toContain("Pay policy v1");
   expect(html).toContain("this run never pays.");
   expect(html).not.toContain("$0");
