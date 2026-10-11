@@ -7,12 +7,17 @@ vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("@/server/display-timezone", () => ({ viewerTimeZone: async () => "UTC" }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
 vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", userId: "actor", roles: [state.denied ? "VIEWER" : "HR_APPROVER"] }, client: {} }) }));
-vi.mock("@/server/db/company", () => ({ getCompany: async () => ({ onboardedAt: "2026-10-01" }), setupFacts: async () => ({ teamInvited: true, workers: 1, policyApproved: true, runs: 1 }) }));
+vi.mock("@/server/db/company", () => ({ getCompany: async () => ({ onboardedAt: "2026-10-01", profile: { timezone: "UTC", payFrequency: "MONTHLY", payDay: 31 } }), setupFacts: async () => ({ teamInvited: true, workers: 1, policyApproved: true, runs: 1 }) }));
 vi.mock("@/server/db/table-views", () => ({ initialTable: async () => null }));
 vi.mock("@/components/table-view", () => ({ TableView: () => null }));
 vi.mock("@/components/new-run-form", () => ({ NewRunForm: () => null }));
 vi.mock("@/components/period-stepper", () => ({ PeriodStepper: () => null }));
 vi.mock("@/components/audit-timeline", () => ({ AuditTimeline: () => null }));
+vi.mock("@/server/db/reconciliation", () => ({ listExceptions: async () => [] }));
+vi.mock("@/app/(app)/(workspace)/dashboard/dashboard-data", () => ({
+  paidYearToDate: async () => ({ year: 2026, value: null, payments: 0, runs: 0, capped: false, hiddenForRole: false }),
+  workerFacts: async () => ({ total: 1, employees: 1, contractors: 0, unspecified: 0, unconfirmedWallets: 0 }),
+}));
 vi.mock("@/server/db/views", () => ({
   dashboardView: async () => ({ company: { name: "Synthetic Company", live_payments_enabled: false, guard_address: null }, runs: [], selected: { id: "run-1", period_start: "2026-10-01", period_end: "2026-10-31", mode: "SIMULATION", status: "CALCULATION_VALIDATED", config_version: 1 } }),
   periodSteps: () => [], periodView: async () => { if (state.periodFailed) throw new Error("db audit run references failed (PGRST205): PRIVATE_DRIVER_DETAIL"); return { workers: 1, autoMatched: null, openExceptions: 0, netTotal: "125.00", settled: 0, obligations: 0, canSign: false, activity: { items: [], graphTruncated: false, unavailable: state.activityFailed } }; },
