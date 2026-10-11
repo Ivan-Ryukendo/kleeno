@@ -29,8 +29,8 @@ test("owner signs in, walks a seeded SIMULATION run, and no live payment path op
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
-  await expect(page.getByText("Live payments", { exact: true })).toBeVisible();
-  await expect(page.getByText("OFF", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("SIMULATION", { exact: true }).first()).toBeVisible(); // top-bar mode badge: live payments are off (the guard row moved to Payments)
+  await expect(page.getByText("this run never pays.")).toBeVisible();
   await expect(page.getByText("Simulation ends with validated calculation and variance review. It creates no payment obligations.")).toBeVisible();
 
   await page.goto("/workers");

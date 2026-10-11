@@ -32,7 +32,7 @@ const iconFor = (item: AuditItem) => item.actorType === "ai" ? Sparkles : /hold|
 
 export function ActivityPanel({ items, unavailable, truncated, viewAllHref }: { items: AuditItem[]; unavailable: boolean; truncated: boolean; viewAllHref: string }) {
   return (
-    <Panel id="act-h" title="Recent activity" aside={<Link href={viewAllHref} className="inline-flex min-h-11 items-center rounded-field px-2 text-[0.8125rem] font-medium text-foreground hover:bg-accent sm:min-h-8">View all</Link>}>
+    <Panel id="act-h" title="Recent activity" inlineAside aside={<Link href={viewAllHref} className="inline-flex min-h-11 items-center rounded-field px-2 text-[0.8125rem] font-medium text-foreground hover:bg-accent sm:min-h-8">View all</Link>}>
       {unavailable
         ? <p role="alert" className="px-4 py-3 text-sm text-signal">Activity unavailable. Recorded activity could not be loaded; no empty history can be inferred. Retry after checking database readiness.</p>
         : items.length === 0

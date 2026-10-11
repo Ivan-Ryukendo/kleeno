@@ -184,7 +184,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           workers,
         }} />}
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
           <TodoPanel todos={todos} roleText={roleText} cutoff={cutoffText} />
           <ActivityPanel items={period.activity.items} unavailable={period.activity.unavailable} truncated={!!period.activity.graphTruncated} viewAllHref={`/audit?run=${selected.id}`} />
         </div>

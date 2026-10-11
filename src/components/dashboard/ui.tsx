@@ -6,14 +6,14 @@ import { cn } from "@/lib/utils";
 // Small building blocks of the dashboard (mockups/dashboard.html): a panel with a header bar, a status chip and a link styled as a button.
 // Colours come from the Calm workspace tokens in globals.css; signal orange is only for things that block approval or payment (rule 45).
 
-export function Panel({ id, anchor, title, icon, chip, aside, footer, className, children }: { id: string; anchor?: string; title: string; icon?: ReactNode; chip?: ReactNode; aside?: ReactNode; footer?: ReactNode; className?: string; children: ReactNode }) {
+export function Panel({ id, anchor, title, icon, chip, aside, inlineAside, footer, className, children }: { id: string; anchor?: string; inlineAside?: boolean; title: string; icon?: ReactNode; chip?: ReactNode; aside?: ReactNode; footer?: ReactNode; className?: string; children: ReactNode }) {
   return (
     <section id={anchor} aria-labelledby={id} className={cn("min-w-0 rounded-card border bg-card", anchor && "scroll-mt-20", className)}>
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
         {icon}
         <h2 id={id} className="text-sm font-medium">{title}</h2>
         {chip}
-        {aside && <span className="ml-auto text-xs text-muted-foreground max-sm:ml-0 max-sm:basis-full">{aside}</span>}
+        {aside && <span className={cn("ml-auto text-xs text-muted-foreground", !inlineAside && "max-sm:ml-0 max-sm:basis-full")}>{aside}</span>}
       </div>
       {children}
       {footer && <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">{footer}</p>}
