@@ -12,7 +12,7 @@ vi.mock("@/server/db/calculations", () => ({ saveCalculation: mocks.saved, loadL
 const run = { id: "run", status: "DATA_IMPORTED", config_version: 1, period_start: "2026-01-01", period_end: "2026-01-31" };
 const reader = { from(table: string) {
   let columns = "";
-  const query = { select: (...args: unknown[]) => { columns = String(args[0]); mocks.select(table, ...args); return query; }, eq: () => query, order: () => query, in: () => query, single: async () => ({ data: { adjustment_revision: 0 }, error: null }), maybeSingle: async () => ({ data: table === "calculations" ? null : { ...run, status: mocks.runStatus }, error: null }), then: (resolve: (value: unknown) => unknown) => resolve(table === mocks.refsTable && columns.includes("source_hash") ? { data: [], error: null, count: mocks.refsCount } : mocks.results.get(table) ?? { data: [], error: null, count: 0 }) };
+  const query = { select: (...args: unknown[]) => { columns = String(args[0]); mocks.select(table, ...args); return query; }, eq: () => query, order: () => query, range: () => query, in: () => query, single: async () => ({ data: { adjustment_revision: 0 }, error: null }), maybeSingle: async () => ({ data: table === "calculations" ? null : { ...run, status: mocks.runStatus }, error: null }), then: (resolve: (value: unknown) => unknown) => resolve(table === mocks.refsTable && columns.includes("source_hash") ? { data: [], error: null, count: mocks.refsCount } : mocks.results.get(table) ?? { data: [], error: null, count: 0 }) };
   return query;
 } };
 import { loadInput, loadResolutions, reconcileRun } from "@/server/db/reconciliation";
@@ -48,7 +48,7 @@ it("preserves complete empty reads without inventing financial rows", async () =
 });
 it.each(["workers", "compensations"])("keeps failed %s schema reads blocking financial evidence", async table => {
   mocks.results.set(table, { data: null, error: { code: "42703" }, count: null });
-  await expect(listWorkers(reader as never, "company")).rejects.toThrow("database unavailable");
+  await expect(listWorkers(reader as never, "company")).rejects.toThrow("(42703)");
   expect(mocks.open).not.toHaveBeenCalled();
 });
 it.each(["timesheets", "leave_records", "actual_payments"])("cannot capture incomplete %s source references", async table => {
