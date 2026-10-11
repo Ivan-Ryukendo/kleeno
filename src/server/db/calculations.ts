@@ -2,7 +2,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PayrollConfig } from "@/core/config";
-import type { EngineEntry, PayrollCalculation, TraceLine } from "@/core/engine";
+import { calculatePayroll, type EngineEntry, type PayrollCalculation, type TraceLine } from "@/core/engine";
+import { CalculationVersionsSchema, CURRENT_CALCULATION_VERSIONS } from "@/core/engine/versions";
+import { canonicalString } from "@/core/canonical";
 import { openJson, sealJson } from "@/server/crypto";
 import { db, must } from "./client";
 
@@ -11,8 +13,10 @@ import { db, must } from "./client";
  * all encrypted (S41). Only net stays plain (public on-chain). Rows are immutable once written (S19, S20).
  */
 export async function saveCalculation(companyId: string, runId: string, config: PayrollConfig, entries: EngineEntry[], calc: PayrollCalculation, extra: Record<string, unknown> = {}, compensationRevisions?: Record<string, number>, actorId?: string) {
+  const calculationVersions = CalculationVersionsSchema.parse(extra.calculationVersions === undefined ? CURRENT_CALCULATION_VERSIONS : extra.calculationVersions);
+  if (canonicalString(calc) !== canonicalString(calculatePayroll(config, entries, calculationVersions))) throw new Error("calculation does not match captured engine/hash versions");
   const calcId = randomUUID();
-  const snapshot = await sealJson(companyId, "calculations", "snapshot_enc", calcId, { config, entries, ...extra }); // extra: evidence references and decisions (S46, S48)
+  const snapshot = await sealJson(companyId, "calculations", "snapshot_enc", calcId, { ...extra, config, entries, calculationVersions }); // authoritative inputs/version cannot be overridden by extra evidence metadata
   const lineIds = new Map<string, string>();
   const lines = [];
   for (const l of calc.lines) {
