@@ -1,13 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 import { codeFor, emptyNameKey, sealNameKey } from "../../src/core/ingest/name-key";
-import { parseUsdc } from "../../src/core/money";
-import { env } from "../../src/server/env";
-import { proposeConfig } from "../../src/server/ai/policy";
-import { createWorker } from "../../src/server/db/workers";
-import { GOOD, POLICY_TEXT } from "../fixtures/ai/policy";
+import { POLICY_TEXT } from "../fixtures/ai/policy";
 import { admin, makeCompany } from "../db/helpers";
+import { seedIntake } from "./seed";
 import { assertDisposableTarget } from "./target";
 
 // Synthetic cached proposal, not a live-model evaluation. The real app still performs upload,
@@ -15,21 +11,10 @@ import { assertDisposableTarget } from "./target";
 test("reviewed policy and browser CSV/XLSX intake produce traceable simulation pay", async ({ page }) => {
   assertDisposableTarget();
   const company = await makeCompany();
-  expect((await admin.from("companies").update({ is_demo: true }).eq("id", company.id)).error).toBeNull();
-  const who = { companyId: company.id, userId: company.payroll.id, roles: company.payroll.roles, correlationId: randomUUID() };
-  // Match reviewDocuments' unchanged TXT provenance without importing its browser PDF worker into Node.
-  const policyText = POLICY_TEXT.split(/\r?\n/).map(line => line.trim()).filter(Boolean).join("\n");
-  const reviewed = { policyText, documents: [{ id: randomUUID(), format: "txt" as const,
-    contentHash: createHash("sha256").update(policyText).digest("hex"),
-    clauses: policyText.split("\n").map((text, i) => ({ id: `C${String(i + 1).padStart(3, "0")}`, text, anchor: `paragraph:${i + 1}` })),
-  }] };
-  const output = { ...GOOD, params: { ...GOOD.params!, rules: GOOD.params!.rules.map(r => ({ ...r, clauseIds: r.clauseIds.map(id => `C${id.slice(1).padStart(3, "0")}`) })) } };
-  const prepared = await proposeConfig(who, reviewed.policyText, {
-    name: "openrouter", models: [env.OPENROUTER_MODEL, env.OPENROUTER_FALLBACK_MODEL],
-    complete: async () => ({ model: env.OPENROUTER_MODEL, text: JSON.stringify(output) }),
-  }, reviewed.documents);
-  expect(prepared.status).toBe("ACCEPTED");
-  const { id: workerId } = await createWorker(who, { pseudonym: "W001", payType: "HOURLY", compensation: { baseAmount: 0n, hourlyRate: parseUsdc("20") } });
+  expect((await admin.from("companies").update({ is_demo: true, onboarded_at: new Date().toISOString() }).eq("id", company.id)).error).toBeNull();
+  const seeded = seedIntake(company.id, company.payroll.id, company.payroll.roles);
+  expect(seeded.status).toBe("ACCEPTED");
+  const workerId = seeded.workerId;
   const pageErrors: string[] = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.goto("/login");

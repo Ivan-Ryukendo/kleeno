@@ -24,3 +24,9 @@ it("allows only the pinned kleeno-test project among remote targets", () => {
 it("refuses an owner-fixture database URL that is not loopback or the pinned project", () => {
   expect(() => execFileSync(process.execPath, ["--import", "tsx", "--eval", "import('./vitest.db.config.ts')"], { env: { ...process.env, SUPABASE_URL: "http://127.0.0.1:54321", SUPABASE_PROD_URL: "https://production.example", SUPABASE_TEST_DB_URL: "postgresql://u:p@db.abcdefghijklmnopqrst.supabase.co:5432/postgres" }, stdio: "pipe", timeout: 20_000 })).toThrow("pinned kleeno-test database");
 });
+it("refuses an owner-fixture database URL with a query string that could override the host", () => {
+  const run = (db: string) => execFileSync(process.execPath, ["--import", "tsx", "--eval", "import('./vitest.db.config.ts')"], { env: { ...process.env, SUPABASE_URL: "http://127.0.0.1:54321", SUPABASE_PROD_URL: "https://production.example", SUPABASE_TEST_DB_URL: db }, stdio: "pipe", timeout: 20_000 });
+  expect(() => run("postgresql://u:p@127.0.0.1:54322/postgres?host=db.abcdefghijklmnopqrst.supabase.co")).toThrow("query string");
+  expect(() => run("postgresql://u:p@127.0.0.1:54322/postgres?sslmode=disable")).toThrow("query string");
+  expect(() => run("postgresql://u:p@127.0.0.1:54322/postgres")).not.toThrow();
+});

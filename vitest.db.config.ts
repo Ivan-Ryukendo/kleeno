@@ -25,6 +25,8 @@ if (!target || forbidden || !(loopback || namedTestProject)) {
 const dbUrl = process.env.SUPABASE_TEST_DB_URL;
 if (dbUrl) {
   const u = new URL(dbUrl);
+  // pg-connection-string copies every query param (e.g. ?host=other) over the checked host, so none are allowed.
+  if (u.search || u.hash) throw new Error("SUPABASE_TEST_DB_URL must not carry a query string or fragment");
   const dbLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
   const dbPinned = u.hostname === `db.${KLEENO_TEST_REF}.supabase.co` || (u.hostname.endsWith(".pooler.supabase.com") && decodeURIComponent(u.username) === `postgres.${KLEENO_TEST_REF}`);
   if (!(dbLoopback || dbPinned)) throw new Error("SUPABASE_TEST_DB_URL must be loopback or the pinned kleeno-test database");
