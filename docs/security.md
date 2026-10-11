@@ -32,7 +32,7 @@ AI proposes -> deterministic validation -> human approval -> deterministic engin
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | `.env.local`, Vercel Production | `src/server/db` system client | Rotate the key in Supabase, update Vercel, redeploy. On a leak: rotate first, then review `audit_events`. |
 | `OPENROUTER_API_KEY` | `.env.local`, Vercel Production | `src/server/ai` | Has a $5 cap. Revoke and recreate in OpenRouter. |
 | Embedding provider credential (proposed `GEMINI_API_KEY`, P4r only) | server env, Vercel Production only; not configured by this task | `src/server/knowledge/gemini-embedding.ts` (planned) | Validate at adapter startup/use, redact errors, revoke/rotate at the provider; never `NEXT_PUBLIC_*` or AI inputs. Add env/schema entries only during approved implementation. |
-| `CIRCLE_API_KEY` (must start `TEST_API_KEY:`) | `.env.local`, Vercel Production | `src/server/circle` | Revoke in the Circle console and create a new key. `env.ts` rejects any other prefix. |
+| `CIRCLE_API_KEY` (must start `TEST_API_KEY:`) | `.env.local`, Vercel Production | `src/server/circle` | Revoke in the Circle console and create a new key. `src/server/circle/client.ts` validates the prefix lazily when constructing a client. |
 | `CIRCLE_ENTITY_SECRET` | `.env.local`, Vercel Production. The user registers it. The recovery file stays outside the repo. | `src/server/circle` | Rotate in the Circle console with the recovery file. Losing both means losing wallet control (testnet only). |
 | Circle wallet and wallet-set IDs | env | `src/server/circle` | Identifiers, not secrets. The agent path reads only the agent wallet ID. |
 | PayrollGuard owner / operator | Circle custody (approver / agent wallet); no raw key exists | owner: `guard-owner.ts`; operator: `ArcUsdcRail` | The owner replaces the operator (`replaceOperator`). Post-hackathon, the payment approver holds the owner key. |
@@ -50,7 +50,7 @@ AI proposes -> deterministic validation -> human approval -> deterministic engin
 | `X402_SELLER_ADDRESS` (P4) | env (public address, not a secret) | `src/server/x402` | Receive-only platform wallet; change by redeploy. |
 | Supabase DB password | user's password manager | `npx supabase db push/dump` only | Reset in the dashboard. Never in the repo or CI. |
 | User passwords | Supabase Auth | login, re-auth | Created by `scripts/create-users.ts` from env. Never in the repo. |
-| GitHub / Vercel tokens | `gh` / Vercel login | deploy | CI holds no secrets. |
+| GitHub / Vercel tokens | `gh` / Vercel login | deploy | CI receives no production/provider credentials; ephemeral `GITHUB_TOKEN` is allowed with workflow-scoped permissions. Revoke compromised operator tokens and reauthenticate. |
 
 ### Environment ownership and isolation (R5.1/R5.2, 2026-10-11)
 
@@ -69,7 +69,7 @@ Inventory source: [env schema](../src/server/env.ts), [Circle schema](../src/ser
 5. Review redacted audit/provider activity for unauthorized use, reconcile uncertain payment/billing attempts without inventing new idempotency keys, record metadata-only evidence, and resume only through the existing authorized controls. A key rotation never grants new financial authority.
 
 **Checks** (row S37):
-- Zod `env.ts` validates every server secret at startup.
+- Zod `env.ts` validates base server secrets at startup; adapters validate optional provider credentials on use.
 - `NEXT_PUBLIC_` is limited to the two Supabase public values.
 - Every `src/server` file imports `server-only`.
 - The redacting logger masks keys, tokens, passwords, receipt tokens and `Authorization`/`X-Circle-*` headers.
