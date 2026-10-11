@@ -65,8 +65,8 @@ describe("seed-judge", () => {
   it("denies every live payment path for the judge company", async () => {
     const s = seeded!;
     const who = { companyId: s.companyId, userId: s.userId, roles: ["OWNER", "PAYROLL_APPROVER"] as const, correlationId: randomUUID() };
-    expect((await admin.from("companies").update({ live_payments_enabled: true }).eq("id", s.companyId)).error?.code).toBe("23514"); // DB CHECK: no live for demo
-    expect((await admin.from("companies").update({ live_status: "REQUESTED" }).eq("id", s.companyId)).error?.code).toBe("23514");
+    expect((await admin.from("companies").update({ live_payments_enabled: true }).eq("id", s.companyId)).error?.code).toMatch(/^(23514|P0001)$/); // DB trigger / CHECK: no live for demo
+    expect((await admin.from("companies").update({ live_status: "REQUESTED" }).eq("id", s.companyId)).error?.code).toMatch(/^(23514|P0001)$/);
     await expect(requestLive(who)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(switchLive(who, true)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(assertLive(s.companyId)).rejects.toMatchObject({ code: "LIVE_PAYMENTS_DISABLED" }); // the payment gate's kill-switch check
