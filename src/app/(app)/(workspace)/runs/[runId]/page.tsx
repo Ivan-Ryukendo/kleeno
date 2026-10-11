@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { PageHeader } from "@/components/shell/page-header";
-import { ApproveRunForm, CalculateButton, ResumeObligationsButton, SubmitForApprovalButton } from "@/components/run-actions";
+import { ApproveRunForm, CalculateButton, ResumeObligationsButton, RetryReconciliationButton, SubmitForApprovalButton } from "@/components/run-actions";
 import { TableView } from "@/components/table-view";
 import { StatusPill } from "@/components/status-pill";
 import { isPayrollRole } from "@/core/workflow";
@@ -70,6 +70,12 @@ export default async function RunPage({ params, searchParams }: { params: Promis
           <p className="mt-3">
             Check the data and settle anything unclear on <Link href={`/exceptions?run=${run.id}`} className={link}>Exceptions</Link>.
           </p>
+        )}
+        {run.status === "RECONCILING" && canEdit && (
+          <>
+            <p className="mt-3">The data check stopped before it finished. Retrying picks up where it left off; nothing is paid.</p>
+            <RetryReconciliationButton runId={run.id} />
+          </>
         )}
         {run.status === "READY_FOR_CALCULATION" && (
           <>
