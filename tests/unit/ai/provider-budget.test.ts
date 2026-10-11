@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { runValidated } from "@/core/ai";
+import { AiBudgetExhausted, aiTelemetrySchema } from "@/core/ai/budget";
 import { policyInput } from "@/core/ai/inputs/policy";
 import { policySpec } from "@/core/ai/policy";
 import { splitPolicy } from "@/core/config";
 import { openRouterProvider } from "@/server/ai/openrouter";
 import { GOOD, POLICY_TEXT } from "../../fixtures/ai/policy";
-import { INJECTED } from "../../fixtures/ai/injection/outputs";
+import { AI_BUDGET_EVALUATION_VERSION, INJECTED } from "../../fixtures/ai/injection/r6-budget";
 
 const clauses = splitPolicy(POLICY_TEXT);
 const execute = (provider: ReturnType<typeof openRouterProvider>) => runValidated(provider, policySpec(clauses), policyInput(clauses, "synthetic-ref"));
@@ -13,9 +14,10 @@ const response = (model: string, output: unknown = GOOD) => new Response(JSON.st
 describe("R6.4 mocked AI budget and drift boundary", () => {
   it("does not send HTTP when the atomic company reservation rejects", async () => {
     const fetchFn = vi.fn(async () => response("m1"));
-    const reserve = vi.fn(async () => { throw new Error("budget exhausted"); });
+    const reserve = vi.fn(async () => { throw new AiBudgetExhausted(); });
     const result = await execute(openRouterProvider({ apiKey: "synthetic", models: ["m1", "m2"], fetchFn, reserve }));
     expect(result.status).toBe("NEEDS_HUMAN_REVIEW");
+    expect(result.problems).toEqual(["daily company AI budget exhausted; retry after the next UTC day"]);
     expect(reserve).toHaveBeenCalledOnce();
     expect(fetchFn).not.toHaveBeenCalled();
   });
@@ -50,9 +52,19 @@ describe("R6.4 mocked AI budget and drift boundary", () => {
     const reserve = vi.fn(async () => undefined);
     expect((await execute(openRouterProvider({ apiKey: "synthetic", models: ["m1"], fetchFn, reserve }))).status).toBe("NEEDS_HUMAN_REVIEW");
     const provider = openRouterProvider({ apiKey: "synthetic", models: ["m1"], fetchFn, reserve });
+    const before = [fetchFn.mock.calls.length, reserve.mock.calls.length];
     await expect(provider.complete({ system: "x".repeat(300000), input: policyInput(clauses, "ref"), repair: null, schemaName: "policy", jsonSchema: {} })).rejects.toThrow();
+    expect([fetchFn.mock.calls.length, reserve.mock.calls.length]).toEqual(before);
+  });
+  it("telemetry accepts counters and pins only; no arbitrary prompt, response or secret fields", () => {
+    const telemetry = openRouterProvider({ apiKey: "synthetic", models: ["m1"] }).telemetry!();
+    expect(aiTelemetrySchema.parse(telemetry)).toMatchObject({ attempts: 0, reservedTokens: 0, budgetEnforced: false });
+    for (const extra of [{ apiKey: "synthetic" }, { prompt: POLICY_TEXT }, { reasoning: "hidden text" }, { rawOutput: GOOD }]) {
+      expect(aiTelemetrySchema.safeParse({ ...telemetry, ...extra }).success).toBe(false);
+    }
   });
   it("versioned injection set never silently accepts hostile output across bounded repairs", async () => {
+    expect(AI_BUDGET_EVALUATION_VERSION).toBe("r6.4-v1");
     for (const output of Object.values(INJECTED)) {
       const fetchFn = vi.fn(async () => response("m1", output));
       const result = await execute(openRouterProvider({ apiKey: "synthetic", models: ["m1"], fetchFn, reserve: async () => undefined }));
