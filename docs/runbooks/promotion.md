@@ -16,6 +16,7 @@ From the clean candidate worktree, using only generated synthetic env values/moc
 ```powershell
 $env:TEMP = 'E:/Ivan/Public/Copitation/Hackathon/ARC Canteen 2026/Project/Kleeno/.tools/tmp'
 $env:TMP = $env:TEMP
+$env:npm_config_cache = 'E:/Ivan/Public/Copitation/Hackathon/ARC Canteen 2026/Project/Kleeno/.npm-cache'
 npm ci --cache 'E:/Ivan/Public/Copitation/Hackathon/ARC Canteen 2026/Project/Kleeno/.npm-cache'
 npm run lint
 npm run typecheck
@@ -57,7 +58,7 @@ CLI flags and migration-history behavior: [official Supabase CLI reference](http
 
 ## 4. Stage, smoke, then owner promotion
 
-1. After all dev migrations match the candidate, owner deploys the exact commit to the separate staging Vercel project with dev-only environment values. Do not flip the public waitlist to app mode. Check login/role denial, tenant isolation, MFA/re-auth denial, concurrent stale-edit handling, synthetic import/calculation/approval and SIMULATION settlement/read-only receipts. Verify the kill switch remains OFF and no real Circle/Stripe/Google call is made.
+1. After all dev migrations match the candidate, owner deploys the exact commit to the separate staging Vercel project with dev-only environment values. Do not flip the public waitlist to app mode. Check login/role denial, tenant isolation, MFA/re-auth denial and concurrent stale-edit handling. Exercise SIMULATION import/calculation; approval, obligation creation and payment attempts must be rejected. Check read-only receipt access separately against existing authorized evidence. Verify the kill switch remains OFF and no real Circle/Stripe/Google call is made.
 2. Record staging deployment/commit and redacted smoke outcomes. Any failure returns to test; a repair is a new commit tested through the same chain. No production promotion from a locally modified worktree.
 3. Owner checks plans/backup support and restore evidence, records a production recovery point before each production migration using section 3, and then deploys that same reviewed commit to the intended app project. No plan purchase, public visibility change, main merge or deployment is performed by an agent. Vercel Pro is required before commercial pilots; owner checks current plan terms.
 4. Production smoke uses authorized metadata/synthetic demo records only, with no funds/provider activation. Verify public waitlist and direct app link, auth/RLS boundaries, required migration history, OFF state and redacted logs. Record actual results; never describe a pending owner step as passed.
