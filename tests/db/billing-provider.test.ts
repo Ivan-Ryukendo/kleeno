@@ -55,8 +55,8 @@ it("Stripe TEST receipts dedupe and fence current-owner reconciliation without f
   // Delivery order and snapshot status never overwrite current observed facts.
   const newest = { ...hint, eventId: `evt_new_${suffix}`, type: "customer.subscription.deleted", objectId: subscription, objectType: "subscription" as const };
   const older = { ...newest, eventId: `evt_old_${suffix}`, type: "customer.subscription.updated" };
-  const newestRaw = Buffer.from(JSON.stringify({ created: 200, status: "canceled" }));
-  const olderRaw = Buffer.from(JSON.stringify({ created: 100, status: "active" }));
+  const newestRaw = Buffer.from(JSON.stringify({ created: 200, status: "canceled", private: "REORDERED_PRIVATE_CANARY" }));
+  const olderRaw = Buffer.from(JSON.stringify({ created: 100, status: "active", private: "REORDERED_PRIVATE_CANARY" }));
   expect(await recordStripeReceipt(newest, newestRaw)).toMatchObject({ duplicate: false, matched: true });
   expect(await recordStripeReceipt(older, olderRaw)).toMatchObject({ duplicate: false, matched: true });
   expect(await recordStripeReceipt(newest, newestRaw)).toMatchObject({ duplicate: true });
@@ -67,6 +67,12 @@ it("Stripe TEST receipts dedupe and fence current-owner reconciliation without f
   expect((await finish(refreshToken, 3, { ...observation, status: "past_due" })).data).toMatchObject({ code: "OK", revision: 2 });
   expect((await admin.from("billing_provider_state").select("revision,receipt_seq,status,reconciliation_pending").eq("company_id", company.id).single()).data)
     .toEqual({ revision: 2, receipt_seq: 3, status: "past_due", reconciliation_pending: false });
+  const reorderedReceipts = await admin.schema("growth").from("billing_webhook_receipts").select("*").in("event_id", [newest.eventId, older.eventId]);
+  expect(reorderedReceipts.error).toBeNull(); expect(reorderedReceipts.data).toHaveLength(2);
+  expect(JSON.stringify(reorderedReceipts.data)).not.toContain("REORDERED_PRIVATE_CANARY");
+  expect(reorderedReceipts.data!.every(row => !!row.refs_enc)).toBe(true);
+  expect((await admin.from("obligations").select("id").eq("company_id", company.id)).data).toEqual([]);
+  expect((await admin.from("companies").select("live_payments_enabled").eq("id", company.id).single()).data?.live_payments_enabled).toBe(false);
   const token3 = randomUUID();
   expect((await admin.rpc("claim_stripe_test_reconciliation", { p_company: company.id, p_actor: actor, p_token: token3 })).data).toMatchObject({ code: "OK" });
   // Preserve the required active Owner while revoking the actor being reconciled.
