@@ -6,10 +6,20 @@ import { parseUsdc } from "../src/core/money";
 import { WorkerMetadataSchema } from "../src/core/workers";
 import { demo, PERIOD } from "../tests/fixtures/reconciliation/demo";
 
-function assertDemoLocation(url: string, production: string | undefined) {
-  const host = url ? new URL(url).hostname : "";
-  const pinnedTest = host === "axcgcjpmcdujxkvroqox.supabase.co" && process.env.SUPABASE_TEST_PROJECT_REF === "axcgcjpmcdujxkvroqox"; // the one hosted disposable project, never dev or prod
-  if (!url || !(["localhost", "127.0.0.1", "::1", "[::1]"].includes(host) || pinnedTest) || (production && new URL(url).origin === new URL(production).origin)) {
+const TEST_REF = "axcgcjpmcdujxkvroqox"; // the one hosted disposable project, never dev or prod
+
+/** Loopback, the pinned kleeno-test project, or the owner's demo project named by SEED_JUDGE_TARGET_REF; never the production origin. */
+export function assertDemoLocation(url: string, production: string | undefined, env: Record<string, string | undefined> = process.env) {
+  const u = URL.canParse(url) ? new URL(url) : null;
+  const host = u?.hostname ?? "";
+  const ref = env.SEED_JUDGE_TARGET_REF;
+  const pinnedTest = host === `${TEST_REF}.supabase.co` && env.SUPABASE_TEST_PROJECT_REF === TEST_REF;
+  const optIn = !!ref && /^[a-z0-9]{20}$/.test(ref) && u?.protocol === "https:" && host === `${ref}.supabase.co`; // R4.4 owner demo deploy: explicit opt-in, exact project ref, https only
+  const prod = !!production && (!URL.canParse(production) || new URL(production).origin === u?.origin);
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
+  const p = production && URL.canParse(production) ? new URL(production) : null; // opt-in only: production must be named, valid and a different project
+  const optInSafe = !!p && p.origin !== u?.origin && !(p.hostname.endsWith(".supabase.co") && p.hostname.split(".")[0] === ref);
+  if (!u || prod || !(local || pinnedTest || (optIn && optInSafe))) {
     throw new Error("seed requires a designated local demo company with live payments off");
   }
 }
