@@ -72,11 +72,17 @@ export async function addCompensationVersion(who: Who, workerId: string, c: Comp
   if (scheduled.error) throw new Error("effective compensation history unavailable");
   if (scheduled.data?.length) throw new WorkflowError("CONFLICT", "This worker uses effective compensation history; schedule a dated change instead");
   const last = (await db().from("compensations").select("version").eq("worker_id", workerId).eq("company_id", who.companyId).order("version", { ascending: false }).limit(1).maybeSingle()).data;
-  await insertCompensation(who, workerId, (last?.version ?? 0) + 1, c, reason); // unique (worker, version): a concurrent edit fails instead of overwriting
-  if (payType && payType !== w.pay_type) {
-    must(await db().from("workers").update({ pay_type: payType }).eq("id", workerId).eq("company_id", who.companyId).select("id"), "worker pay type");
-    await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.pay_type", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { from: w.pay_type, to: payType } }));
-  }
+  const id = randomUUID();
+  const payload_enc = await sealJson(who.companyId, "compensations", "payload_enc", id, { baseAmount: c.baseAmount, hourlyRate: c.hourlyRate });
+  // One commit binds the immutable version, current pay type and audit; delayed responses cannot overwrite later pay types.
+  const result = must(await db().rpc("append_immediate_compensation", {
+    p_company: who.companyId, p_worker: workerId, p_actor: who.userId, p_correlation: who.correlationId,
+    p_event: { id, expected_version: last?.version ?? 0, payload_enc, reason, pay_type: payType ?? null },
+  }), "compensation append");
+  if (result === "NOT_FOUND") return false;
+  if (result === "FORBIDDEN") throw new WorkflowError("FORBIDDEN", "only current payroll members change compensation");
+  if (result === "INVALID_TRANSITION") throw new TransitionError("INVALID_TRANSITION", "this worker has left; reactivate before changing pay");
+  if (result !== "OK") throw new WorkflowError("CONFLICT", "worker compensation changed; reload before changing pay");
   return true;
 }
 

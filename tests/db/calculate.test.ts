@@ -8,8 +8,10 @@ import { applyTransition } from "@/core/domain/transition";
 import { calculatePayroll, type EngineEntry } from "@/core/engine";
 import { formatUsdc, parseUsdc } from "@/core/money";
 import { WorkflowError } from "@/core/workflow";
+import { verifyCapturedCalculation } from "@/core/workflow/evidence-pack";
 import { openJson } from "@/server/crypto";
 import { calculateRun } from "@/server/db/calculate";
+import { loadLines } from "@/server/db/calculations";
 import { configAction, createConfigDraft } from "@/server/db/configs";
 import { importRows } from "@/server/db/imports";
 import { reconcileRun, resolveException } from "@/server/db/reconciliation";
@@ -89,6 +91,15 @@ describe("calculate", () => {
     const entries = snap.entries.map((e) => ({ ...e, worker: { ...e.worker, baseAmount: BigInt(e.worker.baseAmount), hourlyRate: BigInt(e.worker.hourlyRate) } })) as unknown as EngineEntry[];
     expect(calculatePayroll(snap.config, entries).calculationHash).toBe(calc.calculation_hash);
     await expect(calculateRun(who(a), runId)).rejects.toBeInstanceOf(TransitionError);
+  });
+
+  it("pins engine/hash versions in the immutable encrypted snapshot and replays that captured pair", async () => {
+    const calc = (await admin.from("calculations").select("id,config_version,calculation_hash,snapshot_enc").eq("run_id", runId).single()).data!;
+    const snapshot = await openJson<{ calculationVersions: { engineVersion: number; hashVersion: number } }>(a.id, "calculations", "snapshot_enc", calc.id, calc.snapshot_enc);
+    expect(snapshot.calculationVersions).toEqual({ engineVersion: 1, hashVersion: 1 });
+    const replay = verifyCapturedCalculation({ snapshot, run: { id: runId, periodStart: "2026-10-05", periodEnd: "2026-10-11" }, calculation: { id: calc.id, configVersion: calc.config_version, calculationHash: calc.calculation_hash }, lines: await loadLines(admin, a.id, calc.id) });
+    expect(replay.calculated.calculationHash).toBe(calc.calculation_hash);
+    expect((await admin.from("calculations").update({ snapshot_enc: "replaced" }).eq("id", calc.id)).error).not.toBeNull();
   });
 
   it("S46/S48: the snapshot names the evidence it used, by ID and source hash, and that evidence cannot change", async () => {

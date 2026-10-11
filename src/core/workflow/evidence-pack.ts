@@ -4,6 +4,7 @@ import { z } from "zod";
 import { canonicalString } from "../canonical";
 import { ConfigParamsSchema } from "../config";
 import { calculatePayroll, PayAdjustmentsSchema, type EngineEntry, type PayrollLine } from "../engine";
+import { CalculationVersionsSchema, capturedCalculationVersions } from "../engine/versions";
 import { CompensationSegmentsSchema, DatedHoursSchema } from "../engine/effective-compensation";
 import { CalendarDateSchema, WorkerMetadataSchema } from "../workers";
 import { WorkflowError } from ".";
@@ -31,6 +32,7 @@ const SnapshotSchema = z.object({
   evidence: z.object({ timesheets: source, leave: source, actualPayments: source }).strict().optional(),
   decisions: z.record(z.string().min(1).max(200), z.string().regex(/^[A-Z][A-Z0-9_]{0,79}$/)).optional(),
   adjustmentRevision: z.number().int().nonnegative().optional(),
+  calculationVersions: CalculationVersionsSchema.optional(),
 }).strict();
 type Binding = { id: string; calculationId: string; calculationHash: string; at: string };
 export interface EvidencePackInput {
@@ -60,7 +62,7 @@ export function verifyCapturedCalculation(input: Pick<EvidencePackInput, "snapsh
   if (!z.string().uuid().safeParse(run.id).success || !CalendarDateSchema.safeParse(run.periodStart).success || !CalendarDateSchema.safeParse(run.periodEnd).success || run.periodEnd < run.periodStart
     || snapshot.config.version !== calculation.configVersion || expected.size !== entries.length || input.lines.length !== expected.size || new Set(input.lines.map(line => line.workerId)).size !== input.lines.length
     || input.lines.some(line => !expected.has(line.workerId)) || entries.some(value => value.period && (value.period.start !== run.periodStart || value.period.end !== run.periodEnd))) return blocked();
-  const calculated = calculatePayroll(snapshot.config, entries);
+  const calculated = calculatePayroll(snapshot.config, entries, capturedCalculationVersions(snapshot.calculationVersions));
   const lines = [...input.lines].sort((a, b) => a.workerId < b.workerId ? -1 : 1).map(line => ({ workerId: line.workerId, gross: line.gross, deductions: line.deductions, net: line.net, trace: line.trace }));
   if (calculated.calculationHash !== calculation.calculationHash || canonicalString(calculated.lines) !== canonicalString(lines)) return blocked();
   return { snapshotBytes, calculated, lines };

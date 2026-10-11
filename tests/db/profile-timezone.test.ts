@@ -33,13 +33,13 @@ describe("private per-user timezone preference", () => {
   });
   it("denies unsigned, revoked, cross-user body injection and invalid zones", async () => {
     const company = await makeCompany();
-    const { cookie } = await cookieFor(company.payroll);
+    const { cookie } = await cookieFor(company.payment);
     expect((await call(GET, { method: "GET", path })).status).toBe(401);
-    for (const body of [{ timezone: "UTC+6" }, { timezone: "UTC", userId: company.payment.id }, { timezone: "UTC", companyId: company.id }]) {
+    for (const body of [{ timezone: "UTC+6" }, { timezone: "UTC", userId: company.payroll.id }, { timezone: "UTC", companyId: company.id }]) {
       expect((await call(PATCH, { method: "PATCH", cookie, path, body })).status).toBe(400);
     }
-    expect((await preferences().select("timezone").eq("user_id", company.payroll.id).maybeSingle()).data).toBeNull();
-    expect((await admin.from("memberships").update({ removed_at: new Date().toISOString() }).eq("company_id", company.id).eq("user_id", company.payroll.id)).error).toBeNull();
+    expect((await preferences().select("timezone").eq("user_id", company.payment.id).maybeSingle()).data).toBeNull();
+    expect((await admin.from("memberships").update({ removed_at: new Date().toISOString() }).eq("company_id", company.id).eq("user_id", company.payment.id)).error).toBeNull();
     expect((await call(PATCH, { method: "PATCH", cookie, path, body: { timezone: "UTC" } })).status).toBe(403);
   });
   it("enforces private-schema grants/RLS and validates direct service writes", async () => {
