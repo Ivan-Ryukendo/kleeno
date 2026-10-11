@@ -14,6 +14,7 @@ describe("IANA timezone preferences", () => {
     expect(TimeZonePreferenceSchema.parse({ timezone: null })).toEqual({ timezone: null });
     expect(TimeZonePreferenceSchema.safeParse({ timezone: "UTC", userId: "another-user" }).success).toBe(false);
     expect(TimeZoneSchema.parse("Asia/Dhaka")).toBe("Asia/Dhaka");
+    expect(TimeZoneSchema.parse("asia/dhaka")).toBe("Asia/Dhaka");
   });
 });
 

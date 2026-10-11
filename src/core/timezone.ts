@@ -31,7 +31,7 @@ export function timeZoneLabel(timeZone: string, instant: Instant = new Date()): 
   const offset = new Intl.DateTimeFormat("en", { timeZone: zone, timeZoneName: "longOffset" }).formatToParts(instantDate(instant)).find(part => part.type === "timeZoneName")!.value;
   const match = offset.match(/^GMT([+-])(\d{2}):(\d{2})$/);
   const utc = match ? `UTC${match[1]}${Number(match[2])}${match[3] === "00" ? "" : `:${match[3]}`}` : "UTC";
-  const city = zone === "UTC" ? "UTC" : zone.split("/").at(-1)!.replaceAll("_", " ");
+  const city = zone === "UTC" ? "UTC" : timeZone.split("/").at(-1)!.replaceAll("_", " ");
   return zone === "UTC" ? "UTC" : `${utc} ${city}`;
 }
 
