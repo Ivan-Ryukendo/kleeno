@@ -15,7 +15,7 @@ const ENDPOINT = "/api/profile/timezone";
 function outcome(r: Awaited<ReturnType<typeof requestJson<ProfileTimezone>>>, fallback: string): Outcome {
   if (r.ok && r.data && typeof r.data.timeZone === "string") return { ok: true, view: r.data };
   const denied = r.status === 401 || r.status === 403;
-  return { ok: false, denied, message: denied ? "Sign in with your two-step code to set your time zone." : (r.error ?? fallback) };
+  return { ok: false, denied, message: r.status === 401 ? "Sign in again to set your time zone." : denied ? "Sign in with your two-step code to set your time zone." : (r.error ?? fallback) };
 }
 
 /** Reads the caller's own preference; identity comes from the session, never from the request. */

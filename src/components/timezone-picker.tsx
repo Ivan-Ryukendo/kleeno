@@ -107,6 +107,7 @@ export function TimezonePicker({ id, label, options, value, onChange, clearLabel
         aria-label={`${label} options`}
         hidden={!open}
         tabIndex={-1}
+        onMouseDown={(e) => e.preventDefault()}
         onBlur={(e) => { if (e.relatedTarget !== inputRef.current) close(); }}
         className="absolute inset-x-0 top-full z-50 mt-1 max-h-[min(18rem,50dvh)] overflow-y-auto overscroll-contain rounded-box border border-border bg-popover p-1 text-sm text-popover-foreground shadow-pop"
       >
