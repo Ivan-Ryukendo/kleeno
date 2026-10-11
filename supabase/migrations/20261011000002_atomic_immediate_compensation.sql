@@ -16,7 +16,7 @@ begin
   select coalesce(max(version),0) into version_ from public.compensations where company_id=p_company and worker_id=p_worker;
   if version_ is distinct from (p_event->>'expected_version')::integer
     or (type_ is not null and type_ not in ('SALARIED','HOURLY','RETAINER'))
-    or p_event->>'reason' is null or p_event->>'reason' not in ('PROMOTION','RAISE','ROLE_CHANGE','CORRECTION')
+    or p_event->>'reason' is null or p_event->>'reason' not in ('INITIAL','PROMOTION','RAISE','ROLE_CHANGE','CORRECTION')
     or coalesce(length(p_event->>'payload_enc'),0)=0 then return 'CONFLICT'; end if;
   insert into public.compensations(id,company_id,worker_id,version,payload_enc,created_by,reason)
     values((p_event->>'id')::uuid,p_company,p_worker,version_+1,p_event->>'payload_enc',p_actor,p_event->>'reason');

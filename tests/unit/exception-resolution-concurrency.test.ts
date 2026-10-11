@@ -49,12 +49,13 @@ it("the winning resolution audit and encrypted decision belong to the same comma
   const firstSaved = new Promise<void>(r => { state.firstSaved = r; });
   const secondSaved = new Promise<void>(r => { state.secondSaved = r; });
   const who = { companyId: "company", userId: "user", roles: ["PAYROLL_APPROVER"] as const, correlationId: "request" };
-  const a = resolveException(who, "exception", { action: "KEEP_FIRST", note: "first decision" }).then(() => "OK", () => "CONFLICT");
+  const outcome = (command: ReturnType<typeof resolveException>) => command.then(() => "OK", error => error.code ?? "UNEXPECTED_ERROR");
+  const a = outcome(resolveException(who, "exception", { action: "KEEP_FIRST", note: "first decision" }));
   await firstSaved;
-  const b = resolveException(who, "exception", { action: "KEEP_LATEST", note: "later decision" }).then(() => "OK", () => "CONFLICT");
+  const b = outcome(resolveException(who, "exception", { action: "KEEP_LATEST", note: "later decision" }));
   await secondSaved; continueA();
   const resultA = await a; continueB();
-  expect([resultA, await b].sort()).toEqual(["CONFLICT", "OK"]);
+  expect([resultA, await b].sort()).toEqual(["OK", "STALE_STATE"]);
   expect(state.status).toBe("RESOLVED");
   expect(state.audit).toHaveLength(1);
   expect(state.action).toBe(state.audit[0].action);
