@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { RunWorkflowView } from "@/components/run-workflow-view";
+import { RunViewNavigation } from "@/components/run-view-navigation";
 import { isPaymentRole, isPayrollRole } from "@/core/tenancy";
+import { payrollSide } from "@/components/shell/nav-config";
 import { pageSession } from "@/server/auth/page-session";
 import { runView, periodView, periodSteps } from "@/server/db/views";
 import { reviewReadiness } from "@/server/db/review-readiness";
@@ -35,5 +37,5 @@ export default async function RunWorkflowPage({ params }: { params: Promise<{ ru
     } catch { /* Unavailable private evidence never becomes a ready/completed handoff. */ }
   }
   const { run } = view;
-  return <><PageHeader title="Run workflow" description="Follow the recorded stages and inspect their evidence." /><RunWorkflowView data={{ company: { id: actor.companyId, name: companyRead.data.name }, run: { id: run.id, mode: run.mode, status: run.status, periodStart: run.period_start, periodEnd: run.period_end, configVersion: run.config_version }, steps: periodSteps(run.status, run.mode, facts.openExceptions, companyRead.data.live_payments_enabled), facts, financial: view.financial, canPayroll: isPayrollRole(actor.roles), canPay: isPaymentRole(actor.roles), calculationHash: view.financial ? view.calculationHash : null, review }} /></>;
+  return <><PageHeader title="Run workflow" description="Follow the recorded stages and inspect their evidence." actions={<RunViewNavigation runId={run.id} current="workflow" mode={run.mode} canPay={isPaymentRole(actor.roles)} canReview={payrollSide(actor.roles)} />} /><RunWorkflowView data={{ company: { id: actor.companyId, name: companyRead.data.name }, run: { id: run.id, mode: run.mode, status: run.status, periodStart: run.period_start, periodEnd: run.period_end, configVersion: run.config_version }, steps: periodSteps(run.status, run.mode, facts.openExceptions, companyRead.data.live_payments_enabled), facts, financial: view.financial, canPayroll: isPayrollRole(actor.roles), canPay: isPaymentRole(actor.roles), calculationHash: view.financial ? view.calculationHash : null, review }} /></>;
 }

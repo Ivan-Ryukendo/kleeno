@@ -7,6 +7,7 @@ import { StatusPill } from "@/components/status-pill";
 import { ROLE_LABELS } from "@/core/tenancy";
 import { linkedMethods } from "@/server/auth/oauth";
 import { pageSession } from "@/server/auth/page-session";
+import { SettingsNavigation } from "@/components/settings-navigation";
 
 export const metadata = { title: "Account · Kleeno" };
 
@@ -23,6 +24,7 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader title="Account" description="Your sign-in, roles and security." />
+      <SettingsNavigation roles={actor.roles} current="/account" nav={!needsMfa}>
 
       <section className="mt-6 panel">
         <dl className="grid gap-3 sm:grid-cols-[10rem_1fr]">
@@ -92,6 +94,7 @@ export default async function AccountPage() {
         <h2 className="text-lg">Change password</h2>
         <PasswordForm />
       </section>
+      </SettingsNavigation>
     </>
   );
 }

@@ -22,7 +22,7 @@ import { LocalTime } from "@/components/local-time";
 import { zoneDisplaySafe } from "@/lib/timezone-display";
 import { viewerTimeZone } from "@/server/display-timezone";
 
-export const metadata = { title: "Home · Kleeno" };
+export const metadata = { title: "Dashboard · Kleeno" };
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ run?: string }> }) {
   await connection();
@@ -70,7 +70,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title="Home" description={company.name} />
+      <PageHeader title="Dashboard" description={company.name} />
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-foreground">Live payments</span>
