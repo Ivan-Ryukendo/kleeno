@@ -11,7 +11,7 @@ vi.mock("@/server/db/runs", () => ({ runStore: {} }));
 vi.mock("@/server/crypto", () => ({ openJson: mocks.open, openField: vi.fn(), sealJson: vi.fn() }));
 vi.mock("@/server/db/audit", () => ({ writeAudit: vi.fn() }));
 vi.mock("@/server/db/client", () => ({ db: () => ({ from: (table: string) => {
-  const q = { select: () => q, eq: () => q, order: () => q, range: () => q, maybeSingle: async () => ({ data: { id: "calculation", config_version: 1, calculation_hash: "a".repeat(64), snapshot_enc: "CAPTURED" }, error: null }), then: (resolve: (value: unknown) => unknown) => resolve({ data: table === "actual_payments" ? [] : null, error: null, count: mocks.paidCount }) }; return q;
+  const q = { select: () => q, eq: () => q, order: () => q, range: () => q, gt: () => q, limit: () => q, maybeSingle: async () => ({ data: { id: "calculation", config_version: 1, calculation_hash: "a".repeat(64), snapshot_enc: "CAPTURED" }, error: null }), then: (resolve: (value: unknown) => unknown) => resolve({ data: table === "actual_payments" ? [] : null, error: null, count: mocks.paidCount }) }; return q;
 } }), must: (result: { data: unknown }) => result.data }));
 import { calculateRun } from "@/server/db/calculate";
 it("recovers a captured calculation using its immutable snapshot rather than current rates or a new timeline", async () => {

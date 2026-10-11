@@ -14,6 +14,7 @@ import { db, must } from "./client";
 import { loadConfig } from "./configs";
 import { runStore } from "./runs";
 import { dbStore } from "./store";
+import { keyset, loadAllRows } from "./paged";
 import { listWorkers } from "./workers";
 
 const exceptionStore = dbStore<"OPEN" | "IN_REVIEW" | "RESOLVED" | "REJECTED" | "ESCALATED">("exceptions");
@@ -40,13 +41,11 @@ export async function loadRun(companyId: string, runId: string) {
 export async function loadInput(companyId: string, run: Awaited<ReturnType<typeof loadRun>>): Promise<ReconInput> {
   const cfg = await loadConfig(companyId, run.config_version);
   if (!cfg) throw new WorkflowError("NO_ACTIVE_CONFIG", "the run's configuration is missing");
-  const q = (table: string, cols: string) => db().from(table).select(cols, { count: "exact" }).eq("company_id", companyId).eq("run_id", run.id).order("created_at").order("source_line").order("occurrence");
-  const sheetsResult = await q("timesheets", "id, worker_id, work_date, hours, approved_extra_hours");
-  const sheets = must(sheetsResult, "timesheets read") as unknown as { id: string; worker_id: string; work_date: string; hours: number; approved_extra_hours: number }[];
-  if (sheetsResult.count !== sheets.length) throw new Error("timesheets evidence is incomplete");
-  const leaveResult = await q("leave_records", "id, worker_id, leave_date, leave_type, hours");
-  const leave = must(leaveResult, "leave read") as unknown as { id: string; worker_id: string; leave_date: string; leave_type: "PAID" | "UNPAID"; hours: number }[];
-  if (leaveResult.count !== leave.length) throw new Error("leave evidence is incomplete");
+  // Paged by id (consistent); the business order (import time, CSV line, occurrence) is applied in memory afterwards.
+  type Order = { created_at: string; source_line: number; occurrence: number };
+  const sort = <T extends { id: string } & Order>(rows: T[]) => rows.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.source_line - b.source_line || a.occurrence - b.occurrence || (a.id < b.id ? -1 : 1)));
+  const sheets = sort(await loadAllRows<{ id: string; worker_id: string; work_date: string; hours: number; approved_extra_hours: number } & Order>((after, size) => keyset(db().from("timesheets").select("id, worker_id, work_date, hours, approved_extra_hours, created_at, source_line, occurrence", { count: "exact" }).eq("company_id", companyId).eq("run_id", run.id), after, size), "timesheets"));
+  const leave = sort(await loadAllRows<{ id: string; worker_id: string; leave_date: string; leave_type: "PAID" | "UNPAID"; hours: number } & Order>((after, size) => keyset(db().from("leave_records").select("id, worker_id, leave_date, leave_type, hours, created_at, source_line, occurrence", { count: "exact" }).eq("company_id", companyId).eq("run_id", run.id), after, size), "leave"));
   const withEvidence = new Set([...sheets.map((s) => s.worker_id), ...leave.map((l) => l.worker_id)]);
   const workers = (await listWorkers(db(), companyId)).filter(w => w.active || withEvidence.has(w.id) || (w.metadata.employmentEnd && w.metadata.employmentEnd >= run.period_start && (!w.metadata.employmentStart || w.metadata.employmentStart <= run.period_end)));
   return {
@@ -60,9 +59,7 @@ export async function loadInput(companyId: string, run: Awaited<ReturnType<typeo
 
 /** The decisions taken so far, by exception identity. */
 export async function loadResolutions(companyId: string, runId: string) {
-  const result = await db().from("exceptions").select("dedupe_key, resolution_action", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId).eq("status", "RESOLVED").in("category", RECON_CATEGORIES);
-  const rows = must(result, "resolutions read");
-  if (result.count !== rows.length) throw new Error("resolution evidence is incomplete");
+  const rows = await loadAllRows<{ id: string; dedupe_key: string; resolution_action: string | null }>((after, size) => keyset(db().from("exceptions").select("id, dedupe_key, resolution_action", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId).eq("status", "RESOLVED").in("category", RECON_CATEGORIES), after, size), "resolutions");
   return new Map(rows.filter((e) => e.resolution_action).map((e) => [e.dedupe_key as string, e.resolution_action as ResolutionAction]));
 }
 
@@ -73,9 +70,7 @@ export async function loadResolutions(companyId: string, runId: string) {
 async function advance(who: Who, runId: string, correlationId: string, ai?: AiProvider) {
   const run = await loadRun(who.companyId, runId);
   const input = await loadInput(who.companyId, run);
-  const result = await db().from("exceptions").select("id, dedupe_key, status, resolution_action", { count: "exact" }).eq("company_id", who.companyId).eq("run_id", runId).in("category", RECON_CATEGORIES);
-  const existing = must(result, "exceptions read");
-  if (result.count !== existing.length) throw new Error("open-exception evidence is incomplete");
+  const existing = await loadAllRows<{ id: string; dedupe_key: string; status: string; resolution_action: string | null }>((after, size) => keyset(db().from("exceptions").select("id, dedupe_key, status, resolution_action", { count: "exact" }).eq("company_id", who.companyId).eq("run_id", runId).in("category", RECON_CATEGORIES), after, size), "open-exception");
   const resolved = new Map(existing.filter((e) => e.status === "RESOLVED" && e.resolution_action).map((e) => [e.dedupe_key as string, e.resolution_action as ResolutionAction]));
   const analysis = analyse(input, resolved);
   const known = new Set(existing.map((e) => e.dedupe_key));
@@ -175,10 +170,17 @@ export interface ExceptionView {
   createdAt: string;
 }
 
+interface ExceptionRow {
+  id: string; run_id: string; worker_id: string; category: ReconCategory; severity: string; status: string;
+  evidence: { facts?: Record<string, string>; recordIds?: string[] } | null; options: ResolutionAction[];
+  ai_suggestion: { action: ResolutionAction; confidence: string } | null; resolution_action: ResolutionAction | null; resolution: string | null; created_at: string;
+}
+
 /** Page read on the user-scoped client (RLS); the resolution note is decrypted here. */
 export async function listExceptions(client: SupabaseClient, companyId: string, runId: string): Promise<ExceptionView[]> {
-  const rows = must(await client.from("exceptions").select("id, run_id, worker_id, category, severity, status, evidence, options, ai_suggestion, resolution_action, resolution, created_at").eq("company_id", companyId).eq("run_id", runId).in("category", RECON_CATEGORIES).order("created_at"), "exceptions read");
-  const workers = new Map(must(await client.from("workers").select("id, pseudonym").eq("company_id", companyId), "workers read").map((w) => [w.id, w.pseudonym as string]));
+  const rows = await loadAllRows<ExceptionRow>((after, size) => keyset(client.from("exceptions").select("id, run_id, worker_id, category, severity, status, evidence, options, ai_suggestion, resolution_action, resolution, created_at", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId).in("category", RECON_CATEGORIES), after, size), "exceptions");
+  rows.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id < b.id ? -1 : 1));
+  const workers = new Map((await loadAllRows<{ id: string; pseudonym: string }>((after, size) => keyset(client.from("workers").select("id, pseudonym", { count: "exact" }).eq("company_id", companyId), after, size), "workers")).map((w) => [w.id, w.pseudonym]));
   return Promise.all(
     rows.map(async (r) => ({
       id: r.id, runId: r.run_id, worker: workers.get(r.worker_id) ?? "?", category: r.category, severity: r.severity, status: r.status,
@@ -190,7 +192,7 @@ export async function listExceptions(client: SupabaseClient, companyId: string, 
 
 /** Records named by an exception: EXCEPTION while any of its exceptions is open, MATCHED_AFTER_REVIEW once all are resolved. Everything else is AUTO_MATCHED. */
 export async function flaggedRecords(client: SupabaseClient, companyId: string, runId: string) {
-  const ex = must(await client.from("exceptions").select("status, evidence").eq("company_id", companyId).eq("run_id", runId).in("category", RECON_CATEGORIES), "exceptions read");
+  const ex = await loadAllRows<{ id: string; status: string; evidence: { recordIds?: string[] } | null }>((after, size) => keyset(client.from("exceptions").select("id, status, evidence", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId).in("category", RECON_CATEGORIES), after, size), "exceptions");
   const flagged = new Map<string, "EXCEPTION" | "MATCHED_AFTER_REVIEW">();
   for (const e of ex) for (const id of (e.evidence?.recordIds ?? []) as string[]) if (flagged.get(id) !== "EXCEPTION") flagged.set(id, OPEN_STATES.includes(e.status) ? "EXCEPTION" : "MATCHED_AFTER_REVIEW");
   return flagged;
@@ -198,7 +200,7 @@ export async function flaggedRecords(client: SupabaseClient, companyId: string, 
 
 /** "212 of 230 matched automatically, 18 need review": counted from the stored evidence, never estimated (ARCHITECTURE 9). */
 export async function matchSummary(client: SupabaseClient, companyId: string, runId: string) {
-  const count = async (table: string) => must(await client.from(table).select("id").eq("company_id", companyId).eq("run_id", runId), `${table} count`).map((r) => r.id as string);
+  const count = async (table: string) => (await loadAllRows<{ id: string }>((after, size) => keyset(client.from(table).select("id", { count: "exact" }).eq("company_id", companyId).eq("run_id", runId), after, size), table)).map((r) => r.id);
   const records = [...(await count("timesheets")), ...(await count("leave_records"))];
   const flagged = await flaggedRecords(client, companyId, runId);
   const values = [...flagged.values()];
