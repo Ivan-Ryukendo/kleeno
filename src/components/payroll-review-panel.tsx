@@ -11,6 +11,8 @@ import { postJson } from "@/lib/api";
 import { HistoricalThresholdPanel } from "@/components/historical-threshold-panel";
 import { EvidencePackDownload } from "@/components/evidence-pack-download";
 import { ReviewCorrectionPanel } from "@/components/review-correction-panel";
+import { LocalTime } from "@/components/local-time";
+import { zoneDisplaySafe } from "@/lib/timezone-display";
 
 type Workspace = Awaited<ReturnType<typeof reviewerWorkspace>>;
 type Download = { filename: string; csv: string; byteHash: string };
@@ -30,7 +32,7 @@ function ComponentSources({ component }: { component: ComparedComponent }) {
 }
 
 /** Readiness, comparison and commercial review remain separate from payroll/payment authority. */
-export function PayrollReviewPanel({ runId, data }: { runId: string; data: Workspace }) {
+export function PayrollReviewPanel({ runId, data, timeZone = "UTC" }: { runId: string; data: Workspace; /** viewer display zone, resolved on the server */ timeZone?: string }) {
   const router = useRouter();
   const [review, setReview] = useState(data.review);
   const [busy, setBusy] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function PayrollReviewPanel({ runId, data }: { runId: string; data: Works
         <p className={data.readiness.ready ? "text-sm font-medium" : "text-sm font-medium text-signal"}>{data.readiness.ready ? "Ready for review" : "Review blocked"}</p>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{data.settings ? `${data.readiness.received} of ${data.readiness.expected} required inputs received.` : "Data required: configure expected inputs and a company cutoff."}</p>
-      {data.readiness.cutoff && <p className="mt-2 break-words text-sm">Cutoff: <time dateTime={data.readiness.cutoff.at}>{data.readiness.cutoff.at}</time> · {data.readiness.cutoff.timeZone}</p>}
+      {data.readiness.cutoff && <p className="mt-2 break-words text-sm">Cutoff: <LocalTime at={data.readiness.cutoff.at} timeZone={timeZone} /> · set for {zoneDisplaySafe(data.readiness.cutoff.timeZone, data.readiness.cutoff.at)}</p>}
       {data.readiness.blockers.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-signal">{data.readiness.blockers.map((blocker, i) => <li key={`${i}-${blocker}`}>{blocker}</li>)}</ul>}
       {data.readiness.items.length > 0 && <dl className="mt-4 divide-y divide-border text-sm">{data.readiness.items.map(item => <div key={item.id} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><dt className="font-medium">{item.label}</dt><dd className="min-w-0 text-right"><p>{item.status === "MISSING" ? "Data required" : item.status.toLowerCase().replaceAll("_", " ")}</p>{item.reason && <p className="mt-1 break-words text-muted-foreground">{item.reason}</p>}{item.ref && <p className="mt-1 break-all font-mono text-xs text-muted-foreground">Evidence: {item.ref}</p>}</dd></div>)}</dl>}
       {data.canConfigure && !review.signoff && <details className="mt-4 border-t border-border pt-3" open={!data.settings}>

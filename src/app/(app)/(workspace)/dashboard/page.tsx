@@ -18,6 +18,9 @@ import { dashboardView, periodSteps, periodView } from "@/server/db/views";
 import { uuid } from "@/server/schemas";
 import { initialTable } from "@/server/db/table-views";
 import { reviewerSummary } from "@/server/db/reviewer-summary";
+import { LocalTime } from "@/components/local-time";
+import { zoneDisplaySafe } from "@/lib/timezone-display";
+import { viewerTimeZone } from "@/server/display-timezone";
 
 export const metadata = { title: "Dashboard · Kleeno" };
 
@@ -46,6 +49,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     try { reviewSummary = await reviewerSummary(client, actor, selected.id); }
     catch { reviewUnavailable = true; }
   }
+  const timeZone = reviewSummary?.readiness.cutoff ? await viewerTimeZone(actor, profile.profile.timezone) : "UTC"; // display only
   const todos: { reason: string; href: string }[] = [];
   if (selected && period) {
     if (reviewSummary?.canReview) {
@@ -81,7 +85,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="dashboard-review-heading" className="text-lg">Review readiness</h2><p className={reviewSummary.readiness.ready ? "text-sm font-medium" : "text-sm font-medium text-signal"}>{reviewSummary.readiness.ready ? "Ready for review" : "Review blocked"}</p></div>
         <p className="mt-2 text-sm text-muted-foreground">{selected.period_start} to {selected.period_end} · {selected.mode === "SIMULATION" ? "Simulation" : "Live testnet"}</p>
         <p className="mt-2 text-sm">{reviewSummary.settings ? `${reviewSummary.readiness.received} of ${reviewSummary.readiness.expected} required inputs received.` : "Data required: expected inputs and company cutoff must be configured."}</p>
-        {reviewSummary.readiness.cutoff && <p className="mt-2 break-words text-sm">Cutoff: <time dateTime={reviewSummary.readiness.cutoff.at}>{reviewSummary.readiness.cutoff.at}</time> · {reviewSummary.readiness.cutoff.timeZone}</p>}
+        {reviewSummary.readiness.cutoff && <p className="mt-2 break-words text-sm">Cutoff: <LocalTime at={reviewSummary.readiness.cutoff.at} timeZone={timeZone} /> · set for {zoneDisplaySafe(reviewSummary.readiness.cutoff.timeZone, reviewSummary.readiness.cutoff.at)}</p>}
         {reviewSummary.readiness.blockers.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-signal">{reviewSummary.readiness.blockers.map((blocker, i) => <li key={`${i}-${blocker}`}>{blocker}</li>)}</ul>}
         <div className="mt-4 border-t border-border pt-3 text-sm"><p className="font-medium">{!reviewSummary.review.signoff ? "Review not signed off" : !reviewSummary.review.export ? "Review signed off; CSV not generated" : !reviewSummary.review.acknowledgement ? "Reviewed CSV generated; recipient outcome not recorded" : reviewSummary.review.acknowledgement.status === "MANUAL_ACCEPTED" ? "Accepted manually — payment settlement is separate" : reviewSummary.review.acknowledgement.status === "MANUAL_REJECTED" ? "Rejected — handoff remains open" : "Unknown — handoff remains open"}</p><p className="mt-2 text-muted-foreground">Nothing is paid by review sign-off. Export, delivery evidence and payment settlement are separate records.</p>{!reviewSummary.canReview && <p className="mt-2 text-muted-foreground">HR or a payroll reviewer must sign off and record the handoff.</p>}<Link href={`/runs/${selected.id}#review-heading`} className="mt-2 inline-flex min-h-11 items-center rounded-field underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Open review and handoff</Link></div>
       </section>}
