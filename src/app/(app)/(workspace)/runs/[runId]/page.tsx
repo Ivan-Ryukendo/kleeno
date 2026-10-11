@@ -6,6 +6,7 @@ import { ApproveRunForm, CalculateButton, ResumeObligationsButton, RetryReconcil
 import { TableView } from "@/components/table-view";
 import { StatusPill } from "@/components/status-pill";
 import { isPayrollRole } from "@/core/workflow";
+import { payrollSide } from "@/components/shell/nav-config";
 import { pageSession } from "@/server/auth/page-session";
 import { initialTable } from "@/server/db/table-views";
 import { runView } from "@/server/db/views";
@@ -48,7 +49,7 @@ export default async function RunPage({ params, searchParams }: { params: Promis
 
   return (
     <>
-      <PageHeader title={`Pay run ${run.period_start} to ${run.period_end}`} description={<span className="font-mono text-xs break-all">{run.id}</span>} actions={<RunViewNavigation runId={run.id} current="table" mode={run.mode} canPay={isPaymentRole(actor.roles)} canReview={canEdit} />} />
+      <PageHeader title={`Pay run ${run.period_start} to ${run.period_end}`} description={<span className="font-mono text-xs break-all">{run.id}</span>} actions={<RunViewNavigation runId={run.id} current="table" mode={run.mode} canPay={isPaymentRole(actor.roles)} canReview={payrollSide(actor.roles)} />} />
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <StatusPill status={run.mode} />
         <StatusPill status={run.status} />

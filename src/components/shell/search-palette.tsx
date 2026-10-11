@@ -37,7 +37,7 @@ export function SearchPalette({ roles, runs, workers }: { roles: Role[]; runs: S
 
   return (
     <>
-      <Button type="button" variant="outline" size="sm" className="h-8 w-8 justify-center px-0 text-muted-foreground md:w-56 md:justify-start md:px-2.5" onClick={() => setOpen(true)} aria-label="Search" aria-keyshortcuts="Control+K Meta+K">
+      <Button type="button" variant="outline" size="sm" className="h-11 w-11 justify-center px-0 text-muted-foreground sm:h-8 sm:w-8 md:w-56 md:justify-start md:px-2.5" onClick={() => setOpen(true)} aria-label="Search" aria-keyshortcuts="Control+K Meta+K">
         <Search aria-hidden />
         <span className="hidden md:inline">Search</span>
         <kbd className="ml-auto hidden rounded-chip border bg-muted px-1.5 font-sans text-[0.7rem] md:inline">Ctrl K</kbd>

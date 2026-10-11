@@ -9,7 +9,7 @@ import { ROLE_LABELS, type Role } from "@/core/tenancy";
 import { initials } from "./nav-config";
 import { SignOutMenuItem } from "./sign-out";
 
-const itemClass = "relative flex min-h-9 cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0";
+const itemClass = "relative flex min-h-11 cursor-default sm:min-h-9 items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0";
 
 /** Account chip at the foot of the sidebar (mockup `.me`): email initials and roles; the menu holds Account and Sign out. */
 export function UserMenu({ email, roles }: { email: string | null; roles: readonly Role[] }) {

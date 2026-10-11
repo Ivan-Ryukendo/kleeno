@@ -26,7 +26,7 @@ export interface RunRef {
 }
 
 const everyone = () => true;
-const payrollSide = (r: readonly Role[]) => isPayrollRole(r) || isOwner(r);
+export const payrollSide = (r: readonly Role[]) => isPayrollRole(r) || isOwner(r);
 const paymentSide = (r: readonly Role[]) => isPaymentRole(r) || isOwner(r);
 
 /** Where Payroll goes when no run exists yet: the pay-runs list (and, for payroll roles, the start-run form) on the dashboard. */
