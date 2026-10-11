@@ -8,12 +8,12 @@ import { proposeConfig } from "../../src/server/ai/policy";
 import { createWorker } from "../../src/server/db/workers";
 import { GOOD, POLICY_TEXT } from "../fixtures/ai/policy";
 import { admin, makeCompany } from "../db/helpers";
+import { assertDisposableTarget } from "./target";
 
 // Synthetic cached proposal, not a live-model evaluation. The real app still performs upload,
 // validation, approval, imports and calculation; offline.mjs rejects external provider requests.
 test("reviewed policy and browser CSV/XLSX intake produce traceable simulation pay", async ({ page }) => {
-  const target = new URL(process.env.SUPABASE_URL ?? "http://invalid");
-  if (!["localhost", "127.0.0.1"].includes(target.hostname)) throw new Error("e2e requires isolated local Supabase");
+  assertDisposableTarget();
   const company = await makeCompany();
   expect((await admin.from("companies").update({ is_demo: true }).eq("id", company.id)).error).toBeNull();
   const who = { companyId: company.id, userId: company.payroll.id, roles: company.payroll.roles, correlationId: randomUUID() };
@@ -121,7 +121,7 @@ test("reviewed policy and browser CSV/XLSX intake produce traceable simulation p
   await expect(page).toHaveURL(/#trace-/);
   await expect(page.getByLabel("Calculation trace for W001", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Calculation trace for W001", { exact: true })).toContainText("net 144.00 USDC");
-  const denied = await page.request.post(`/api/runs/${runId}/submit`, { headers: { origin: "http://127.0.0.1:3000" } });
+  const denied = await page.request.post(`/api/runs/${runId}/submit`, { headers: { origin: "http://localhost:3000" } });
   expect(denied.status()).toBe(409);
   expect((await admin.from("obligations").select("id").eq("run_id", runId)).data).toEqual([]);
 

@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { seedSimulationDemo } from "../../scripts/seed-demo";
 import { admin, makeCompany } from "../db/helpers";
+import { assertDisposableTarget } from "./target";
 
 test("human resolutions lead to checked simulation pay and cannot authorize payment", async ({ page }) => {
-  const url = new URL(process.env.SUPABASE_URL ?? "http://invalid");
   // This suite creates disposable users/evidence. Cloud targets require a separate reviewed rehearsal.
-  if (!["localhost", "127.0.0.1"].includes(url.hostname)) throw new Error("e2e requires isolated local Supabase");
+  assertDisposableTarget();
   const company = await makeCompany();
   expect((await admin.from("companies").update({ is_demo: true }).eq("id", company.id)).error).toBeNull();
   const demo = await seedSimulationDemo(company.id, company.payroll.id);
@@ -47,7 +47,7 @@ test("human resolutions lead to checked simulation pay and cannot authorize paym
   await page.getByRole("button", { name: "Calculate pay", exact: true }).click();
   await expect(page.getByText(/Simulation complete\. This run cannot/)).toBeVisible();
   await expect(page.getByRole("heading", { name: /Variance:/ })).toBeVisible();
-  const denied = await page.request.post(`/api/runs/${demo.runId}/submit`, { headers: { origin: "http://127.0.0.1:3000" } });
+  const denied = await page.request.post(`/api/runs/${demo.runId}/submit`, { headers: { origin: "http://localhost:3000" } });
   expect(denied.status()).toBe(409);
   expect((await admin.from("obligations").select("id").eq("run_id", demo.runId)).data).toEqual([]);
   expect((await admin.from("calculations").select("calculation_hash").eq("run_id", demo.runId)).data).toHaveLength(1);
