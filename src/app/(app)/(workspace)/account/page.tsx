@@ -1,6 +1,8 @@
 import { connection } from "next/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { MfaSetup, PasswordForm } from "@/components/account-forms";
+import { AccountTimezoneForm } from "@/components/account-timezone-form";
+import { timeZoneChoices } from "@/lib/timezone-display";
 import { StatusPill } from "@/components/status-pill";
 import { ROLE_LABELS } from "@/core/tenancy";
 import { linkedMethods } from "@/server/auth/oauth";
@@ -52,6 +54,12 @@ export default async function AccountPage() {
           <dd>{factors.length > 0 ? "On" : actor.mfaRequired ? "Required for your company: set it up below" : "Off"}</dd>
         </dl>
         {needsMfa && factors.length > 0 && <p className="mt-6 font-medium text-signal">Sign in again with your authenticator code to unlock your company data.</p>}
+      </section>
+
+      <section className="mt-6 panel" aria-labelledby="timezone-heading">
+        <h2 id="timezone-heading" className="text-lg">Time zone</h2>
+        <p className="mt-2 text-muted-foreground">Deadlines and run times show in this zone in every company you belong to.</p>
+        <AccountTimezoneForm options={timeZoneChoices()} />
       </section>
 
       <section className="mt-6 panel">
