@@ -11,7 +11,7 @@ beforeAll(async () => {
   company = await makeCompany({ live: true }); other = await makeCompany();
   const run = await approvedRun(company, await activeConfig(company));
   expect((await admin.from("company_wallets").insert({ company_id: company.id, role: "APPROVER", circle_wallet_id: "synthetic-wallet", address: ADDR(17), blockchain: "ARC-TESTNET" })).error).toBeNull();
-  expect((await admin.from("payment_attempts").insert({ company_id: company.id, obligation_id: run.obligationId, idempotency_key: randomUUID(), state: "SUBMISSION_PENDING", circle_tx_id: "synthetic-transaction" })).error).toBeNull();
+  expect((await admin.from("payment_attempts").insert({ company_id: company.id, obligation_id: run.obligationId, idempotency_key: randomUUID(), state: "SUBMISSION_PENDING", circle_tx_id: `synthetic-transaction-${randomUUID()}` })).error).toBeNull();
   const email = `financial-read-${randomUUID()}@example.com`, password = `pw-${randomUUID()}`;
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   if (created.error || !created.data.user) throw new Error("synthetic viewer creation failed");
