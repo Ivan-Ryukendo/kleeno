@@ -25,6 +25,7 @@ import TeamPage from "@/app/(app)/(workspace)/settings/team/page";
 import BillingPage from "@/app/(app)/(workspace)/settings/billing/page";
 import { crumbs } from "@/components/shell/nav-config";
 import { SearchPalette } from "@/components/shell/search-palette";
+import { SettingsNavigation } from "@/components/settings-navigation";
 
 beforeEach(() => { state.roles = ["OWNER"]; for (const mock of [state.billingReads, state.companyReads, state.memberReads, state.inviteReads, state.push]) mock.mockClear(); });
 function navigation(html: string) {
@@ -78,5 +79,20 @@ describe("settings location and search", () => {
   it.each(["OWNER", "HR_APPROVER", "VIEWER", "PAYMENT_APPROVER"] as const)("discovers Billing only for Owner, tested as %s", role => {
     const html = renderToStaticMarkup(createElement(SearchPalette, { roles: [role], runs: [], workers: [] }));
     expect(html.includes('data-value="page Billing"')).toBe(role === "OWNER");
+  });
+});
+describe("settings frame on pay policy and account", () => {
+  it.each(["/configuration", "/account"])("marks %s as the one current section", (current) => {
+    const html = renderToStaticMarkup(createElement(SettingsNavigation, { roles: ["OWNER", "HR_APPROVER"], current, children: createElement("section", null, "body") }));
+    const nav = navigation(html);
+    expect(hrefs(nav)).toEqual(["/settings/company", "/settings/team", "/configuration", "/settings/billing", "/account"]);
+    expect(nav.match(/aria-current="page"/g)).toHaveLength(1);
+    expect([...nav.matchAll(/<a\b([^>]*)>/g)].map(m => m[1]).find(link => link.includes('aria-current="page"'))).toContain(`href="${current}"`);
+    expect(nav).toContain("Personal");
+  });
+  it("leaves the frame out where company pages are not available yet (account during required MFA setup)", () => {
+    const html = renderToStaticMarkup(createElement(SettingsNavigation, { roles: ["VIEWER"], current: "/account", nav: false, children: createElement("section", null, "body") }));
+    expect(html).not.toContain("Settings sections");
+    expect(html).toContain("body");
   });
 });

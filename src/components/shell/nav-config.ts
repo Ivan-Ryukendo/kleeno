@@ -111,15 +111,16 @@ export interface RunView {
   reason?: string;
 }
 
-/** Run tabs. Payments keeps its gate: never for SIMULATION runs and only for payment approvers (the settlement page checks again). */
-export function runViews(runId: string, mode: string, roles: readonly Role[]): RunView[] {
+/** Run tabs. Payments keeps its gate: never for SIMULATION runs and only for payment approvers (`canPay` = isPaymentRole;
+ * the settlement page and every payment handler check again). */
+export function runViews(runId: string, mode: string, canPay: boolean): RunView[] {
   const root = `/runs/${encodeURIComponent(runId)}`;
   const run = new URLSearchParams({ run: runId });
-  const canPay = mode !== "SIMULATION" && isPaymentRole(roles);
+  const open = mode !== "SIMULATION" && canPay;
   return [
     { id: "table", label: "Table", icon: Table2, href: root },
     { id: "workflow", label: "Workflow", icon: GitBranch, href: `${root}/workflow` },
-    { id: "payments", label: "Payments", icon: Wallet, href: canPay ? `/settlement?${run}` : null, reason: mode === "SIMULATION" ? "Simulation never pays" : canPay ? undefined : "Payment approvers only" },
+    { id: "payments", label: "Payments", icon: Wallet, href: open ? `/settlement?${run}` : null, reason: mode === "SIMULATION" ? "Simulation never pays" : open ? undefined : "Payment approvers only" },
     { id: "activity", label: "Activity", icon: History, href: `/audit?${run}` },
   ];
 }

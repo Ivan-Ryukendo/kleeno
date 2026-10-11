@@ -6,6 +6,7 @@ import { pageSession } from "@/server/auth/page-session";
 import { listConfigs, type ConfigView } from "@/server/db/configs";
 import { scopeCategory, scopeOverrideKey } from "@/core/config";
 import { listWorkers } from "@/server/db/workers";
+import { SettingsNavigation } from "@/components/settings-navigation";
 
 export const metadata = { title: "Pay policy · Kleeno" };
 
@@ -47,6 +48,7 @@ export default async function ConfigurationPage() {
   return (
     <>
       <PageHeader title="Pay policy" description="How you pay. Describe your policy in plain words. The AI proposes rules and shows which line each one comes from. Nothing applies until you approve a version; approved versions never change." />
+      <SettingsNavigation roles={actor.roles} current="/configuration">
 
       {canEdit && (
         <section className="mt-6 panel">
@@ -56,6 +58,7 @@ export default async function ConfigurationPage() {
       )}
 
       {configs.length === 0 ? <p className="mt-6 text-muted-foreground">No configuration yet. {canEdit ? "Describe your policy above." : "The payroll approver adds one."}</p> : configs.map((c) => <ConfigCard key={c.id} c={c} canEdit={canEdit} />)}
+      </SettingsNavigation>
     </>
   );
 }

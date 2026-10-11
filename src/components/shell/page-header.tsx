@@ -8,7 +8,7 @@ export function PageHeader({ title, description, actions, mono = false }: { titl
         <h1 className={mono ? "break-all font-mono text-xl font-medium" : "text-2xl font-medium tracking-tight"}>{title}</h1>
         {description && <p className="mt-1.5 max-w-2xl text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>
   );
 }

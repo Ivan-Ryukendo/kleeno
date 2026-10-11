@@ -1,8 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { RunViewNavigation } from "@/components/run-view-navigation";
 import { crumbs, initials, isActive, PAYROLL_FALLBACK, payrollHref, periodLabel, runViews, searchPages, settingsNav, sidebarNav } from "@/components/shell/nav-config";
-import type { Role } from "@/core/tenancy";
+import { isPaymentRole, type Role } from "@/core/tenancy";
 
 const RUN = "10000000-0000-4000-8000-000000000001";
 const ALL: Role[] = ["OWNER", "HR_APPROVER", "PAYROLL_APPROVER", "PAYMENT_APPROVER", "VIEWER"];
@@ -41,7 +44,7 @@ function reachable(roles: Role[]): Set<string> {
     ...settingsNav(roles).flatMap((g) => g.items.map((i) => i.href)),
     ...searchPages(roles).map((i) => i.href),
     ...runs.map((r) => `/runs/${r.id}`), // search palette: recent pay runs
-    ...["SIMULATION", "LIVE_TESTNET"].flatMap((mode) => runViews(RUN, mode, roles).flatMap((v) => (v.href ? [v.href] : []))),
+    ...["SIMULATION", "LIVE_TESTNET"].flatMap((mode) => runViews(RUN, mode, isPaymentRole(roles)).flatMap((v) => (v.href ? [v.href] : []))),
   ];
   return new Set(hrefs.map((h) => h.split(/[?#]/)[0].replace(RUN, "[runId]")));
 }
@@ -90,12 +93,12 @@ describe("sidebar", () => {
 
 describe("run tabs", () => {
   it("are Table, Workflow, Payments, Activity with same-run links", () => {
-    const views = runViews(RUN, "LIVE_TESTNET", ["PAYMENT_APPROVER"]);
+    const views = runViews(RUN, "LIVE_TESTNET", true);
     expect(views.map((v) => v.label)).toEqual(["Table", "Workflow", "Payments", "Activity"]);
     expect(views.map((v) => v.href)).toEqual([`/runs/${RUN}`, `/runs/${RUN}/workflow`, `/settlement?run=${RUN}`, `/audit?run=${RUN}`]);
   });
   it.each(["SIMULATION", "LIVE_TESTNET"].flatMap((mode) => ALL.map((role) => ({ mode, role }))))("keep the Payments gate for $mode $role", ({ mode, role }) => {
-    const payments = runViews(RUN, mode, [role]).find((v) => v.id === "payments")!;
+    const payments = runViews(RUN, mode, isPaymentRole([role])).find((v) => v.id === "payments")!;
     expect(payments.href !== null).toBe(mode !== "SIMULATION" && role === "PAYMENT_APPROVER");
     if (!payments.href) expect(payments.reason).toBe(mode === "SIMULATION" ? "Simulation never pays" : "Payment approvers only");
   });
@@ -160,4 +163,24 @@ it("derives account chip initials from the email only", () => {
   expect(initials("maya.reyes@example.com")).toBe("MR");
   expect(initials("owner@example.com")).toBe("OW");
   expect(initials(null)).toBe("?");
+});
+
+describe("run tabs segmented control", () => {
+  const render = (props: { mode: string; canPay: boolean; canReview?: boolean }) => renderToStaticMarkup(createElement(RunViewNavigation, { runId: RUN, current: "workflow", ...props }));
+  it("shows a closed Payments segment with its reason and no link in SIMULATION", () => {
+    const html = render({ mode: "SIMULATION", canPay: true });
+    expect(html).not.toContain("/settlement");
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).toContain("Simulation never pays");
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+  });
+  it("keeps 44px touch targets on small screens", () => {
+    const links = render({ mode: "LIVE_TESTNET", canPay: true }).match(/<a\b[^>]*>/g) ?? [];
+    expect(links).toHaveLength(4);
+    for (const link of links) expect(link).toContain("min-h-11");
+  });
+  it("offers Needs review for this run only to payroll reviewers", () => {
+    expect(render({ mode: "SIMULATION", canPay: false, canReview: true })).toContain(`href="/exceptions?run=${RUN}"`);
+    expect(render({ mode: "SIMULATION", canPay: false })).not.toContain("/exceptions");
+  });
 });
