@@ -39,7 +39,7 @@ it("refuses oversized declared policy requests and absent-length bodies before A
 });
 
 it("counts actual UTF-8 bytes, accepts the exact cap across split code points, and rejects one extra byte", async () => {
-  const raw = text({ value: "é" }); const bytes = new TextEncoder().encode(raw), handler = vi.fn(async () => ({ ok: true }));
+  const raw = text({ value: "é" }); const bytes = new TextEncoder().encode(raw), handler = vi.fn(async ({ body }: { body: { value: string } }) => ({ value: body.value }));
   const route = guarded({ body: z.object({ value: z.string() }).strict(), maxBodyBytes: bytes.length }, handler);
   const split = bytes.indexOf(0xc3) + 1;
   const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(bytes.slice(0, split)); c.enqueue(bytes.slice(split)); c.close(); } });
@@ -51,7 +51,7 @@ it("counts actual UTF-8 bytes, accepts the exact cap across split code points, a
 
 it("cancels and releases a failed reader without invoking the handler", async () => {
   const reader = { read: vi.fn().mockRejectedValue(new Error("PRIVATE-STREAM-CANARY")), cancel: vi.fn().mockResolvedValue(undefined), releaseLock: vi.fn() };
-  const r = request("{}"); vi.spyOn(r.body!, "getReader").mockReturnValue(reader as unknown as ReadableStreamDefaultReader<Uint8Array>);
+  const r = request("{}"); vi.spyOn(r.body!, "getReader").mockReturnValue(reader as unknown as ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>);
   const handler = vi.fn(async () => ({}));
   const response = await guarded({ body: z.object({}), maxBodyBytes: 100 }, handler)(r);
   expect(response.status).toBe(500); expect(reader.cancel).toHaveBeenCalledOnce(); expect(reader.releaseLock).toHaveBeenCalledOnce();
