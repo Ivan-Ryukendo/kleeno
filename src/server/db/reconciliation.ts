@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { auditEvent, newCorrelationId } from "@/core/audit";
-import { exceptionMachine, runMachine, TransitionError } from "@/core/domain/machines";
+import { runMachine, TransitionError } from "@/core/domain/machines";
 import { applyTransition } from "@/core/domain/transition";
 import { analyse, OPTIONS, RECON_CATEGORIES, type ReconCategory, type ReconInput, type ResolutionAction } from "@/core/reconciliation";
 import { isPayrollRole, WorkflowError, type Role } from "@/core/workflow";
@@ -13,11 +13,9 @@ import { writeAudit } from "./audit";
 import { db, must } from "./client";
 import { loadConfig } from "./configs";
 import { runStore } from "./runs";
-import { dbStore } from "./store";
 import { keyset, loadAllRows } from "./paged";
 import { listWorkers } from "./workers";
 
-const exceptionStore = dbStore<"OPEN" | "IN_REVIEW" | "RESOLVED" | "REJECTED" | "ESCALATED">("exceptions");
 const OPEN_STATES = ["OPEN", "IN_REVIEW", "ESCALATED"];
 
 interface Who {
@@ -145,17 +143,13 @@ interface Row {
 }
 
 async function applyResolution(who: Who, row: Row, action: ResolutionAction, note: string, correlationId: string) {
-  const req = (a: string, refs?: Record<string, string>) => ({ id: row.id, companyId: who.companyId, action: a, actor: who.userId, actorType: "user" as const, correlationId, refs });
-  if (row.status === "OPEN") await applyTransition(exceptionStore, exceptionMachine, req("start_review"));
-  const saved = await db()
-    .from("exceptions")
-    .update({ resolution_action: action, resolution: await sealField(who.companyId, "exceptions", "resolution", row.id, note), resolved_by: who.userId, resolved_at: new Date().toISOString() })
-    .eq("id", row.id)
-    .eq("company_id", who.companyId)
-    .eq("status", "IN_REVIEW")
-    .select("id");
-  if (saved.error || !saved.data?.length) throw new TransitionError("STALE_STATE", "the exception changed; reload and try again");
-  await applyTransition(exceptionStore, exceptionMachine, req("resolve", { action, runId: row.run_id }));
+  const result = must(await db().rpc("resolve_reconciliation_exception", {
+    p_company: who.companyId, p_id: row.id, p_actor: who.userId, p_correlation: correlationId,
+    p_action: action, p_resolution: await sealField(who.companyId, "exceptions", "resolution", row.id, note),
+  }), "exception resolve");
+  if (result === "FORBIDDEN") throw new WorkflowError("FORBIDDEN", "current payroll membership and an offered decision are required");
+  if (result === "NOT_FOUND") throw new TransitionError("NOT_FOUND", "exception not found");
+  if (result !== "OK") throw new TransitionError("STALE_STATE", "the exception changed; reload and try again");
 }
 
 const ROW = "id, run_id, category, status, options";
