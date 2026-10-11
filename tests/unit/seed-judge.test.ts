@@ -5,6 +5,7 @@ import { assertJudgeCompany, seedJudge } from "../../scripts/seed-judge";
 // R4.3: the judge seed writes only to loopback, the pinned kleeno-test project, or an owner-named demo project (R4.4).
 const TEST = "https://axcgcjpmcdujxkvroqox.supabase.co";
 const OWN = "https://abcdefghijklmnopqrst.supabase.co";
+const PROD = "https://prodprodprodprodprod.supabase.co";
 
 describe("judge seed target guard", () => {
   it("accepts loopback and the pinned kleeno-test project only with its ref", () => {
@@ -19,12 +20,18 @@ describe("judge seed target guard", () => {
     expect(() => assertDemoLocation("http://127.0.0.1:54321", "garbage", {})).toThrow("designated");
   });
   it("allows the owner's demo project only when SEED_JUDGE_TARGET_REF names exactly that https project and it is not production", () => {
-    expect(() => assertDemoLocation(OWN, undefined, { SEED_JUDGE_TARGET_REF: "abcdefghijklmnopqrst" })).not.toThrow();
-    expect(() => assertDemoLocation(OWN, undefined, { SEED_JUDGE_TARGET_REF: "zzzzzzzzzzzzzzzzzzzz" })).toThrow("designated");
+    expect(() => assertDemoLocation(OWN, PROD, { SEED_JUDGE_TARGET_REF: "abcdefghijklmnopqrst" })).not.toThrow();
+    expect(() => assertDemoLocation(OWN, PROD, { SEED_JUDGE_TARGET_REF: "zzzzzzzzzzzzzzzzzzzz" })).toThrow("designated");
     expect(() => assertDemoLocation(OWN, OWN, { SEED_JUDGE_TARGET_REF: "abcdefghijklmnopqrst" })).toThrow("designated");
-    expect(() => assertDemoLocation("http://abcdefghijklmnopqrst.supabase.co", undefined, { SEED_JUDGE_TARGET_REF: "abcdefghijklmnopqrst" })).toThrow("designated");
-    expect(() => assertDemoLocation("https://abcdefghijklmnopqrst.evil.example", undefined, { SEED_JUDGE_TARGET_REF: "abcdefghijklmnopqrst" })).toThrow("designated");
-    expect(() => assertDemoLocation("https://x.supabase.co", undefined, { SEED_JUDGE_TARGET_REF: "x" })).toThrow("designated");
+    expect(() => assertDemoLocation("http://abcdefghijklmnopqrst.supabase.co", PROD, { SEED_JUDGE_TARGET_REF: "abcdefghijklmnopqrst" })).toThrow("designated");
+    expect(() => assertDemoLocation("https://abcdefghijklmnopqrst.evil.example", PROD, { SEED_JUDGE_TARGET_REF: "abcdefghijklmnopqrst" })).toThrow("designated");
+    expect(() => assertDemoLocation("https://x.supabase.co", PROD, { SEED_JUDGE_TARGET_REF: "x" })).toThrow("designated");
+  });
+  it("on the opt-in path, refuses an unset, malformed or equal production URL (same ref, other path or port)", () => {
+    const optIn = { SEED_JUDGE_TARGET_REF: "abcdefghijklmnopqrst" };
+    for (const production of [undefined, "", "garbage", OWN, `${OWN}/rest/v1`, "https://abcdefghijklmnopqrst.supabase.co:8443"]) expect(() => assertDemoLocation(OWN, production, optIn)).toThrow("designated");
+    expect(() => assertDemoLocation("http://127.0.0.1:54321", undefined, optIn)).not.toThrow(); // loopback keeps current behaviour
+    expect(() => assertDemoLocation(TEST, undefined, { ...optIn, SUPABASE_TEST_PROJECT_REF: "axcgcjpmcdujxkvroqox" })).not.toThrow(); // pinned kleeno-test too
   });
 });
 

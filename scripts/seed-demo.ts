@@ -16,7 +16,10 @@ export function assertDemoLocation(url: string, production: string | undefined, 
   const pinnedTest = host === `${TEST_REF}.supabase.co` && env.SUPABASE_TEST_PROJECT_REF === TEST_REF;
   const optIn = !!ref && /^[a-z0-9]{20}$/.test(ref) && u?.protocol === "https:" && host === `${ref}.supabase.co`; // R4.4 owner demo deploy: explicit opt-in, exact project ref, https only
   const prod = !!production && (!URL.canParse(production) || new URL(production).origin === u?.origin);
-  if (!u || prod || !(["localhost", "127.0.0.1", "::1", "[::1]"].includes(host) || pinnedTest || optIn)) {
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
+  const p = production && URL.canParse(production) ? new URL(production) : null; // opt-in only: production must be named, valid and a different project
+  const optInSafe = !!p && p.origin !== u?.origin && !(p.hostname.endsWith(".supabase.co") && p.hostname.split(".")[0] === ref);
+  if (!u || prod || !(local || pinnedTest || (optIn && optInSafe))) {
     throw new Error("seed requires a designated local demo company with live payments off");
   }
 }

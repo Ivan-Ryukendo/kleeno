@@ -25,6 +25,7 @@ export async function seedJudge(env: Env) {
   const { writeAudit } = await import("../src/server/db/audit");
   const { auditEvent } = await import("../src/core/audit");
 
+  // Single-operator script: the find-or-create by name below is not guarded against concurrent runs, by design.
   // Refuse before writing anything: the named company must be a demo company, and the login must not reach a real company.
   const found = must(await db().from("companies").select("id, is_demo, is_sandbox, live_payments_enabled, mfa_required, onboarded_at").eq("name", name), "judge company read");
   if (found.length > 1) throw new Error("judge company name is ambiguous; set a unique JUDGE_COMPANY_NAME");
@@ -59,7 +60,9 @@ export async function seedJudge(env: Env) {
     if (r.error || !r.data.user) throw new Error("judge user create failed");
     user = r.data.user;
   }
-  const member = (await db().from("memberships").select("roles, removed_at").eq("company_id", company.id).eq("user_id", user.id).maybeSingle()).data;
+  const memberRead = await db().from("memberships").select("roles, removed_at").eq("company_id", company.id).eq("user_id", user.id).maybeSingle();
+  if (memberRead.error) throw new Error(`db judge membership read failed${memberRead.error.code ? ` (${memberRead.error.code})` : ""}`);
+  const member = memberRead.data;
   if (!member) {
     must(await db().from("memberships").insert({ user_id: user.id, company_id: company.id, roles: ROLES, email }).select("user_id"), "judge membership insert");
     created.membership = true;
