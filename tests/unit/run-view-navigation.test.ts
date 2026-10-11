@@ -6,6 +6,7 @@ import type { Role } from "@/core/tenancy";
 const id = "10000000-0000-4000-8000-000000000001";
 const state = vi.hoisted(() => ({ mode: "SIMULATION", roles: ["VIEWER"] as Role[] }));
 vi.mock("next/server", () => ({ connection: async () => undefined }));
+vi.mock("@/server/display-timezone", () => ({ viewerTimeZone: async () => "UTC" }));
 vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", roles: state.roles }, client: {} }) }));
 vi.mock("@/server/db/views", () => ({ runView: async () => ({ financial: false, run: { id, mode: state.mode, status: "CALCULATION_VALIDATED", period_start: "2026-10-01", period_end: "2026-10-31", config_version: 1 }, lines: [], obligations: [], calculationHash: null, netTotal: null, variance: null }) }));
 vi.mock("@/server/db/table-views", () => ({ initialTable: async () => null }));

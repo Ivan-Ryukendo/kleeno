@@ -4,6 +4,7 @@ import DashboardPage from "@/app/(app)/(workspace)/dashboard/page";
 
 const state = vi.hoisted(() => ({ ready: false, signed: false, exported: false, outcome: null as string | null, denied: false, failed: false, periodFailed: false, activityFailed: false, reads: 0 }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
+vi.mock("@/server/display-timezone", () => ({ viewerTimeZone: async () => "UTC" }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
 vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", userId: "actor", roles: [state.denied ? "VIEWER" : "HR_APPROVER"] }, client: {} }) }));
 vi.mock("@/server/db/company", () => ({ getCompany: async () => ({ onboardedAt: "2026-10-01" }), setupFacts: async () => ({ teamInvited: true, workers: 1, policyApproved: true, runs: 1 }) }));
