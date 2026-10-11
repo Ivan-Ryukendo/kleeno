@@ -5,26 +5,26 @@ import RunPage from "@/app/(app)/(workspace)/runs/[runId]/page";
 
 const runId = "c3b64b32-7f23-4a64-8993-9b4ef2151c63";
 const lineId = "00000000-0000-4000-8000-000000000001";
-const state = vi.hoisted(() => ({ financial: true, paymentOnly: false, reviewFailure: false, reviewReads: 0, calculationId: "calculation-1" as string | null }));
+const state = vi.hoisted(() => ({ financial: true, paymentOnly: false, reviewFailure: false, reviewReads: 0, status: "CALCULATION_VALIDATED", role: "", calculationId: "calculation-1" as string | null }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
-vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", roles: [state.financial ? state.paymentOnly ? "PAYMENT_APPROVER" : "HR_APPROVER" : "VIEWER"] }, client: {} }) }));
+vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", roles: [state.role ? state.role : state.financial ? state.paymentOnly ? "PAYMENT_APPROVER" : "HR_APPROVER" : "VIEWER"] }, client: {} }) }));
 vi.mock("@/server/db/reviewer-workspace", () => ({ reviewerWorkspace: async () => { state.reviewReads++; if (state.reviewFailure) throw new Error("synthetic evidence read failure"); return { review: { revision: 0, calculationId: state.calculationId }, settings: null, selectedBaselineId: null }; } }));
 vi.mock("@/components/payroll-review-panel", () => ({ PayrollReviewPanel: () => "Commercial review workspace" }));
 vi.mock("@/server/db/table-views", () => ({ initialTable: async () => null }));
-vi.mock("@/server/db/workers", () => ({ listWorkers: vi.fn() }));
-vi.mock("@/server/db/calculate", () => ({ loadRunAdjustments: vi.fn() }));
-vi.mock("@/components/run-actions", () => ({ ApproveRunForm: () => null, CalculateButton: () => null, ResumeObligationsButton: () => null, SubmitForApprovalButton: () => null }));
+vi.mock("@/server/db/workers", () => ({ listWorkers: vi.fn(async () => []) }));
+vi.mock("@/server/db/calculate", () => ({ loadRunAdjustments: vi.fn(async () => []) }));
+vi.mock("@/components/run-actions", () => ({ ApproveRunForm: () => null, CalculateButton: () => null, ResumeObligationsButton: () => null, RetryReconciliationButton: () => "Retry reconciliation control", SubmitForApprovalButton: () => null }));
 vi.mock("@/components/worker-forms", () => ({ RunAdjustmentsForm: () => null }));
 vi.mock("@/components/table-view", () => ({ TableView: () => null }));
 vi.mock("@/server/db/views", () => ({ runView: async () => ({
   financial: state.financial,
-  run: { id: "c3b64b32-7f23-4a64-8993-9b4ef2151c63", period_start: "2026-10-01", period_end: "2026-10-31", config_version: 4, mode: "SIMULATION", status: "CALCULATION_VALIDATED" },
+  run: { id: "c3b64b32-7f23-4a64-8993-9b4ef2151c63", period_start: "2026-10-01", period_end: "2026-10-31", config_version: 4, mode: "SIMULATION", status: state.status },
   calculationHash: "a".repeat(64), netTotal: "125.00", obligations: [], variance: null,
   lines: [{ id: "00000000-0000-4000-8000-000000000001", worker: "K-001", gross: "125.00", deductions: "0.00", net: "125.00", trace: [{ step: 1, component: "BASE", rule: "HOURLY_BASE", ruleVersion: 4, source: "approved-work-record", inputs: { hours: "5", rate: "25", evidence: "<script>unsafe</script>" }, amount: "125.00" }] }],
 }) }));
 
 describe("run trace presentation", () => {
-  beforeEach(() => { state.financial = true; state.paymentOnly = false; state.reviewFailure = false; state.reviewReads = 0; state.calculationId = "calculation-1"; });
+  beforeEach(() => { state.financial = true; state.paymentOnly = false; state.reviewFailure = false; state.reviewReads = 0; state.status = "CALCULATION_VALIDATED"; state.role = ""; state.calculationId = "calculation-1"; });
   it("offers task controls only to payroll reviewers and links the workflow view", async () => {
     const reviewer = renderToStaticMarkup(await RunPage({ params: Promise.resolve({ runId }), searchParams: Promise.resolve({}) }));
     expect(reviewer).toContain('id="review-tasks-heading"');
@@ -32,6 +32,16 @@ describe("run trace presentation", () => {
     state.paymentOnly = true;
     const payment = renderToStaticMarkup(await RunPage({ params: Promise.resolve({ runId }), searchParams: Promise.resolve({}) }));
     expect(payment).not.toContain('id="review-tasks-heading"');
+  });
+  it("offers Retry reconciliation only while RECONCILING and only to payroll approvers", async () => {
+    const render = async () => renderToStaticMarkup(await RunPage({ params: Promise.resolve({ runId }), searchParams: Promise.resolve({}) }));
+    expect(await render()).not.toContain("Retry reconciliation control");
+    state.status = "RECONCILING";
+    for (const role of ["PAYROLL_APPROVER", "HR_APPROVER"]) { state.role = role; expect(await render()).toContain("Retry reconciliation control"); }
+    for (const role of ["PAYMENT_APPROVER", "VIEWER"]) { state.role = role; expect(await render()).not.toContain("Retry reconciliation control"); }
+    state.role = "HR_APPROVER";
+    state.status = "EXCEPTIONS_PENDING";
+    expect(await render()).not.toContain("Retry reconciliation control");
   });
   it("links a stable calculation-line target and exposes exact source/inputs safely", async () => {
     const html = renderToStaticMarkup(await RunPage({ params: Promise.resolve({ runId }), searchParams: Promise.resolve({}) }));

@@ -49,6 +49,11 @@ export function CalculateButton({ runId }: { runId: string }) {
   return <ActionButton url={`/api/runs/${runId}/calculate`} label="Calculate pay" busyLabel="Calculating…" />;
 }
 
+/** Resumes a run left in RECONCILING after the data check stopped part-way. Safe to repeat; it creates no payment. */
+export function RetryReconciliationButton({ runId }: { runId: string }) {
+  return <ActionButton url={`/api/runs/${runId}/reconcile/retry`} label="Retry reconciliation" busyLabel="Retrying…" variant="outline" />;
+}
+
 /** Sends a calculated LIVE run to the approver. Nothing is paid by this. */
 export function SubmitForApprovalButton({ runId }: { runId: string }) {
   return <ActionButton url={`/api/runs/${runId}/submit`} label="Send for approval" busyLabel="Sending…" />;
