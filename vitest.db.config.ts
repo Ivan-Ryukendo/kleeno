@@ -16,7 +16,10 @@ const KLEENO_TEST_REF = "axcgcjpmcdujxkvroqox"; // the one hosted project DB tes
 const testRef = process.env.SUPABASE_TEST_PROJECT_REF;
 const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(host);
 const namedTestProject = testRef === KLEENO_TEST_REF && host === `${KLEENO_TEST_REF}.supabase.co`;
-if (!target || !(loopback || namedTestProject)) {
+// Optional non-secret deny target for isolated test harnesses; never inspect production configuration.
+const denyTarget = process.env.DB_TEST_FORBIDDEN_URL;
+const forbidden = denyTarget && target && new URL(denyTarget).origin === new URL(target).origin;
+if (!target || forbidden || !(loopback || namedTestProject)) {
   throw new Error("Database tests require an isolated loopback SUPABASE_URL or the pinned kleeno-test project; every other remote target (dev, prod) is refused");
 }
 // Owner-level fixtures (asOwner) connect straight to Postgres: that URL must be loopback or belong to the same pinned project.

@@ -15,7 +15,7 @@ function load(target?: string, testRef?: string, ownerFile = false) {
     const program = `process.env = new Proxy(process.env, { get(target, key) { if (typeof key === 'string' && key.startsWith('SUPABASE_PROD_')) throw new Error('production environment accessed'); return Reflect.get(target, key); } }); await import(${JSON.stringify(config)});`;
     return spawnSync(process.execPath, ["--import", loader, "--input-type=module", "-e", program], {
       cwd: dir,
-      env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, TEMP: tmpdir(), TMP: tmpdir(), ...(target && { SUPABASE_URL: target }), ...(testRef && { SUPABASE_TEST_PROJECT_REF: testRef }) },
+      env: { NODE_ENV: "test", PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, TEMP: tmpdir(), TMP: tmpdir(), ...(target && { SUPABASE_URL: target }), ...(testRef && { SUPABASE_TEST_PROJECT_REF: testRef }) },
       encoding: "utf8",
     });
   } finally {
