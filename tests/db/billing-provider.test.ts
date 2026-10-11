@@ -52,6 +52,21 @@ it("Stripe TEST receipts dedupe and fence current-owner reconciliation without f
   expect((await admin.from("billing_provider_state").update({ status: "active" }).eq("company_id", company.id)).error).not.toBeNull();
   expect((await admin.from("obligations").select("id").eq("company_id", company.id)).data).toEqual([]);
   expect((await admin.from("companies").select("live_payments_enabled").eq("id", company.id).single()).data?.live_payments_enabled).toBe(false);
+  // Delivery order and snapshot status never overwrite current observed facts.
+  const newest = { ...hint, eventId: `evt_new_${suffix}`, type: "customer.subscription.deleted", objectId: subscription, objectType: "subscription" as const };
+  const older = { ...newest, eventId: `evt_old_${suffix}`, type: "customer.subscription.updated" };
+  const newestRaw = Buffer.from(JSON.stringify({ created: 200, status: "canceled" }));
+  const olderRaw = Buffer.from(JSON.stringify({ created: 100, status: "active" }));
+  expect(await recordStripeReceipt(newest, newestRaw)).toMatchObject({ duplicate: false, matched: true });
+  expect(await recordStripeReceipt(older, olderRaw)).toMatchObject({ duplicate: false, matched: true });
+  expect(await recordStripeReceipt(newest, newestRaw)).toMatchObject({ duplicate: true });
+  expect((await admin.from("billing_provider_state").select("revision,receipt_seq,status,reconciliation_pending").eq("company_id", company.id).single()).data)
+    .toEqual({ revision: 1, receipt_seq: 3, status: "active", reconciliation_pending: true });
+  const refreshToken = randomUUID();
+  expect((await admin.rpc("claim_stripe_test_reconciliation", { p_company: company.id, p_actor: actor, p_token: refreshToken })).data).toMatchObject({ code: "OK", state: { seq: 3 } });
+  expect((await finish(refreshToken, 3, { ...observation, status: "past_due" })).data).toMatchObject({ code: "OK", revision: 2 });
+  expect((await admin.from("billing_provider_state").select("revision,receipt_seq,status,reconciliation_pending").eq("company_id", company.id).single()).data)
+    .toEqual({ revision: 2, receipt_seq: 3, status: "past_due", reconciliation_pending: false });
   const token3 = randomUUID();
   expect((await admin.rpc("claim_stripe_test_reconciliation", { p_company: company.id, p_actor: actor, p_token: token3 })).data).toMatchObject({ code: "OK" });
   // Preserve the required active Owner while revoking the actor being reconciled.
