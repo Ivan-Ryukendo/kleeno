@@ -37,7 +37,9 @@ export async function requireReauth(actor: { companyId: string; userId: string; 
  */
 export async function requireTotp(client: SupabaseClient, actor: { companyId: string; userId: string }, code: string, correlationId: string) {
   await assertNotThrottled(actor.companyId, actor.userId, "MFA_FAILED");
-  const factor = (await client.auth.mfa.listFactors()).data?.totp.find((f) => f.status === "verified");
+  const { data: factors, error: factorError } = await client.auth.mfa.listFactors();
+  if (factorError || !factors) throw new AuthError(401, "UNAUTHENTICATED", "could not verify authenticator factors");
+  const factor = factors.totp.find((f) => f.status === "verified");
   if (!factor) throw new AuthError(401, "MFA_REQUIRED", "set up an authenticator app on your account first", true);
   const { error } = await client.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
   if (error) {
