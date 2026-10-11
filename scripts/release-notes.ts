@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 export function generateReleaseNotes(repo: string, ref: string, previous: string): string {
   const git = (...args: string[]) => execFileSync("git", args, {
     cwd: repo, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 * 1024 * 1024,
-    env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP,
+    env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP, NODE_ENV: process.env.NODE_ENV,
       GIT_NO_LAZY_FETCH: "1", GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0", GIT_NO_REPLACE_OBJECTS: "1" },
   });
   const commit = (value: string) => {
