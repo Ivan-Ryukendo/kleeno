@@ -1,30 +1,38 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Building2, CreditCard, FileText, UserRound, UsersRound } from "lucide-react";
-import { isOwner, isPayrollRole, type Role } from "@/core/tenancy";
+import { settingsNav } from "@/components/shell/nav-config";
+import type { Role } from "@/core/tenancy";
 
-const sections = [
-  { href: "/settings/company", label: "Company", icon: Building2, show: () => true },
-  { href: "/settings/team", label: "Team", icon: UsersRound, show: () => true },
-  { href: "/configuration", label: "Pay policy", icon: FileText, show: (roles: readonly Role[]) => isPayrollRole(roles) || isOwner(roles) },
-  { href: "/settings/billing", label: "Billing", icon: CreditCard, show: isOwner },
-  { href: "/account", label: "Account", icon: UserRound, show: () => true },
-];
-
-/** Page links share existing visibility rules; each destination still checks access. */
-export function SettingsNavigation({ roles, current, children }: { roles: readonly Role[]; current: string; children: ReactNode }) {
+/**
+ * Settings frame (mockups/settings-company.html `.set`): grouped section links beside the page body, shared by /settings/*,
+ * /configuration and /account. Links follow the existing visibility rules; each destination still checks access.
+ * Below 1024px the sections become one scrollable row above the body (44px touch targets).
+ */
+export function SettingsNavigation({ roles, current, nav = true, children }: { roles: readonly Role[]; current: string; nav?: boolean; children: ReactNode }) {
+  if (!nav) return <>{children}</>;
   return (
-    <div className="mt-6 grid min-w-0 gap-6 lg:grid-cols-[12.5rem_minmax(0,1fr)] lg:gap-8">
-      <nav aria-label="Settings sections" className="flex min-w-0 flex-wrap content-start gap-1 border-b border-border pb-3 lg:flex-col lg:border-b-0 lg:pb-0">
-        {sections.filter(section => section.show(roles)).map(section => (
-          <Link key={section.href} href={section.href} aria-current={current === section.href ? "page" : undefined}
-            className={`inline-flex min-h-11 items-center gap-2 rounded-field px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${current === section.href ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}>
-            <section.icon aria-hidden="true" className="size-4 shrink-0" />
-            {section.label}
-          </Link>
+    <div className="mt-6 grid min-w-0 gap-4 lg:grid-cols-[12.5rem_minmax(0,1fr)] lg:items-start lg:gap-8">
+      <nav aria-label="Settings sections" className="flex min-w-0 gap-0.5 overflow-x-auto border-b border-border pb-2 [scrollbar-width:none] lg:sticky lg:top-16 lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0">
+        {settingsNav(roles).map((group, index) => (
+          <div key={group.id} className="contents">
+            <span className={`hidden px-2 pb-1 text-xs font-medium text-muted-foreground lg:block ${index > 0 ? "lg:mt-3.5" : ""}`} aria-hidden="true">
+              {group.label}
+            </span>
+            {group.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={current === item.href ? "page" : undefined}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-field px-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring lg:min-h-8 ${current === item.href ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+              >
+                <item.icon aria-hidden="true" className="size-4 shrink-0" />
+                {item.label}
+              </Link>
+            ))}
+          </div>
         ))}
       </nav>
-      <div className="min-w-0 [&>section:first-child]:mt-0">{children}</div>
+      <div className="min-w-0 [&>:first-child]:mt-0">{children}</div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { CalendarDateSchema, type WorkerMetadata } from "../workers";
 import { z } from "zod";
 import { segmentedComponents, type CompensationSegment, type DatedHours } from "./effective-compensation";
 import { CompensationSegmentsSchema, DatedHoursSchema } from "./effective-compensation-schema";
+import { CalculationVersionsSchema, CURRENT_CALCULATION_VERSIONS } from "./versions";
 
 export const PayAdjustmentsSchema = z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/), kind: z.enum(["BONUS", "COMMISSION", "REIMBURSEMENT", "FIXED_DEDUCTION"]), amount: z.string().regex(/^\d+(\.\d{1,6})?$/).refine(v => parseUsdc(v) <= 1_000_000_000_000_000n, "amount exceeds supported cap"), reason: z.string().trim().min(1).max(300) }).strict()).max(50).refine(a => new Set(a.map(v => v.id)).size === a.length, "duplicate adjustment ID");
 export type PayAdjustment = z.infer<typeof PayAdjustmentsSchema>[number];
@@ -217,7 +218,8 @@ function calculateLine(baseConfig: PayrollConfig, entry: EngineEntry): PayrollLi
   return { workerId: w.workerId, gross, deductions, net: gross - deductions, trace };
 }
 
-export function calculatePayroll(config: PayrollConfig, entries: EngineEntry[]): PayrollCalculation {
+// Preserve v1 arithmetic, helper semantics and hash payload; upgrades get a separate implementation and frozen fixtures.
+function calculatePayrollV1(config: PayrollConfig, entries: EngineEntry[]): PayrollCalculation {
   const seen = new Set<string>();
   for (const e of entries) {
     if (seen.has(e.worker.workerId)) throw new EngineBlocked(e.worker.workerId, "more than one entry for this worker (would pay twice)");
@@ -231,8 +233,15 @@ export function calculatePayroll(config: PayrollConfig, entries: EngineEntry[]):
   return { configVersion: config.version, lines, totals, calculationHash };
 }
 
+export function calculatePayroll(config: PayrollConfig, entries: EngineEntry[], versions: unknown = CURRENT_CALCULATION_VERSIONS): PayrollCalculation {
+  const selected = CalculationVersionsSchema.parse(versions);
+  if (selected.engineVersion === 1 && selected.hashVersion === 1) return calculatePayrollV1(config, entries);
+  // Future hash formats must bind both version identifiers; v1 keeps its historical payload unchanged.
+  throw new Error("Unsupported calculation engine/hash versions");
+}
+
 /** Independent checks before CALCULATION_VALIDATED (ARCHITECTURE 10). Empty list = valid. */
-export function verifyCalculation(config: PayrollConfig, entries: EngineEntry[], calc: PayrollCalculation): string[] {
+export function verifyCalculation(config: PayrollConfig, entries: EngineEntry[], calc: PayrollCalculation, versions: unknown = CURRENT_CALCULATION_VERSIONS): string[] {
   const problems: string[] = [];
   let totals = { gross: 0n, deductions: 0n, net: 0n };
   for (const l of calc.lines) {
@@ -243,6 +252,6 @@ export function verifyCalculation(config: PayrollConfig, entries: EngineEntry[],
     totals = { gross: totals.gross + l.gross, deductions: totals.deductions + l.deductions, net: totals.net + l.net };
   }
   if (totals.gross !== calc.totals.gross || totals.deductions !== calc.totals.deductions || totals.net !== calc.totals.net) problems.push("totals do not match line sums");
-  if (calculatePayroll(config, entries).calculationHash !== calc.calculationHash) problems.push("recomputation does not reproduce the hash");
+  if (calculatePayroll(config, entries, versions).calculationHash !== calc.calculationHash) problems.push("recomputation does not reproduce the hash");
   return problems;
 }

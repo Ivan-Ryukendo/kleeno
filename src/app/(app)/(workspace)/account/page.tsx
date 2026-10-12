@@ -1,10 +1,13 @@
 import { connection } from "next/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { MfaSetup, PasswordForm } from "@/components/account-forms";
+import { AccountTimezoneForm } from "@/components/account-timezone-form";
+import { timeZoneChoices } from "@/lib/timezone-display";
 import { StatusPill } from "@/components/status-pill";
 import { ROLE_LABELS } from "@/core/tenancy";
 import { linkedMethods } from "@/server/auth/oauth";
 import { pageSession } from "@/server/auth/page-session";
+import { SettingsNavigation } from "@/components/settings-navigation";
 
 export const metadata = { title: "Account · Kleeno" };
 
@@ -21,6 +24,7 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader title="Account" description="Your sign-in, roles and security." />
+      <SettingsNavigation roles={actor.roles} current="/account" nav={!needsMfa}>
 
       <section className="mt-6 panel">
         <dl className="grid gap-3 sm:grid-cols-[10rem_1fr]">
@@ -54,6 +58,12 @@ export default async function AccountPage() {
         {needsMfa && factors.length > 0 && <p className="mt-6 font-medium text-signal">Sign in again with your authenticator code to unlock your company data.</p>}
       </section>
 
+      <section className="mt-6 panel" aria-labelledby="timezone-heading">
+        <h2 id="timezone-heading" className="text-lg">Time zone</h2>
+        <p className="mt-2 text-muted-foreground">Deadlines and run times show in this zone in every company you belong to.</p>
+        <AccountTimezoneForm options={timeZoneChoices()} />
+      </section>
+
       <section className="mt-6 panel">
         <h2 className="text-lg">Sign-in methods</h2>
         <p className="mt-2 text-muted-foreground">Google links automatically when you sign in with a Google account that uses this email.</p>
@@ -84,6 +94,7 @@ export default async function AccountPage() {
         <h2 className="text-lg">Change password</h2>
         <PasswordForm />
       </section>
+      </SettingsNavigation>
     </>
   );
 }

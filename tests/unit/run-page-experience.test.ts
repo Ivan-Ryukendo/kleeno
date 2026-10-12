@@ -7,6 +7,7 @@ const runId = "c3b64b32-7f23-4a64-8993-9b4ef2151c63";
 const lineId = "00000000-0000-4000-8000-000000000001";
 const state = vi.hoisted(() => ({ financial: true, paymentOnly: false, reviewFailure: false, reviewReads: 0, status: "CALCULATION_VALIDATED", role: "", calculationId: "calculation-1" as string | null }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
+vi.mock("@/server/display-timezone", () => ({ viewerTimeZone: async () => "UTC" }));
 vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", roles: [state.role ? state.role : state.financial ? state.paymentOnly ? "PAYMENT_APPROVER" : "HR_APPROVER" : "VIEWER"] }, client: {} }) }));
 vi.mock("@/server/db/reviewer-workspace", () => ({ reviewerWorkspace: async () => { state.reviewReads++; if (state.reviewFailure) throw new Error("synthetic evidence read failure"); return { review: { revision: 0, calculationId: state.calculationId }, settings: null, selectedBaselineId: null }; } }));
 vi.mock("@/components/payroll-review-panel", () => ({ PayrollReviewPanel: () => "Commercial review workspace" }));

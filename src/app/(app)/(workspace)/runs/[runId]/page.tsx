@@ -6,6 +6,7 @@ import { ApproveRunForm, CalculateButton, ResumeObligationsButton, RetryReconcil
 import { TableView } from "@/components/table-view";
 import { StatusPill } from "@/components/status-pill";
 import { isPayrollRole } from "@/core/workflow";
+import { payrollSide } from "@/components/shell/nav-config";
 import { pageSession } from "@/server/auth/page-session";
 import { initialTable } from "@/server/db/table-views";
 import { runView } from "@/server/db/views";
@@ -17,6 +18,7 @@ import { reviewerWorkspace } from "@/server/db/reviewer-workspace";
 import { ReviewTaskPanel } from "@/components/review-task-panel";
 import { RunViewNavigation } from "@/components/run-view-navigation";
 import { isPaymentRole } from "@/core/tenancy";
+import { viewerTimeZone } from "@/server/display-timezone";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -42,17 +44,17 @@ export default async function RunPage({ params, searchParams }: { params: Promis
   } catch {
     // A failed evidence read must not imply readiness or expose review actions.
   }
+  const timeZone = reviewData?.readiness?.cutoff ? await viewerTimeZone(actor) : "UTC"; // display only
   const link = "underline underline-offset-4";
 
   return (
     <>
-      <PageHeader title={`Pay run ${run.period_start} to ${run.period_end}`} description={<span className="font-mono text-xs break-all">{run.id}</span>} />
+      <PageHeader title={`Pay run ${run.period_start} to ${run.period_end}`} description={<span className="font-mono text-xs break-all">{run.id}</span>} actions={<RunViewNavigation runId={run.id} current="table" mode={run.mode} canPay={isPaymentRole(actor.roles)} canReview={payrollSide(actor.roles)} />} />
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <StatusPill status={run.mode} />
         <StatusPill status={run.status} />
         <span className="text-sm text-muted-foreground">config v{run.config_version}</span>
       </div>
-      <RunViewNavigation runId={run.id} current="table" mode={run.mode} canPay={isPaymentRole(actor.roles)} />
       {canInspect && calculationHash && (
         <p className="mt-4 break-all text-sm text-muted-foreground">
           calculation hash <span className="font-mono">{calculationHash}</span>
@@ -114,7 +116,7 @@ export default async function RunPage({ params, searchParams }: { params: Promis
       {canEdit && <ReviewTaskPanel key={`${actor.companyId}:${run.id}`} runId={run.id} />}
       {canAdjust && <section className="mt-6 panel"><h2 className="text-lg">One-off pay inputs</h2><p className="mt-2 text-sm text-muted-foreground">Review bonuses, commissions, reimbursements and fixed deductions before calculation. Every input needs a reason.</p><RunAdjustmentsForm key={run.id} runId={run.id} workers={adjustmentWorkers.map((w) => ({ id: w.id, pseudonym: w.pseudonym }))} initial={adjustments} /></section>}
 
-      {reviewData ? <PayrollReviewPanel key={`${run.id}:${reviewData.review.calculationId ?? "uncalculated"}:${reviewData.review.revision}:${reviewData.settings?.revision ?? 0}:${reviewData.selectedBaselineId ?? "none"}`} runId={run.id} data={reviewData} /> : <section className="mt-6 panel"><h2 className="text-lg">Review workspace unavailable</h2><p role="alert" className="mt-3 text-sm text-signal">Readiness and review evidence could not be loaded. No review action is available until the evidence loads.</p><Link href={`/runs/${run.id}`} className="mt-3 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Reload this run</Link></section>}
+      {reviewData ? <PayrollReviewPanel key={`${run.id}:${reviewData.review.calculationId ?? "uncalculated"}:${reviewData.review.revision}:${reviewData.settings?.revision ?? 0}:${reviewData.selectedBaselineId ?? "none"}`} runId={run.id} data={reviewData} timeZone={timeZone} /> : <section className="mt-6 panel"><h2 className="text-lg">Review workspace unavailable</h2><p role="alert" className="mt-3 text-sm text-signal">Readiness and review evidence could not be loaded. No review action is available until the evidence loads.</p><Link href={`/runs/${run.id}`} className="mt-3 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Reload this run</Link></section>}
 
       {summary && (
         <section className="mt-6 panel">

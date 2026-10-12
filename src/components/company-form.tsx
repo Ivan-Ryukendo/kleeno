@@ -5,6 +5,8 @@ import { INDUSTRIES, PAY_FREQUENCIES, SIZE_RANGES, WEEKDAYS, type CompanyProfile
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { postJson } from "@/lib/api";
+import { TimezonePicker } from "@/components/timezone-picker";
+import type { TimeZoneChoice } from "@/lib/timezone-display";
 
 function Message({ error }: { error: string | null }) {
   return error ? (
@@ -16,7 +18,7 @@ function Message({ error }: { error: string | null }) {
 
 export interface BasicsOptions {
   countries: { code: string; name: string }[];
-  zones: string[];
+  zones: TimeZoneChoice[];
 }
 
 /** Company name, country, time zone, size and industry. Saves through POST /api/company (Owner only).
@@ -34,6 +36,10 @@ export function BasicsForm({ profile, options, submitLabel = "Save", disabled = 
       onSubmit={async (e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
+        if (!zone) {
+          setError("Choose a time zone");
+          return;
+        }
         setBusy(true);
         setError(null);
         setSaved(false);
@@ -65,17 +71,7 @@ export function BasicsForm({ profile, options, submitLabel = "Save", disabled = 
           </Select>
         </div>
         <div>
-          <Label htmlFor="timezone">Time zone</Label>
-          <Select id="timezone" value={zone} onChange={(e) => setZone(e.target.value)} required disabled={disabled}>
-            <option value="" disabled>
-              Choose a time zone
-            </option>
-            {zones.map((z) => (
-              <option key={z} value={z}>
-                {z.replaceAll("_", " ")}
-              </option>
-            ))}
-          </Select>
+          <TimezonePicker id="timezone" label="Time zone" options={zones} value={zone || null} onChange={(tz) => setZone(tz ?? "")} required disabled={disabled} />
           {!disabled && (
             <button type="button" className="mt-2 text-sm underline underline-offset-4" onClick={() => setZone(Intl.DateTimeFormat().resolvedOptions().timeZone)}>
               Use this computer&apos;s time zone

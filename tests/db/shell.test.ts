@@ -62,12 +62,13 @@ describe("search index and isolation", () => {
   it("holds recent runs and worker codes of the session's company only", async () => {
     const d = await view(c, c.payroll);
     expect(d.runs.map((r) => r.id).sort()).toEqual([approvedRunId, pendingRunId].sort());
-    expect(d.workerCodes).toEqual(["W101", "W102"]);
+    expect(d.workers.map((w) => w.code)).toEqual(["W101", "W102"]);
+    expect(d.workers.every((w) => /^[0-9a-f-]{36}$/.test(w.id))).toBe(true);
   });
 
   it("another company sees none of it", async () => {
     const d = await view(other, other.payroll);
-    expect(d).toEqual({ todos: [], openExceptions: 0, runs: [], workerCodes: [] });
+    expect(d).toEqual({ todos: [], openExceptions: 0, runs: [], workers: [] });
   });
 
   it("never carries amounts or names", async () => {
@@ -78,6 +79,6 @@ describe("search index and isolation", () => {
 
   it("fails soft: a broken client degrades to an empty shell instead of breaking the page", async () => {
     const broken = { from: () => { throw new Error("boom"); } } as never;
-    expect(await shellData(broken, { companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles })).toEqual({ todos: [], openExceptions: 0, runs: [], workerCodes: [] });
+    expect(await shellData(broken, { companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles })).toEqual({ todos: [], openExceptions: 0, runs: [], workers: [] });
   });
 });

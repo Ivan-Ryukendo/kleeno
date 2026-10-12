@@ -89,7 +89,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
         <section className={card}>
           <h2 className="text-lg">Nothing to pay yet</h2>
           <p className="mt-3 text-muted-foreground">
-            A live testnet run appears here once it is sent for approval. Start one from the <Link href="/dashboard#start-run" className={link}>Home</Link>.
+            A live testnet run appears here once it is sent for approval. Start one from the <Link href="/dashboard#start-run" className={link}>Dashboard</Link>.
           </p>
         </section>
       ) : (

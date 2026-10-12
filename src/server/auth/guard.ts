@@ -9,6 +9,7 @@ import { hasRole, type Role } from "@/core/tenancy";
 import { WorkflowError } from "@/core/workflow";
 import { logError } from "@/server/log";
 import { adminGateOk, siteMode } from "@/server/site";
+import { BodyTooLarge, readBoundedBody } from "@/server/request-body";
 import { authenticateAdmin, type AdminActor } from "./admin";
 import { AuthError, authenticate, authenticateUser, jarFromRequest, type Actor, type CookieJar, type Membership, type PendingCookie } from "./session";
 
@@ -32,6 +33,7 @@ interface Options<B> {
   roles?: readonly Role[]; // the member needs at least one of these
   noCompany?: boolean; // signed in, no company chosen yet: only the company chooser and switch routes
   body?: z.ZodType<B>; // use .strict() so unknown fields (company_id, role, amount, state...) are rejected
+  maxBodyBytes?: number; // opt-in normalized upload budget, enforced while reading before JSON allocation
   allowAal1?: boolean; // account routes a half-signed-in (password only) user needs: MFA verify/enrol, logout
   // "app" (default): the payroll app; 404 while SITE_MODE is waitlist. "waitlist": the public sign-up routes.
   // "admin": reachable only through the secret admin path (proxy gate header); a session means a platform admin (S52).
@@ -60,8 +62,9 @@ function fail(status: number, code: string, message: string, correlationId: stri
 }
 
 function toResponse(err: unknown, correlationId: string) {
+  if (err instanceof BodyTooLarge) return fail(413, "TOO_LARGE", err.message, correlationId);
   if (err instanceof AuthError) return fail(err.status, err.code, err.message, correlationId);
-  if (err instanceof z.ZodError) return fail(400, "BAD_REQUEST", `invalid request: ${[...new Set(err.issues.map((i) => i.path.join(".") || "body"))].join(", ")}`, correlationId);
+  if (err instanceof z.ZodError) return fail(400, "BAD_REQUEST", `invalid request: ${[...new Set(err.issues.map((i) => `${i.path.join(".") || "body"}${i.code === "too_big" ? ` (maximum ${i.maximum})` : ""}`))].join(", ")}`, correlationId);
   if (err instanceof ViewError) return fail(400, "BAD_REQUEST", err.message, correlationId);
   if (err instanceof TransitionError) return fail(err.code === "NOT_FOUND" ? 404 : 409, err.code, err.message, correlationId);
   if (err instanceof WorkflowError) return fail(err.code === "FORBIDDEN" ? 403 : 409, err.code, err.message, correlationId);
@@ -84,7 +87,7 @@ function wrap<B, P>(opts: Options<B>, authenticated: boolean, fn: (h: Handled<B,
       if (bare && bare.nextLevel === "aal2" && bare.aal !== "aal2") throw new AuthError(401, "MFA_REQUIRED", "multi-factor sign-in required");
       const auth = authenticated && !asAdmin && !bare ? await authenticate(jar, { allowAal1: opts.allowAal1, sink: cookies }) : null;
       if (auth && opts.roles && !hasRole(auth.actor.roles, ...opts.roles)) throw new AuthError(403, "FORBIDDEN", "your role cannot do this");
-      const raw = opts.body ? await request.text() : "";
+      const raw = opts.body ? (opts.maxBodyBytes === undefined ? await request.text() : await readBoundedBody(request, opts.maxBodyBytes)) : "";
       if (scope !== "app" && raw.length > 8192) return fail(413, "TOO_LARGE", "request too large", correlationId); // public + admin bodies are small (S53)
       const body = (opts.body ? opts.body.parse(parseJson(raw)) : undefined) as B;
       const params = (ctx ? await ctx.params : {}) as P;

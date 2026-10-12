@@ -25,14 +25,20 @@ export interface SearchRun {
   status: string;
 }
 
+export interface SearchWorker {
+  id: string;
+  /** Worker code (W001...), never a name. */
+  code: string;
+}
+
 export interface ShellData {
   todos: Todo[];
   openExceptions: number;
   runs: SearchRun[];
-  workerCodes: string[];
+  workers: SearchWorker[];
 }
 
-export const EMPTY_SHELL: ShellData = { todos: [], openExceptions: 0, runs: [], workerCodes: [] };
+export const EMPTY_SHELL: ShellData = { todos: [], openExceptions: 0, runs: [], workers: [] };
 
 const OPEN_EXCEPTION = ["OPEN", "IN_REVIEW", "ESCALATED"];
 const MAX_WORKER_CODES = 500;
@@ -64,7 +70,7 @@ async function load(client: SupabaseClient, { companyId, userId, roles }: { comp
 
   const [recent, workers, awaitingApproval, proposed, unconfirmed, openRows] = await Promise.all([
     client.from("payroll_runs").select(runCols).eq("company_id", companyId).order("created_at", { ascending: false }).limit(8),
-    client.from("workers").select("pseudonym").eq("company_id", companyId).order("pseudonym").limit(MAX_WORKER_CODES),
+    client.from("workers").select("id, pseudonym").eq("company_id", companyId).order("pseudonym").limit(MAX_WORKER_CODES),
     payroll ? client.from("payroll_runs").select(runCols).eq("company_id", companyId).eq("mode", "LIVE_TESTNET").eq("status", "PENDING_APPROVAL").order("created_at", { ascending: false }).limit(10) : null,
     payment ? client.from("payment_batches").select("id, run_id").eq("company_id", companyId).eq("status", "PROPOSED").limit(20) : null,
     payment ? client.from("workers").select("pseudonym, wallet_address, wallet_confirmed_address, wallet_set_by").eq("company_id", companyId).eq("active", true).not("wallet_address", "is", null).limit(MAX_WORKER_CODES) : null,
@@ -119,6 +125,6 @@ async function load(client: SupabaseClient, { companyId, userId, roles }: { comp
     todos,
     openExceptions,
     runs: runs.map((r) => ({ id: r.id, label: period(r), mode: r.mode, status: r.status })),
-    workerCodes: (must(workers, "shell workers") as { pseudonym: string }[]).map((w) => w.pseudonym),
+    workers: (must(workers, "shell workers") as { id: string; pseudonym: string }[]).map((w) => ({ id: w.id, code: w.pseudonym })),
   };
 }
