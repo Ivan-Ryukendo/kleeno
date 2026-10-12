@@ -141,7 +141,7 @@ Kleeno/                                  repo root = Next.js app root
 │  │  ├─ onboarding/                [P3b] 3-screen wizard: account security, company basics, pay schedule
 │  │  ├─ settings/company/          [P3b] company details (Owner edits)
 │  │  ├─ settings/team/             [P3b] members, roles, invites
-│  │  ├─ account/                   [P2] password change, MFA enrolment
+│  │  ├─ account/                   [P2] password change, MFA enrolment; [R9.6] api/auth/logout-others/ and api/auth/oauth/google/unlink/ use native scoped sign-out and guarded password-confirmed unlink
 │  │  ├─ dashboard/                 [P1] crude in P1, setup checklist [P3b], full in P4d (docs/pages.md §6)
 │  │  ├─ configuration/             [P3] policy entry, AI proposal, validation log, approval
 │  │  ├─ workers/                   [P2] workers, pay types, wallets, recipient-change confirmation
