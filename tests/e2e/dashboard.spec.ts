@@ -61,7 +61,7 @@ async function checkDashboard(page: Page, width: number) {
   // Tiles always name Planned vs Settled, and unknown figures never read as zero.
   await expect(page.getByText("Planned", { exact: true })).toBeVisible();
   await expect(page.getByText("Settled", { exact: true })).toBeVisible();
-  await expect(page.getByText("Paid year to date")).toBeVisible();
+  await expect(page.getByText(/^Paid in 20\d\d/)).toBeVisible();
   await expect(page.getByText("Months paid in")).toBeVisible();
   await expect(page.getByText("None settled yet")).toBeVisible();
   await expect(page.getByText("Workers", { exact: true }).first()).toBeVisible();
