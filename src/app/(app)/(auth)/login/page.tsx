@@ -15,13 +15,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const notice = typeof error === "string" && Object.hasOwn(NOTICES, error) ? NOTICES[error] : undefined;
 
   return (
-    <div className="mx-auto w-full max-w-sm">
-      <h1 className="text-center text-2xl font-medium tracking-tight">Sign in to Kleeno</h1>
-      <p className="mt-2 text-center text-muted-foreground">Payroll is confidential. Sign in to see your company&apos;s runs.</p>
-      <div className="panel mt-6">
-        <LoginForm notice={notice} mfaFactorId={mfaFactorId} after={safeNext(next)} />
-      </div>
-      <p className="mt-4 text-center text-sm text-muted-foreground">Join by invitation: request access on the home page. Arc testnet · no real funds.</p>
+    <div className="mx-auto w-full max-w-[27.5rem]">
+      <LoginForm notice={notice} mfaFactorId={mfaFactorId} after={safeNext(next)} />
+      <p className="mt-4 text-center text-xs text-muted-foreground">Arc testnet · no real funds</p>
     </div>
   );
 }

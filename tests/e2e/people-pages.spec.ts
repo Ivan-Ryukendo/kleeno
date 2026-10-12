@@ -196,3 +196,114 @@ test("Help: labelled static guide with search, tickets list, create and reply ke
   await noSidewaysScroll(page, 375);
   await shot(page, "help-375");
 });
+
+test("Login at 1280 and 375: password-first card, Google below, show password, code step; no unbacked links", async ({ page }) => {
+  await page.setViewportSize(DESKTOP);
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "Sign in to Kleeno" })).toBeVisible();
+  await expect(page.getByText("Use the email your company invited.")).toBeVisible();
+  await expect(page.getByText("Google works for existing accounts only.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "request access on the home page" })).toHaveAttribute("href", "/#join");
+  for (const absent of ["Forgot password", "Trust this browser", "recovery code"]) await expect(page.getByText(absent, { exact: false })).toHaveCount(0); // no backing flow
+  const password = page.getByLabel("Password", { exact: true });
+  await password.fill("a-long-secret-phrase");
+  await expect(password).toHaveAttribute("type", "password");
+  await page.getByRole("button", { name: "Show password" }).click();
+  await expect(password).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await expect(password).toHaveAttribute("type", "password");
+  await shot(page, "login-1280", false);
+  // The second step renders from the Google-callback URL shape (no session needed to see the card).
+  await page.goto("/login?step=mfa&factor=00000000-0000-4000-8000-000000000000");
+  await expect(page.getByText("Step 2 of 2")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Enter your 6-digit code" })).toBeVisible();
+  await expect(page.getByLabel("Code from your authenticator app")).toBeFocused();
+  await shot(page, "login-mfa-1280", false);
+  await page.getByRole("button", { name: "Use a different account" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to Kleeno" })).toBeVisible();
+  await page.setViewportSize(MOBILE);
+  await page.goto("/login");
+  await noSidewaysScroll(page, 375);
+  await shot(page, "login-375", false);
+  // A wrong password still reports through the unchanged endpoint.
+  await page.getByLabel("Email", { exact: true }).fill("nobody@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("wrong-password-12345");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+});
+
+test("Invite: role card, live password checks, confirm; an unusable link is one calm message", async ({ page, browser }) => {
+  await page.setViewportSize(DESKTOP);
+  await signIn(page, company!.payroll);
+  await page.goto("/settings/team");
+  await page.getByText("Invite member", { exact: true }).click();
+  const email = `joiner-${Date.now()}@example.com`;
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Payroll approver").check();
+  await page.getByLabel("Your password, to confirm").fill(company!.payroll.password);
+  await page.getByRole("button", { name: "Create invite link" }).click();
+  const link = await page.getByLabel("Invite link").inputValue();
+  expect(link).toContain("/invite/");
+  const guest = await browser.newContext({ viewport: DESKTOP, baseURL: new URL(page.url()).origin });
+  const g = await guest.newPage();
+  await g.goto(new URL(link).pathname);
+  await expect(g.getByRole("heading", { name: /^Join / })).toBeVisible();
+  await expect(g.getByText(/^Roles? offered$/)).toBeVisible();
+  await expect(g.getByText("Payroll approver", { exact: true })).toBeVisible();
+  await expect(g.getByLabel("Email", { exact: true })).toHaveValue(email);
+  await expect(g.getByLabel("Email", { exact: true })).toHaveJSProperty("readOnly", true);
+  const accept = g.getByRole("button", { name: "Accept invite" });
+  await expect(accept).toBeDisabled();
+  await g.getByLabel(/^Choose a password/).fill("short");
+  await expect(g.getByRole("list", { name: "Password requirements" })).toContainText("At least 12 characters (not yet)");
+  await g.getByLabel(/^Choose a password/).fill("harbor-lantern-07-xyz");
+  await expect(g.getByRole("list", { name: "Password requirements" })).toContainText("At least 12 characters (met)");
+  await g.getByLabel("Confirm password", { exact: true }).fill("harbor-lantern-07-abc");
+  await expect(g.getByText("Passwords do not match yet.")).toBeVisible();
+  await expect(accept).toBeDisabled();
+  await g.getByLabel("Confirm password", { exact: true }).fill("harbor-lantern-07-xyz");
+  await expect(accept).toBeEnabled();
+  await shot(g, "invite-1280", false);
+  await g.setViewportSize(MOBILE);
+  await noSidewaysScroll(g, 375);
+  await shot(g, "invite-375", false);
+  await g.goto("/invite/not-a-real-token");
+  await expect(g.getByRole("heading", { name: "This invite link can't be used" })).toBeVisible();
+  await expect(g.getByRole("link", { name: "Go to sign in" })).toHaveAttribute("href", "/login");
+  await shot(g, "invite-invalid-375", false);
+  await guest.close();
+  // Withdraw the invite so the company is left as found.
+  await page.getByRole("button", { name: /^Revoke/ }).click();
+});
+
+test("Onboarding: three numbered steps, then the dashboard", async ({ page }) => {
+  const fresh = await makeCompany();
+  try {
+    await page.setViewportSize(DESKTOP);
+    await signIn(page, fresh.payroll);
+    await page.goto("/onboarding");
+    await expect(page.getByRole("heading", { name: "Secure your account" })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Setup progress" })).toContainText("Company basics");
+    await expect(page.getByText(/recovery codes/i)).toHaveCount(0);
+    await shot(page, "onboarding-1-1280", false);
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("heading", { name: "Company basics" })).toBeVisible();
+    await page.getByLabel("Country").selectOption("US");
+    await page.getByLabel("Team size").selectOption("1_10");
+    await page.getByLabel("Industry").selectOption("SOFTWARE");
+    await page.getByLabel("Time zone", { exact: true }).fill("New York");
+    await page.getByRole("listbox").getByRole("option").first().click();
+    await shot(page, "onboarding-2-1280", false);
+    await page.getByRole("button", { name: "Save and continue" }).click();
+    await expect(page.getByRole("heading", { name: "Pay schedule" })).toBeVisible();
+    await expect(page.getByText("New companies start in SIMULATION, which never pays.")).toBeVisible();
+    await page.getByLabel("How often do you pay?").selectOption("MONTHLY");
+    await shot(page, "onboarding-3-1280", false);
+    await page.getByRole("button", { name: "Finish setup" }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.setViewportSize(MOBILE);
+  } finally {
+    await admin.rpc("delete_company", { p_company: fresh.id });
+    for (const u of [fresh.payroll, fresh.payment]) await admin.auth.admin.deleteUser(u.id);
+  }
+});

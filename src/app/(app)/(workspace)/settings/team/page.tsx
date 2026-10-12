@@ -4,21 +4,13 @@ import { Avatar, Chip, Notice, PanelHead } from "@/components/people-ui";
 import { SettingsNavigation } from "@/components/settings-navigation";
 import { InviteForm, MemberActions, RevokeInviteButton } from "@/components/team-forms";
 import { ROLE_LABELS, isOwner, type Role } from "@/core/tenancy";
+import { ROLE_NOTES, ROLE_ORDER } from "@/lib/role-notes";
 import { pageSession } from "@/server/auth/page-session";
 import { listInvites } from "@/server/db/invites";
 import { listMembers } from "@/server/db/team";
 
 export const metadata = { title: "Team · Kleeno" };
 const when = (iso: string) => new Date(iso).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" });
-
-// What each role is for, from the existing role hints and the role-action matrix (docs/route-action-matrix.md).
-const ROLE_NOTES: [Role, string][] = [
-  ["OWNER", "Company details, team and invites; switches live payments on after approval."],
-  ["HR_APPROVER", "Pay policy, imports, exceptions and calculation."],
-  ["PAYROLL_APPROVER", "Reviews and approves a payroll run."],
-  ["PAYMENT_APPROVER", "Signs payments, releases holds and confirms recipient changes."],
-  ["VIEWER", "Can look, cannot change anything."],
-];
 
 function RoleChips({ roles }: { roles: readonly Role[] }) {
   return <div className="flex flex-wrap gap-1">{roles.map((r) => <Chip key={r} tone={r === "OWNER" ? "dark" : "neutral"}>{ROLE_LABELS[r]}</Chip>)}</div>;
@@ -114,10 +106,10 @@ export default async function TeamPage() {
             <section className="rounded-card border border-border bg-card" aria-labelledby="h-roles">
               <PanelHead icon={ShieldCheck} title="What each role can do" id="h-roles" />
               <ul className="m-0 list-none p-0">
-                {ROLE_NOTES.map(([role, note]) => (
+                {ROLE_ORDER.map((role) => (
                   <li key={role} className="border-b border-border px-4 py-2.5 last:border-b-0">
                     <Chip tone={role === "OWNER" ? "dark" : "neutral"}>{ROLE_LABELS[role]}</Chip>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{ROLE_NOTES[role]}</p>
                   </li>
                 ))}
               </ul>
