@@ -34,7 +34,7 @@ export function GoogleButton({ disabled }: { disabled?: boolean }) {
 
   return (
     <div>
-      <Button type="button" variant="outline" disabled={busy || disabled} aria-busy={busy} onClick={start} className="h-9 w-full gap-2.5 rounded-field px-4 text-sm">
+      <Button type="button" variant="outline" disabled={busy || disabled} aria-busy={busy} onClick={start} className="h-9.5 min-h-11 w-full gap-2.5 rounded-field px-4 text-sm">
         <GoogleMark />
         Continue with Google
       </Button>

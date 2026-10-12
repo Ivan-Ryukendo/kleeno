@@ -12,8 +12,8 @@ vi.mock("@/server/db/table-views", () => ({ initialTable: mocks.table }));
 vi.mock("@/server/log", () => ({ logError: mocks.log }));
 vi.mock("@/components/shell/page-header", () => ({ PageHeader: ({ title }: { title: string }) => createElement("h1", null, title) }));
 vi.mock("@/components/table-view", () => ({ TableView: () => "directory-table" }));
-vi.mock("@/components/worker-forms", () => ({ AddWorkerForm: () => "add-worker-action", WorkerRow: () => createElement("tbody", null, createElement("tr", null, createElement("td", null, "edit-recipient-actions"))) }));
-vi.mock("@/components/local-name-unlock", () => ({ LocalNameUnlock: () => "local-name-directory" }));
+vi.mock("@/components/worker-forms", () => ({ AddWorkerForm: () => "add-worker-action" }));
+vi.mock("@/components/worker-directory", () => ({ WorkerDirectory: ({ rows, canEdit }: { rows: unknown[]; canEdit: boolean }) => createElement("div", null, "local-name-directory", rows.length > 0 && canEdit ? "edit-recipient-actions" : "") }));
 vi.mock("@/components/resource-column-form", () => ({ ResourceColumnForm: () => "resource-action" }));
 vi.mock("@/components/worker-history", () => ({ WorkerHistoryPanel: () => "selected-worker-history" }));
 import WorkersPage from "@/app/(app)/(workspace)/workers/page";
@@ -21,7 +21,7 @@ const workerId = "10000000-0000-4000-8000-000000000001";
 const worker = { id: workerId, pseudonym: "W001", payType: "SALARIED", compensation: { baseAmount: 1000000000n, hourlyRate: 0n }, walletAddress: null, walletConfirmed: false, active: true, leftOn: null, leftReason: null, history: [], metadata: {} };
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.session.mockResolvedValue({ actor: { companyId: "company", userId: "user", roles: ["HR_APPROVER", "PAYMENT_APPROVER"] }, client: {} });
+  mocks.session.mockResolvedValue({ actor: { companyId: "company", userId: "user", roles: ["HR_APPROVER", "PAYMENT_APPROVER"] }, client: {}, companies: [] });
   mocks.workers.mockResolvedValue([worker]); mocks.history.mockResolvedValue({ workerId });
   mocks.table.mockResolvedValue({ initial: { rows: [{ code: "W001" }], rowIds: [workerId] } });
 });
@@ -36,7 +36,7 @@ it.each(["workers", "history", "table"] as const)("renders unavailable and suppr
   expect(mocks.log).toHaveBeenCalledTimes(1);
 });
 it("does not call financial loaders for a directory-only role and keeps directory failure explicit", async () => {
-  mocks.session.mockResolvedValue({ actor: { companyId: "company", userId: "user", roles: ["VIEWER"] }, client: {} });
+  mocks.session.mockResolvedValue({ actor: { companyId: "company", userId: "user", roles: ["VIEWER"] }, client: {}, companies: [] });
   mocks.table.mockRejectedValue(new Error("directory unavailable"));
   unavailable(await render()); expect(mocks.workers).not.toHaveBeenCalled();
 });

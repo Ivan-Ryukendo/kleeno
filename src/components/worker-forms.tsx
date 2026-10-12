@@ -94,8 +94,8 @@ const hasHourly = (v: string) => Number(v) > 0;
 const small = "h-8 rounded-field px-3 text-sm";
 const big = "h-9 rounded-field px-4 text-sm";
 
-/** One worker: the row, plus an inline panel to change pay (promotion), mark as left, reactivate, or see pay history. */
-export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: boolean; canConfirm: boolean }) {
+/** The actions for one worker, opened from the directory row ("Manage"): worker details, history, payout address, change or schedule pay, mark as left, reactivate. Same guarded endpoints as before. */
+export function WorkerActions({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: boolean; canConfirm: boolean }) {
   const router = useRouter();
   const [panel, setPanel] = useState<"pay" | "schedule" | "leave" | "history" | "wallet" | "metadata" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,70 +124,63 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
   );
 
   return (
-    <tbody className="border-t border-border align-top">
-      <tr>
-        <td className="py-3 pr-4"><span className="font-medium">{w.pseudonym}</span><p className="mt-1 text-xs text-muted-foreground">{[w.metadata?.department, w.metadata?.jobTitle].filter(Boolean).join(" · ")}</p></td>
-        <td className="py-3 pr-4">
-          <StatusPill status={w.payType} />
-        </td>
-        <td className="py-3 pr-4 text-right">{w.base}</td>
-        <td className="py-3 pr-4 text-right">{hasHourly(w.hourly) ? w.hourly : "—"}</td>
-        <td className="py-3 pr-4">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="min-w-0 text-sm">
           {!w.active ? (
             <span className="text-muted-foreground">
               Left {w.leftOn} · {label(w.leftReason ?? "")}
             </span>
           ) : w.walletAddress ? (
             <span>
+              <span className="text-muted-foreground">Payout address </span>
               <span className="break-all font-mono text-xs">{w.walletAddress}</span>
               {!w.walletConfirmed && <StatusPill status="NOT_CONFIRMED" className="ml-2 bg-signal text-white border-signal" />}
             </span>
-          ) : canEdit ? (
+          ) : (
+            <span className="text-muted-foreground">No payout wallet yet</span>
+          )}
+        </p>
+        <div className="flex flex-wrap justify-end gap-2">
+          {canEdit && w.active && !w.walletAddress && (
             <Button type="button" variant="outline" disabled={busy} className={small} onClick={() => run(`/api/workers/${w.id}/wallet`)}>
               Create wallet
             </Button>
-          ) : (
-            <span className="text-muted-foreground">not created</span>
           )}
-        </td>
-        <td className="py-3 text-right">
-          <div className="flex flex-wrap justify-end gap-2">
-            {canEdit && <Button type="button" variant="outline" className={small} onClick={() => toggle("metadata")}>Worker details</Button>}
-            <Button type="button" variant="ghost" className={small} onClick={() => toggle("history")}>
-              History ({w.history.length})
+          {canEdit && <Button type="button" variant="outline" className={small} onClick={() => toggle("metadata")}>Worker details</Button>}
+          <Button type="button" variant="ghost" className={small} onClick={() => toggle("history")}>
+            History ({w.history.length})
+          </Button>
+          {(canEdit || (canConfirm && w.walletAddress && !w.walletConfirmed)) && w.active && (
+            <Button type="button" variant="outline" className={small} onClick={() => toggle("wallet")}>
+              {canConfirm && w.walletAddress && !w.walletConfirmed ? "Confirm wallet" : "Payout address"}
             </Button>
-            {(canEdit || (canConfirm && w.walletAddress && !w.walletConfirmed)) && w.active && (
-              <Button type="button" variant="outline" className={small} onClick={() => toggle("wallet")}>
-                {canConfirm && w.walletAddress && !w.walletConfirmed ? "Confirm wallet" : "Payout address"}
+          )}
+          {canEdit && w.active && (
+            <>
+              <Button type="button" variant="outline" className={small} onClick={() => toggle("pay")}>
+                Change pay
               </Button>
-            )}
-            {canEdit && w.active && (
-              <>
-                <Button type="button" variant="outline" className={small} onClick={() => toggle("pay")}>
-                  Change pay
-                </Button>
-                <Button type="button" variant="outline" className="min-h-11 rounded-field px-3 text-sm" aria-expanded={panel === "schedule"} onClick={() => toggle("schedule")}>
-                  Schedule pay
-                </Button>
-                <Button type="button" variant="outline" className={small} onClick={() => toggle("leave")}>
-                  Mark as left
-                </Button>
-              </>
-            )}
-            {canEdit && !w.active && (
-              <Button type="button" variant="outline" disabled={busy} className={small} onClick={() => run(`/api/workers/${w.id}/reactivate`, {}, () => "Reactivated. They are included in new runs again.")}>
-                Reactivate
+              <Button type="button" variant="outline" className="min-h-11 rounded-field px-3 text-sm" aria-expanded={panel === "schedule"} onClick={() => toggle("schedule")}>
+                Schedule pay
               </Button>
-            )}
-          </div>
-        </td>
-      </tr>
+              <Button type="button" variant="outline" className={small} onClick={() => toggle("leave")}>
+                Mark as left
+              </Button>
+            </>
+          )}
+          {canEdit && !w.active && (
+            <Button type="button" variant="outline" disabled={busy} className={small} onClick={() => run(`/api/workers/${w.id}/reactivate`, {}, () => "Reactivated. They are included in new runs again.")}>
+              Reactivate
+            </Button>
+          )}
+        </div>
+      </div>
       {(panel || note || error) && (
-        <tr>
-          <td colSpan={6} className="pb-5">
+        <div>
             {panel === "schedule" && <><EffectiveCompensationForm workerId={w.id} workerCode={w.pseudonym} /><div className="mt-3">{cancel}</div></>}
             {note && <p className="mb-3 text-sm">{note}</p>}
-            {panel === "metadata" && <form className="grid gap-4 rounded-box bg-secondary p-5 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); run(`/api/workers/${w.id}/metadata`, metadataFrom(new FormData(e.currentTarget)), () => "Worker details saved. Existing approved snapshots stay unchanged; new calculations use this evidence."); }}><MetadataFields prefix={w.id} metadata={w.metadata} /><div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={busy} className={big}>Save worker details</Button>{cancel}</div></form>}
+            {panel === "metadata" && <form className="grid gap-4 rounded-box bg-secondary p-5 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); run(`/api/workers/${w.id}/metadata`, { metadata: metadataFrom(new FormData(e.currentTarget)) }, () => "Worker details saved. Existing approved snapshots stay unchanged; new calculations use this evidence."); }}><MetadataFields prefix={w.id} metadata={w.metadata} /><div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={busy} className={big}>Save worker details</Button>{cancel}</div></form>}
             {panel === "history" && (
               <ul className="space-y-1 text-sm">
                 {w.history.map((h) => (
@@ -326,10 +319,9 @@ export function WorkerRow({ w, canEdit, canConfirm }: { w: WorkerView; canEdit: 
                 {error}
               </p>
             )}
-          </td>
-        </tr>
+        </div>
       )}
-    </tbody>
+    </div>
   );
 }
 
