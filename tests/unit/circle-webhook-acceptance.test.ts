@@ -1,5 +1,5 @@
 import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { baseContext, clock, expectChain, FakeChain, FakeRail, FakeRepo } from "../invariants/payments/harness";
 
 const wiring = vi.hoisted(() => ({ db: vi.fn(), deps: undefined as unknown }));
@@ -47,6 +47,8 @@ beforeEach(async () => {
   const raw = "cache public synthetic key";
   expect(await verifyCircleSignature(raw, signature(raw), keyId, async () => pair.publicKey.export({ type: "spki", format: "der" }).toString("base64"))).toBe(true);
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 function deliver(id: string, state = "COMPLETE", tx = "c-1", tamper = false) {
   const raw = JSON.stringify({ notificationId: id, notificationType: "transactions.outbound", notification: { id: tx, state, amount: "999999", recipient: "untrusted" } });
