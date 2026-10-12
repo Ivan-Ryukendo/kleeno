@@ -96,7 +96,7 @@ test("desktop 1280: sidebar, run tabs, settings sections, account chip and searc
   // All Workers, Help.
   await nav.getByRole("link", { name: "All Workers", exact: true }).click();
   await expect(page).toHaveURL(/\/workers$/);
-  await expect(page.getByRole("heading", { name: "Workers", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "All Workers", exact: true })).toBeVisible();
   await nav.getByRole("link", { name: "Help", exact: true }).click();
   await expect(page).toHaveURL(/\/support$/);
 

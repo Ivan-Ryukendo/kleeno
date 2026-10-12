@@ -34,7 +34,7 @@ test("owner signs in, walks a seeded SIMULATION run, and no live payment path op
   await expect(page.getByText("Simulation ends with validated calculation and variance review. It creates no payment obligations.")).toBeVisible();
 
   await page.goto("/workers");
-  await expect(page.getByRole("heading", { name: "Workers", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "All Workers", exact: true })).toBeVisible();
   await expect(page.getByText("W001").first()).toBeVisible();
 
   await page.goto(`/runs/${demo.runId}`);

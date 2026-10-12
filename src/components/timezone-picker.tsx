@@ -109,7 +109,7 @@ export function TimezonePicker({ id, label, options, value, onChange, clearLabel
         tabIndex={-1}
         onMouseDown={(e) => e.preventDefault()}
         onBlur={(e) => { if (e.relatedTarget !== inputRef.current) close(); }}
-        className="absolute inset-x-0 top-full z-50 mt-1 max-h-[min(18rem,50dvh)] overflow-y-auto overscroll-contain rounded-box border border-border bg-popover p-1 text-sm text-popover-foreground shadow-pop"
+        className="absolute inset-x-0 top-full z-50 mt-1 max-h-[min(18rem,50dvh)] scroll-my-2 overflow-y-auto overscroll-contain rounded-box border border-border bg-popover p-1 text-sm text-popover-foreground shadow-pop"
       >
         {rows.map((row, i) => {
           const isSelected = row.timeZone === (selected?.timeZone ?? value);

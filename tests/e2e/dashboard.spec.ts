@@ -59,7 +59,10 @@ async function checkDashboard(page: Page, width: number) {
   await expect(ready.getByText("Matched automatically")).toBeVisible();
 
   // Tiles always name Planned vs Settled, and unknown figures never read as zero.
-  await expect(page.getByText("Planned", { exact: true })).toBeVisible();
+  await expect(page.locator("p").filter({ hasText: /^To pay/ }).getByText("Planned", { exact: true })).toBeVisible();
+  const gross = page.getByRole("region", { name: "Monthly gross pay", exact: true });
+  await expect(gross.getByText("Planned", { exact: true })).toBeVisible();
+  await expect(gross.getByText("Gross history is not available yet. This chart is planned.", { exact: true })).toBeVisible();
   await expect(page.getByText("Settled", { exact: true })).toBeVisible();
   await expect(page.getByText(/^Paid in 20\d\d/)).toBeVisible();
   await expect(page.getByText("Months paid in")).toBeVisible();
