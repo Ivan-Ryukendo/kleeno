@@ -299,6 +299,8 @@ test("Onboarding: three numbered steps, then the dashboard", async ({ page }) =>
     await expect(page.getByText("New companies start in SIMULATION, which never pays.")).toBeVisible();
     await page.getByLabel("How often do you pay?").selectOption("MONTHLY");
     await shot(page, "onboarding-3-1280", false);
+    await page.setViewportSize(MOBILE);
+    await shot(page, "onboarding-3-375", false);
     await page.getByRole("button", { name: "Finish setup" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await page.setViewportSize(MOBILE);
