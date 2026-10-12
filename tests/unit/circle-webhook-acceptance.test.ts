@@ -17,11 +17,11 @@ const keyId = randomUUID();
 const signature = (raw: string) => sign("sha256", Buffer.from(raw), { key: pair.privateKey, dsaEncoding: "der" }).toString("base64");
 let repo: FakeRepo, chain: FakeChain, rail: FakeRail;
 let notifications: Set<string>;
-let readFailure: boolean;
+let readFailure: string | null;
 
 beforeEach(async () => {
   vi.stubEnv("SITE_MODE", "app");
-  notifications = new Set(); readFailure = false;
+  notifications = new Set(); readFailure = null;
   const ctx = baseContext(); ctx.obligation.status = "PAYING";
   repo = new FakeRepo(ctx);
   repo.attempts.push({ id: "att-1", state: "SUBMITTED", key: "idem-1", circleTxId: "c-1" });
@@ -32,14 +32,14 @@ beforeEach(async () => {
     const filters: Record<string, string> = {};
     let inserted: { notification_id: string } | undefined;
     const result = () => {
-      if (table === "payment_attempts") return { data: filters.circle_tx_id === "c-1" ? { obligation_id: "ob-1", company_id: "co-1" } : null, error: readFailure ? { code: "08006" } : null };
-      if (table === "obligations") return { data: { batch_id: null }, error: null };
+      if (table === "payment_attempts") return { data: filters.circle_tx_id === "c-1" ? { obligation_id: "ob-1", company_id: "co-1" } : null, error: readFailure === table ? { code: "08006" } : null };
+      if (table === "obligations") return { data: { batch_id: null }, error: readFailure === table ? { code: "08006" } : null };
       if (table !== "webhook_notifications") throw new Error(`unexpected table ${table}`);
       if (inserted) {
         if (notifications.has(inserted.notification_id)) return { data: null, error: { code: "23505" } };
         notifications.add(inserted.notification_id); return { data: [{ id: "notification" }], error: null };
       }
-      return { data: notifications.has(filters.notification_id) ? { id: "notification" } : null, error: null };
+      return { data: notifications.has(filters.notification_id) ? { id: "notification" } : null, error: readFailure === table ? { code: "08006" } : null };
     };
     const query = { select: () => query, eq: (k: string, v: string) => { filters[k] = v; return query; }, insert: (row: { notification_id: string }) => { inserted = row; return query; }, maybeSingle: async () => result(), then: (resolve: (r: ReturnType<typeof result>) => unknown) => Promise.resolve(result()).then(resolve) };
     return query;
@@ -74,11 +74,11 @@ describe("R10.2 signed HTTP hints through the real executor and recovery", () =>
     expect((await deliver("retry")).status).toBe(200);
     expect(isPaid).toHaveBeenCalledTimes(2); expect(notifications.size).toBe(1); expect(rail.submits).toBe(0);
   });
-  it("a failed attempt lookup is retryable rather than acknowledged and lost", async () => {
-    readFailure = true;
+  it.each(["payment_attempts", "webhook_notifications", "obligations"])("a failed %s lookup is retryable rather than acknowledged and lost", async (table) => {
+    readFailure = table;
     expect((await deliver("lookup-retry")).status).toBe(500);
     expect(notifications.size).toBe(0);
-    readFailure = false;
+    readFailure = null;
     expect((await deliver("lookup-retry")).status).toBe(200);
     expect(repo.status).toBe("SETTLED");
   });
