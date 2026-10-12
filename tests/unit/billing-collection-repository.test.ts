@@ -118,3 +118,62 @@ for (const [amount, hash] of [[200, "a".repeat(64)], [0, "b".repeat(64)]] as con
   await expect(collectStripeTest(who, { action: "usage", month: "2026-09-01", expectedAmountCents: amount, expectedSourceHash: hash, idempotencyKey: intentId }, "https://example.com", config, fetchFn)).rejects.toMatchObject({ code: "CONFLICT" });
   expect(mocks.rpc).not.toHaveBeenCalled(); expect(fetchFn).not.toHaveBeenCalled();
 });
+
+it("fresh cancellation prepares one durable command and replays DONE without another provider write", async () => {
+  freshCommandSources(); current.action = "cancel";
+  payload = { ...payload, action: "cancel", month: null, sourceHash: null, amountCents: 0, uniqueWorkers: 0 };
+  const original = mocks.rpc.getMockImplementation()!;
+  mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => name === "prepare_billing_collection" ? { data: { code: "OK", id: commandId }, error: null } : original(name, args));
+  const fetchFn = fixtures({ id: "sub_fixture", object: "subscription", livemode: false, customer: "cus_fixture", cancel_at_period_end: true });
+  const command = { action: "cancel" as const, idempotencyKey: intentId };
+  await expect(collectStripeTest(who, command, "https://example.com", config, fetchFn)).resolves.toMatchObject({ status: "DONE", entitlement: "UNCONFIGURED" });
+  expect(mocks.rpc).toHaveBeenCalledWith("prepare_billing_collection", expect.objectContaining({ p_action: "cancel", p_month: null, p_usage: [], p_key: intentId }));
+  expect(mocks.from.mock.calls.map(([table]) => table)).not.toContain("billing_company_events");
+  expect(mocks.from.mock.calls.map(([table]) => table)).not.toContain("billing_worker_usage");
+  expect(fetchFn.mock.calls[0]).toEqual(["https://api.stripe.com/v1/subscriptions/sub_fixture", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "Idempotency-Key": `${commandId}:0` }), body: new URLSearchParams({ cancel_at_period_end: "true", proration_behavior: "none" }) })]);
+  // Reuse the existing prepared-command fixture for the exact-key DONE replay.
+  const preparedQueries = mocks.from.getMockImplementation()!;
+  mocks.from.mockImplementation((table: string) => {
+    if (table !== "billing_collection_commands") return preparedQueries(table);
+    const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: current, error: null }), single: async () => ({ data: current, error: null }) };
+    return query;
+  });
+  const callsBefore = mocks.rpc.mock.calls.length;
+  await expect(collectStripeTest(who, command, "https://example.com", config, fetchFn)).resolves.toMatchObject({ status: "DONE", entitlement: "UNCONFIGURED" });
+  expect(fetchFn).toHaveBeenCalledTimes(1); expect(mocks.rpc.mock.calls).toHaveLength(callsBefore);
+});
+
+it("lost cancellation response stays UNKNOWN; exact bound GET alone completes the original stage", async () => {
+  current.action = "cancel"; payload = { ...payload, action: "cancel", month: null };
+  const command = { action: "cancel" as const, idempotencyKey: intentId }, fetchFn = vi.fn().mockRejectedValue(new Error("PRIVATE_CANCEL_CANARY"));
+  await expect(collectStripeTest(who, command, "https://example.com", config, fetchFn)).rejects.toMatchObject({ code: "CONFLICT" });
+  expect(current.status).toBe("UNKNOWN"); const token = current.token;
+  await expect(collectStripeTest(who, command, "https://example.com", config, fetchFn)).rejects.toMatchObject({ code: "CONFLICT" });
+  expect(fetchFn).toHaveBeenCalledTimes(1);
+  const read = fixtures({ id: "sub_fixture", livemode: false, customer: "cus_fixture", cancel_at_period_end: true });
+  await expect(reconcileCollectionCommand(who, commandId, "sub_fixture", config, read)).resolves.toEqual({ id: commandId, status: "DONE", entitlement: "UNCONFIGURED" });
+  expect(read.mock.calls[0][1].method).toBeUndefined();
+  expect(mocks.rpc).toHaveBeenLastCalledWith("finish_billing_collection", expect.objectContaining({ p_id: commandId, p_token: token, p_stage: 0, p_refs: { subscriptionId: "sub_fixture" }, p_done: true }));
+});
+
+it.each([
+  ["foreign customer", { customer: "cus_foreign" }],
+  ["foreign subscription", { id: "sub_foreign" }],
+  ["noncancelled subscription", { cancel_at_period_end: false }],
+])("cancellation %s reply remains UNKNOWN without claiming success", async (_reason, changes) => {
+  current.action = "cancel"; payload = { ...payload, action: "cancel", month: null };
+  const fetchFn = fixtures({ id: "sub_fixture", object: "subscription", livemode: false, customer: "cus_fixture", cancel_at_period_end: true, ...changes });
+  await expect(collectStripeTest(who, { action: "cancel", idempotencyKey: intentId }, "https://example.com", config, fetchFn)).rejects.toMatchObject({ code: "CONFLICT" });
+  expect(current.status).toBe("UNKNOWN"); expect(fetchFn).toHaveBeenCalledTimes(1);
+  expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(["claim_billing_collection", "mark_billing_collection_unknown"]);
+});
+
+it("uncertain cancellation recovery refuses foreign object and unobserved cancellation", async () => {
+  current.action = "cancel"; current.status = "UNKNOWN"; current.token = intentId;
+  payload = { ...payload, action: "cancel", month: null };
+  const fetchFn = fixtures({ id: "sub_fixture", livemode: false, customer: "cus_fixture", cancel_at_period_end: false });
+  await expect(reconcileCollectionCommand(who, commandId, "sub_foreign", config, fetchFn)).rejects.toMatchObject({ code: "CONFLICT" });
+  expect(fetchFn).not.toHaveBeenCalled();
+  await expect(reconcileCollectionCommand(who, commandId, "sub_fixture", config, fetchFn)).rejects.toThrow();
+  expect(mocks.rpc).not.toHaveBeenCalled(); expect(current.status).toBe("UNKNOWN");
+});
