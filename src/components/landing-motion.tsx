@@ -15,7 +15,7 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
 //   data-hero-frame      the hero media frame settles in on load
 //   data-marquee         a track with its content duplicated once; loops left
 //   data-pin-section     container; its [data-pin] child pins on wide screens while [data-proof] cards scroll past
-//   data-proof           scales 0.86 -> 1 entering, darkens and fades leaving
+//   data-proof           scales 0.92 -> 1 and fades in entering; fades gently (opacity only) leaving
 //   data-scrub           paragraph whose [data-word] spans scrub from 0.12 to 1 opacity
 export function LandingMotion({ children }: { children: React.ReactNode }) {
   const scope = useRef<HTMLDivElement>(null);
@@ -39,12 +39,14 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
           gsap.to(el, { xPercent: -50, ease: "none", duration: 48, repeat: -1 });
         });
 
+        // Opacity + scale only, with explicit start values on both legs. (A filter tween from the computed "none" starts at
+        // brightness(0) in GSAP, which rendered whole cards solid black mid-scroll; never tween filter here.)
         q("[data-proof]").forEach((el) => {
           gsap
-            .timeline({ scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: 0.6 } })
-            .fromTo(el, { scale: 0.86, opacity: 0.35 }, { scale: 1, opacity: 1, ease: "power2.out", duration: 0.45 })
-            .to(el, { duration: 0.25 })
-            .to(el, { scale: 0.96, opacity: 0.2, filter: "brightness(0.85)", ease: "power1.in", duration: 0.3 });
+            .timeline({ scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: 0.5, invalidateOnRefresh: true } })
+            .fromTo(el, { scale: 0.92, opacity: 0.45 }, { scale: 1, opacity: 1, ease: "power2.out", duration: 0.4, immediateRender: false })
+            .to(el, { duration: 0.35 })
+            .fromTo(el, { scale: 1, opacity: 1 }, { scale: 0.97, opacity: 0.55, ease: "power1.in", duration: 0.25, immediateRender: false });
         });
 
         q("[data-scrub]").forEach((el) => {
@@ -61,6 +63,9 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
           ScrollTrigger.create({ trigger: section, start: "top top+=128", end: () => `bottom top+=${128 + (pin as HTMLElement).offsetHeight}`, pin, pinSpacing: false, invalidateOnRefresh: true });
         });
       });
+
+      // Web fonts change heights after first layout; re-measure so pin and card ranges match the final page.
+      document.fonts?.ready.then(() => ScrollTrigger.refresh());
 
       return () => mm.revert();
     },

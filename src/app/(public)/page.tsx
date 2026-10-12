@@ -203,7 +203,7 @@ export default function LandingPage() {
             </div>
             <ol className="space-y-6">
               {proofs.map((p) => (
-                <li key={p.title} data-proof className={`${card} bg-white will-change-transform`}>
+                <li key={p.title} data-proof className={`${card} bg-white`}>
                   <h3 className="text-2xl font-medium tracking-[-0.02em] sm:text-3xl">{p.title}</h3>
                   <p className="mt-3 max-w-lg leading-relaxed text-muted-foreground">{p.body}</p>
                   <div className={`mt-8 ${lift}`}>{p.visual}</div>

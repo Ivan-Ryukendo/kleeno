@@ -37,6 +37,36 @@ for (const width of [375, 1280]) {
   });
 }
 
+// Regression (LP.1 fix 1): a filter tween from "none" started at brightness(0) and rendered proof cards solid black.
+for (const width of [1280, 375]) {
+  test(`proof cards never go black or lose their text while scrolling at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await page.waitForTimeout(800);
+    const { top, height } = await page.locator("#proof").evaluate((el) => ({ top: el.getBoundingClientRect().top + window.scrollY, height: el.offsetHeight }));
+    for (let y = top - 900; y < top + height; y += 120) {
+      await page.evaluate((v) => window.scrollTo(0, v), y);
+      await page.waitForTimeout(120);
+      const cards = await page.locator("[data-proof]").evaluateAll((els) =>
+        els.map((e) => {
+          const s = getComputedStyle(e);
+          const r = e.getBoundingClientRect();
+          const heading = e.querySelector("h3")!;
+          return { visible: r.bottom > 0 && r.top < window.innerHeight, opacity: Number(s.opacity), filter: s.filter, bg: s.backgroundColor, text: heading.textContent ?? "", headingColor: getComputedStyle(heading).color };
+        }),
+      );
+      for (const c of cards.filter((c) => c.visible)) {
+        expect(c.filter, `filter at y=${y}`).toBe("none");
+        expect(c.opacity, `opacity at y=${y}`).toBeGreaterThanOrEqual(0.4);
+        expect(c.bg).not.toMatch(/^rgba?\(0, 0, 0(, 1)?\)$/);
+        expect(c.bg).not.toBe("rgba(0, 0, 0, 0)");
+        expect(c.text.length).toBeGreaterThan(0);
+        expect(c.headingColor).not.toBe(c.bg);
+      }
+    }
+  });
+}
+
 test("reduced motion shows everything statically, with no pinning", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1280, height: 900 });
