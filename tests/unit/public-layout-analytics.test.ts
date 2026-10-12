@@ -17,6 +17,15 @@ it.each(["development", "test"])("does not load analytics in %s", (mode) => {
   expect(html).toContain('href="/privacy"');
 });
 
+it("links Sign in only when the app is open, and always keeps the waitlist CTA", () => {
+  vi.stubEnv("SITE_MODE", "waitlist");
+  expect(render()).not.toContain('href="/login"');
+  expect(render()).toContain('href="/#join"');
+  vi.stubEnv("SITE_MODE", "app");
+  expect(render()).toContain('href="/login"');
+  expect(render()).toContain('aria-label="Main"');
+});
+
 it("keeps analytics on production public pages", () => {
   vi.stubEnv("NODE_ENV", "production");
   expect(render()).toContain('data-testid="public-analytics"');

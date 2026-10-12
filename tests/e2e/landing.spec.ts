@@ -1,0 +1,59 @@
+import { expect, test, type Page } from "@playwright/test";
+import path from "node:path";
+
+// Public landing page (LP.1). Needs no database. Set LP_SHOTS_DIR to also save full-page screenshots.
+const shots = process.env.LP_SHOTS_DIR;
+
+async function noHorizontalScroll(page: Page) {
+  const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
+  expect(scroll).toBeLessThanOrEqual(width);
+}
+
+async function h1Lines(page: Page) {
+  return page.locator("h1").evaluate((h) => Math.round(h.getBoundingClientRect().height / parseFloat(getComputedStyle(h).lineHeight)));
+}
+
+for (const width of [375, 1280]) {
+  test(`landing at ${width}px: wide hero, no horizontal scroll, working CTAs`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Payroll that can't pay the wrong person.");
+    expect(await h1Lines(page)).toBeLessThanOrEqual(3);
+    await noHorizontalScroll(page);
+    // scroll the whole page so scroll-triggered motion runs, then re-check overflow
+    await page.evaluate(async () => {
+      for (let y = 0; y < document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 40)); }
+    });
+    await noHorizontalScroll(page);
+    await expect(page.getByLabel(/email/i).first()).toBeVisible();
+    await expect(page.locator('a[href="/privacy"]').first()).toBeAttached();
+    if (shots) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: path.join(shots, `landing-${width}-top.png`) });
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.reload();
+      await page.screenshot({ path: path.join(shots, `landing-${width}-full.png`), fullPage: true });
+    }
+  });
+}
+
+test("reduced motion shows everything statically, with no pinning", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  await page.locator("#proof").scrollIntoViewIfNeeded();
+  expect(await page.locator(".pin-spacer").count()).toBe(0);
+  const opacities = await page.locator("[data-proof], [data-rise], [data-word]").evaluateAll((els) => els.map((e) => getComputedStyle(e).opacity));
+  expect(opacities.every((o) => o === "1")).toBe(true);
+});
+
+test("how-it-works accordion works with keyboard", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  const check = page.getByRole("button", { name: "Check" });
+  await check.focus();
+  await expect(check).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: "Policy" })).toHaveAttribute("aria-expanded", "false");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Approve" })).toHaveAttribute("aria-expanded", "true");
+});
