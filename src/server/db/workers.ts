@@ -202,3 +202,18 @@ export async function listWorkers(reader: SupabaseClient, companyId: string, opt
     }),
   );
 }
+
+export interface WorkerSummary { total: number; employees: number; contractors: number; unspecified: number; unconfirmedWallets: number }
+
+/** Dashboard counts of active workers: decrypts only the worker metadata (type), never compensation. Read-only, through the user-scoped client. */
+export async function workerSummary(reader: SupabaseClient, companyId: string): Promise<WorkerSummary> {
+  const rows = await loadAllRows<{ id: string; wallet_address: string | null; wallet_confirmed_address: string | null; metadata_enc: string | null }>((after, size) => keyset(reader.from("workers").select("id, wallet_address, wallet_confirmed_address, metadata_enc", { count: "exact" }).eq("company_id", companyId).eq("active", true), after, size), "workers");
+  const types = await Promise.all(rows.map(async (w) => WorkerMetadataSchema.parse(w.metadata_enc ? await openJson<WorkerMetadata>(companyId, "workers", "metadata_enc", w.id, w.metadata_enc) : {}).workerType));
+  return {
+    total: rows.length,
+    employees: types.filter((t) => t === "EMPLOYEE").length,
+    contractors: types.filter((t) => t === "CONTRACTOR").length,
+    unspecified: types.filter((t) => t === null).length,
+    unconfirmedWallets: rows.filter((w) => w.wallet_address && w.wallet_address.toLowerCase() !== w.wallet_confirmed_address?.toLowerCase()).length,
+  };
+}

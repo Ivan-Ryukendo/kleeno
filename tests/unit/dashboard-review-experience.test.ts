@@ -2,20 +2,26 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "@/app/(app)/(workspace)/dashboard/page";
 
-const state = vi.hoisted(() => ({ ready: false, signed: false, exported: false, outcome: null as string | null, denied: false, failed: false, periodFailed: false, activityFailed: false, reads: 0 }));
+const state = vi.hoisted(() => ({ ready: false, signed: false, exported: false, outcome: null as string | null, denied: false, failed: false, periodFailed: false, activityFailed: false, reads: 0, open: 0, exceptions: [] as unknown[] }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("@/server/display-timezone", () => ({ viewerTimeZone: async () => "UTC" }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
 vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", userId: "actor", roles: [state.denied ? "VIEWER" : "HR_APPROVER"] }, client: {} }) }));
-vi.mock("@/server/db/company", () => ({ getCompany: async () => ({ onboardedAt: "2026-10-01" }), setupFacts: async () => ({ teamInvited: true, workers: 1, policyApproved: true, runs: 1 }) }));
+vi.mock("@/server/db/company", () => ({ getCompany: async () => ({ onboardedAt: "2026-10-01", profile: { timezone: "UTC", payFrequency: "MONTHLY", payDay: 31 } }), setupFacts: async () => ({ teamInvited: true, workers: 1, policyApproved: true, runs: 1 }) }));
 vi.mock("@/server/db/table-views", () => ({ initialTable: async () => null }));
 vi.mock("@/components/table-view", () => ({ TableView: () => null }));
 vi.mock("@/components/new-run-form", () => ({ NewRunForm: () => null }));
 vi.mock("@/components/period-stepper", () => ({ PeriodStepper: () => null }));
 vi.mock("@/components/audit-timeline", () => ({ AuditTimeline: () => null }));
+vi.mock("@/server/db/reconciliation", () => ({ listExceptions: async () => state.exceptions }));
+vi.mock("@/app/(app)/(workspace)/dashboard/dashboard-data", () => ({
+  settledRunsOfYear: async () => [],
+  paidInYear: async () => ({ year: 2026, value: null, payments: 0, runs: 0, hiddenForRole: false }),
+  workerFacts: async () => ({ total: 1, employees: 1, contractors: 0, unspecified: 0, unconfirmedWallets: 0 }),
+}));
 vi.mock("@/server/db/views", () => ({
   dashboardView: async () => ({ company: { name: "Synthetic Company", live_payments_enabled: false, guard_address: null }, runs: [], selected: { id: "run-1", period_start: "2026-10-01", period_end: "2026-10-31", mode: "SIMULATION", status: "CALCULATION_VALIDATED", config_version: 1 } }),
-  periodSteps: () => [], periodView: async () => { if (state.periodFailed) throw new Error("db audit run references failed (PGRST205): PRIVATE_DRIVER_DETAIL"); return { workers: 1, autoMatched: null, openExceptions: 0, netTotal: "125.00", settled: 0, obligations: 0, canSign: false, activity: { items: [], graphTruncated: false, unavailable: state.activityFailed } }; },
+  periodSteps: () => [], periodView: async () => { if (state.periodFailed) throw new Error("db audit run references failed (PGRST205): PRIVATE_DRIVER_DETAIL"); return { workers: 1, autoMatched: null, openExceptions: state.open, netTotal: "125.00", settled: 0, obligations: 0, canSign: false, activity: { items: [], graphTruncated: false, unavailable: state.activityFailed } }; },
 }));
 vi.mock("@/server/db/reviewer-summary", () => ({ reviewerSummary: async () => {
   state.reads++; if (state.failed) throw new Error("synthetic read failed");
@@ -24,7 +30,7 @@ vi.mock("@/server/db/reviewer-summary", () => ({ reviewerSummary: async () => {
 
 const render = async () => renderToStaticMarkup(await DashboardPage({ searchParams: Promise.resolve({}) }));
 describe("dashboard review journey", () => {
-  beforeEach(() => { Object.assign(state, { ready: false, signed: false, exported: false, outcome: null, denied: false, failed: false, periodFailed: false, activityFailed: false, reads: 0 }); });
+  beforeEach(() => { Object.assign(state, { ready: false, signed: false, exported: false, outcome: null, denied: false, failed: false, periodFailed: false, activityFailed: false, reads: 0, open: 0, exceptions: [] }); });
   it("leads with explicit readiness blockers rather than no-action or a fabricated ready percentage", async () => {
     const html = await render();
     expect(html).toContain("Review readiness");
@@ -72,4 +78,39 @@ it("renders an audit-unavailable alert while retaining separately loaded period 
   expect(html).toContain("Activity unavailable");
   expect(html).toContain("125.00");
   expect(html).not.toContain("Period details unavailable");
+});
+
+it("lists open exceptions by worker code under What blocks approval, never a name", async () => {
+  Object.assign(state, { open: 2, exceptions: [
+    { id: "e1", worker: "W004", category: "UNAPPROVED_OVERTIME", status: "OPEN", facts: { weekStart: "2026-10-05", overtimeHours: "6", approvedHours: "0", unapprovedHours: "6" } },
+    { id: "e2", worker: "W014", category: "DUPLICATE_TIMESHEET", status: "RESOLVED", facts: { rows: "2", date: "2026-10-07", hours: "8,8" } },
+  ] });
+  const html = await render();
+  expect(html).toContain("What blocks approval");
+  expect(html).toContain("W004");
+  expect(html).not.toContain("W014"); // resolved exceptions do not block
+  expect(html).toContain("Hours above the limit without approval");
+  expect(html).toContain("/exceptions?run=run-1");
+  expect(html).toMatch(/>3 blockers</); // 2 open exceptions + the one readiness blocker ("Company cutoff is not configured")
+  expect(html).not.toContain(">4 blockers<");
+});
+it("labels planned and settled tiles and never shows an unknown figure as zero", async () => {
+  const html = await render();
+  expect(html).toContain("Planned");
+  expect(html).toContain("Settled");
+  expect(html).toContain("None settled yet");
+  expect(html).toContain("Months paid in 2026");
+  expect(html).toContain("Paid in 2026");
+  expect(html).not.toContain("year to date");
+  expect(html).toContain("Pay policy v1");
+  expect(html).toContain("this run never pays.");
+  expect(html).not.toContain("$0");
+  expect(html).not.toContain("0.00 USDC");
+});
+it("keeps the start-run section, pay-runs section and run selector reachable", async () => {
+  const html = await render();
+  expect(html).toContain('id="start-run"');
+  expect(html).toContain('id="pay-runs"');
+  expect(html).toContain("Select run");
+  expect(html).toContain('href="/runs/run-1"');
 });
