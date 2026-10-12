@@ -18,7 +18,7 @@ export const CATEGORY_LABEL: Record<ReconCategory, string> = {
   UNEXPLAINED_MISSING_HOURS: "Unexplained missing hours",
 };
 
-const ACTION_LABEL: Record<ResolutionAction, string> = {
+export const ACTION_LABEL: Record<ResolutionAction, string> = {
   KEEP_FIRST: "Keep the first line",
   KEEP_LATEST: "Keep the latest line",
   KEEP_ALL: "Keep all lines (separate shifts)",
@@ -177,7 +177,7 @@ function SingleDecision({ row, busy, onSave }: { row: ExceptionRow; busy: boolea
   const [action, setAction] = useState<string>(row.suggestion?.action ?? "");
   const [note, setNote] = useState("");
   return (
-    <div className="grid w-full gap-3 sm:w-96">
+    <div className="grid w-full gap-3 sm:max-w-96">
       <select aria-label={`Decision for ${row.worker}`} className={select} value={action} onChange={(e) => setAction(e.target.value)}>
         <option value="">Choose a decision…</option>
         {row.options.map((a) => (
@@ -190,6 +190,31 @@ function SingleDecision({ row, busy, onSave }: { row: ExceptionRow; busy: boolea
       <Button type="button" disabled={busy || !action || note.trim().length < 3} className="h-9 rounded-field px-4 text-sm" onClick={() => onSave(action, note)}>
         Save decision
       </Button>
+    </div>
+  );
+}
+
+/** The inspector's decision form: one decision and a note for the selected item (same endpoint as the category list). */
+export function ResolveException({ row }: { row: ExceptionRow }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="mt-4">
+      <SingleDecision
+        key={row.id}
+        row={row}
+        busy={busy}
+        onSave={async (action, note) => {
+          setBusy(true);
+          setError(null);
+          const r = await postJson(`/api/exceptions/${row.id}`, { action, note });
+          if (r.ok) router.refresh();
+          else setError(r.error ?? "Could not save the decision");
+          setBusy(false);
+        }}
+      />
+      {error && <p role="alert" className="mt-3 text-sm font-medium text-signal">{error}</p>}
     </div>
   );
 }

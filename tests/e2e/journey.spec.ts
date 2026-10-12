@@ -38,7 +38,7 @@ test("owner signs in, walks a seeded SIMULATION run, and no live payment path op
   await expect(page.getByText("W001").first()).toBeVisible();
 
   await page.goto(`/runs/${demo.runId}`);
-  await expect(page.getByRole("heading", { name: /^Pay run / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payroll", exact: true })).toBeVisible();
   await expect(page.getByText("EXCEPTIONS PENDING", { exact: true }).first()).toBeVisible();
   await page.goto(`/exceptions?run=${demo.runId}`);
   await expect(page.getByText("Duplicate timesheet lines").first()).toBeVisible();
