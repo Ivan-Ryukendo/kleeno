@@ -43,7 +43,7 @@ for (const width of [1280, 375]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     await page.waitForTimeout(800);
-    const { top, height } = await page.locator("#proof").evaluate((el) => ({ top: el.getBoundingClientRect().top + window.scrollY, height: el.offsetHeight }));
+    const { top, height } = await page.locator("#proof").evaluate((el) => ({ top: el.getBoundingClientRect().top + window.scrollY, height: (el as HTMLElement).offsetHeight }));
     for (let y = top - 900; y < top + height; y += 120) {
       await page.evaluate((v) => window.scrollTo(0, v), y);
       await page.waitForTimeout(120);
