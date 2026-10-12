@@ -105,13 +105,13 @@ LLM -> parse -> schema (Zod) -> semantic -> evidence/reference
 - Repair may only fix format when evidence supports it ("8.0" -> 8). Missing or guessed values -> `NEEDS_HUMAN_REVIEW`. Invalid output is never a best-effort answer.
 - Semantic checks: known worker and rule IDs, non-negative hours/amounts, valid leave types, evidence IDs exist and belong to the same run and worker, no duplicate sources, no change to approved data. For config: each value appears in its cited clause and is within sanity bounds (e.g. multiplier 1–3, percentages 0–100); otherwise it is flagged for explicit HR confirmation.
 - Inputs: every prompt input is built in `src/core/ai/inputs/` from strict Zod schemas (IDs, numbers, enums; the only free text is HR policy clauses). The adapter accepts only these typed inputs. No names, wallet addresses, notes or CSV cell text. Column-mapping suggestions see headers only.
-- `AIExecution` stores: operation ID (e.g. `POLICY_INTERPRET`, `RECON_CLASSIFY`, `PAYMENT_PLAN`), trace ID, input reference, schema version, provider + model, prompt version, output, validation result, retry count, final status.
+- `AIExecution` stores: operation ID (e.g. `POLICY_INTERPRET`, `RECON_CLASSIFY`, `PAYMENT_PLAN`), trace ID, input reference, schema version, provider + model, prompt version, output, validation result, retry count, final status. Conditional P4r extends its typed references/output/validation and correlated audit events with an immutable retrieved evidence package, cited subset, corpus/embedding/retrieval versions and concrete evidence checks (§26); it does not create a second execution log.
 - Prompt contract: use only supplied evidence; invent no facts or policy; catalog rule IDs only; `NEEDS_HUMAN_REVIEW` when unsure; never calculate final pay or modify approved config; cite evidence.
 - Injection: policy text and data go into prompts as delimited data, never as instructions. The schema fixes the output shape. AI text is rendered as plain text (no HTML).
 - OpenRouter: `response_format` JSON schema + `provider.require_parameters`; our validation is still mandatory. Account opted out of training; per-request no-retention providers; `:free` models only with fake data; $5 spend cap on the key.
 - Model choice: run the fixtures 3 times on 3 cheap models; default = the cheapest with 100% final ACCEPTED/REPAIRED and ≥ 90% first try; the runner-up is the fallback.
 - Cache (P4c, S72): before calling the model, the server looks up an earlier `AIExecution` with the same company, clause-set hash, model, prompt version and schema version. A hit reuses that output (still validated, still HR-approved); a change to any part misses. Per company only. The approved, immutable config version is what every calculation reads; documents are never re-read at calculation time.
-- Similarity (P4c): an exact rule check (same rule type, overlapping scope) decides clashes; text matching inside the company's own data (exact hash, then near-identical wording) only adds duplicate warnings for HR. AI embeddings come after the hackathon, behind the same adapter, not LangChain.
+- Similarity (P4c): an exact rule check (same rule type, overlapping scope) decides clashes; text matching inside the company's own data (exact hash, then near-identical wording) only adds duplicate warnings for HR. A narrow evidence-retrieval embedding slice is conditional P4r (§26), behind a separate provider interface. Broader embeddings remain post-hackathon; LangChain is optional, never part of payroll authority.
 - Outage: fallback model, then `NEEDS_HUMAN_REVIEW`. The judge demo company is seeded with an approved config and finished runs, so it works with the AI down.
 
 ## 8. Data ingestion
@@ -136,7 +136,7 @@ LLM -> parse -> schema (Zod) -> semantic -> evidence/reference
 - Fields: ID, run, worker, category, severity, source evidence, detected facts, rule IDs, AI suggestion, validation result, human resolution, resolver, timestamp.
 - States: `OPEN -> IN_REVIEW -> RESOLVED | REJECTED | ESCALATED`. An AI suggestion is never a resolution.
 - Unresolved exceptions block their own stage: reconciliation categories block calculation; `PAYMENT_EXCEPTION` and `SETTLEMENT_MISMATCH` block `RECONCILED` and `closeRun`.
-- "Why was this flagged?" is answered from stored evidence, not from an LLM.
+- "Why was this flagged?" uses stored deterministic evidence. Conditional P4r may add an AI interpretation of approved policy and exact records with validated citations beside that explanation; it never replaces deterministic detection or resolves the exception itself (§26).
 - Match status per imported record: `AUTO_MATCHED` (no check fired), `MATCHED_AFTER_REVIEW` (its exceptions resolved), `EXCEPTION` (open). The auto-match count is computed from it, never estimated.
 - Bulk resolve: one category, one required note, all-or-nothing, one resolution + audit event per exception (`docs/security.md` S60). Approvals stay one at a time.
 - Table views (`docs/pages.md` §5): a view definition is validated data (allow-listed columns and operators per table); filter, sort, totals and export run on the server in the scoped repositories (S59).
@@ -344,7 +344,7 @@ Controls described elsewhere are referenced by section; only controls that live 
 
 - Supabase: `kleeno-dev` (building) and `kleeno-prod` (demo) cloud projects, sign-up disabled. No Docker locally; the Supabase CLI runs via npx; DB tests run in GitHub Actions against local Supabase.
 - Vercel: production deploys from `main` with `kleeno-prod`; secrets only in Vercel env. No public payment route before P2 auth.
-- Freeze: tag `demo-freeze` on Oct 8; after it, migrations are additive only. Back up the prod DB (`supabase db dump` via npx) before the Oct 9 deploy. Rollback: Vercel Instant Rollback to the last good deployment.
+- Submission: **Oct 17, 2026**, per user update 2026-10-05; precise cutoff/timezone pending portal confirmation. Core readiness checkpoint Oct 9; conditional retrieval go/no-go Oct 10; feature freeze and `demo-freeze` Oct 12 (PRD §12). After freeze, migrations are additive only and fixes follow the existing approval process. Back up the prod DB (`supabase db dump` via npx) before the planned Oct 14 deploy. Oct 13–16 prioritize validation, demo rehearsal and polish. Rollback: Vercel Instant Rollback to the last good deployment.
 - Demo setup: Chrome desktop at 1440px; the receipt page also at 390px.
 
 ## 22. References
@@ -380,3 +380,109 @@ Controls described elsewhere are referenced by section; only controls that live 
 - **More companies:** an approved user can create another company from the switcher (≤ 5 per day, S64). It starts in SIMULATION and needs its own live-payments approval (§14.9).
 - **Sandboxes:** judge invites create `is_sandbox` companies that can never request or switch on live payments.
 - **Later:** legal entity name, address, tax ID (encrypted, Owner-only), logo, custom roles, open sign-up, SSO.
+
+## 26. Evidence-Grounded AI and Controlled Learning (conditional P4r)
+
+Design status: planned 2026-10-05, not implemented. Detailed metadata/contracts, risks, evaluation and sequence: `docs/evidence-grounded-ai.md`; implementation phase: `docs/phases/P4r.md`. Position: **Verified Payroll Automation**. AI understands. Evidence grounds. Validation verifies. Humans govern. Deterministic code executes. Audit proves.
+
+### Evidence above deterministic boundaries
+
+SOURCE → DOCUMENT → CLAUSE / RECORD → VERSION → EFFECTIVE DATE → RETRIEVED EVIDENCE → AI PROPOSAL → VALIDATION → HUMAN DECISION → DETERMINISTIC RESULT.
+
+Add `EmbeddingProvider`, `Retriever`, `KnowledgeRepository` in pure core; an EvidenceRetriever service orchestrates them through server composition. Vendor adapters live in `src/server/knowledge`, persistence in `src/server/db`. Native Supabase pgvector first, optional LangChain adapter later. Initial embedding adapter evaluates `gemini-embedding-2` at 768 versus 1536 dimensions on protected Kleeno fixtures; generative OpenRouter and embeddings remain distinct interfaces.
+
+Approved text knowledge → versioned structured chunks → embeddings → scoped storage → metadata eligibility → exact/lexical/vector ranking → immutable evidence package → typed AI inputs → existing `runValidated`/validation → human review. Metadata filters belong in each SQL candidate query before rank/LIMIT, including service-role paths. Exact known IDs win; a missing exact source, uncertain support, conflicting sources, wrong company/run/worker or incomplete effective-period coverage becomes NEEDS_HUMAN_REVIEW. AI may cite only supplied evidence. Similarity never determines business confidence or authority.
+
+Minimum proposed storage: versioned `knowledge_sources` + `knowledge_chunks`, composite tenant FKs, RLS/read-only public grants and bounded scoped retrieval query. Reuse existing configuration/clauses until P4c defines documents; no mandatory job, retrieval-event or resolution-pattern tables. No migration in P4g or this planning update. S41/rule 50 policy encryption remains: SQL full-text needs a readable derivative and vectors can disclose information, so resolve the searchable-data/privacy choice before implementation; synthetic evaluation first. For a tiny corpus, exact distance avoids premature ANN tuning.
+
+### Eight control gateways (map, do not duplicate)
+
+1. **Input:** existing strict schemas, anonymisation, auth and scope; extend for sanitized knowledge/query limits.
+2. **Retrieval / evidence:** existing provenance and policy/record references plus new approved/effective tenant-scoped retrieval package.
+3. **AI output:** existing schema/check/repair pipeline plus cited-subset, provenance and supported structured-claim validation.
+4. **Policy / business rule:** existing catalog, immutable config version and deterministic reconciliation; retrieval cannot redefine a rule.
+5. **Authorization:** existing membership/roles/MFA/repository checks, also applied to knowledge operations.
+6. **Human approval:** existing exception/config decisions and hash-bound payroll approval/four-eyes; retrieval never grants approval.
+7. **Execution:** existing plan hash, immutable obligations, one payment gate and PayrollGuard commitments. No RAG dependency.
+8. **Outcome / settlement:** existing independent Arc verification and linked audit, including the proposal's resulting action.
+
+### Three product memories and controlled learning
+
+- **Knowledge memory:** company-approved source documents/procedures/configuration descriptions.
+- **Resolution memory:** sanitized projection of finalized human-approved exception resolutions, context, rule/config versions, evidence, resolver, timestamp and verified outcome. Raw history remains immutable. Rejected AI recommendations and unfinalized outcomes are excluded.
+- **Operational history:** authoritative structured runs/hashes/approvals/obligations/payments/settlement/audit. It is never replaced by embeddings.
+
+Knowledge and resolution memory inform AI; none authorizes it. Learning creates proposals, not authority. An approved case can inform a later suggestion after validation and human review. A repeated pattern may later propose an automation rule; human approval creates a new immutable config version. No silent rule changes, model-weight updates or automatic fine-tuning. Development-session memory (`docs/memory/`) is a separate concern.
+
+### Agent Activity Record and retrieval audit
+
+Reuse immutable AIExecution, audit events and linked decision/result entities for operation/task/status, returned and cited evidence, policy/config versions, provider/model, proposed actions, concrete passed/failed validations, permissions, human decision, deterministic action and trace ID. Append retrieval-result and final-validation events rather than editing earlier history. Store safe task/query references/hashes, corpus generation, embedding model/dimension/preparation and retrieval config version. No sensitive raw content or private chain-of-thought. Show concrete evidence/validation checks, never cosine scores as percent correctness.
+
+Protected retrieval evaluation must establish zero cross-tenant results, disallowed-version overrides and unsupported accepted claims; missing/conflicting evidence escalates. Preserve all current hash, approval, guard, gate, settlement, audit and SIMULATION tests. If the Oct 10 entry gate or Oct 12 freeze cannot be met, defer P4r and preserve the existing end-to-end demo through Oct 17 submission.
+
+## 27. Future commercial architecture (2026-10-06; planned, not active)
+
+Scope: [roadmap Steps 1-12](docs/roadmap.md#future-product-delivery-sequence-approved-direction-2026-10-06) and PRD section 14. This is a documentation handoff; no schema, route, role, state transition, provider or runtime behavior is introduced. Existing architecture/security rules remain binding until the relevant phase is approved, built and verified.
+
+### Reuse and domain boundaries
+
+Retain the existing Next.js application, Supabase auth/database/repositories, pure deterministic core, typed validation, integer-money rules, immutable snapshots and append-only audit. Extend current tables/admin/auth services rather than creating another payroll engine or administrative backend. Current USD/micro-USDC/testnet semantics do not become general multi-currency or statutory US payroll support.
+
+Use existing relational links to render policy and workflow graphs; a graph database is deferred. The read-only workflow is a projection of authoritative run/review state, never another execution engine or source of approvals. Existing SIMULATION/LIVE_TESTNET semantics and permissions determine which nodes/actions are available.
+
+### Minimum future interfaces and records
+
+| Capability | Planned contract and boundary |
+|---|---|
+| Policy configuration | Versioned optional priorities per rule/setting, separate applicability, impact preview and approval. Preserve current precedence for old versions; immutable approved version/trace references remain reproducible. No newest-upload or embedding-score precedence. |
+| Commercial review | Separately specified review status/sign-off tied to config/input/calculation version. Correction links reference originals; evidence exports reproduce the reviewed result. Never create payment obligations or silently extend SIMULATION. |
+| Account metrics | Server queries distinguish unique authentication users, companies, memberships, workers, invites and leads. Explicit period/test-demo filters; aggregate membership duplication cannot inflate user counts. |
+| Support | Tenant-bound request, requester, category/severity, status/assignee, correlation ID, customer replies versus internal notes and audited history. Metadata and deliberately supplied evidence only initially. No direct DB editor or unrestricted impersonation. |
+| Employee identity | Default-off company opt-in; encrypted name/basic contact in repositories using existing tenant encryption. Explicit employee-account mapping, self-only publication and reviewed corrections. Real-data MFA; no PII in AI/chain/logs/audit payloads. |
+| Subscription/demo | Provider IDs/status/event deduplication, reviewed-worker usage deduplication and activation/expiry. Stripe test mode first. Subscription state is an entitlement to software features, not payroll/payment authority. |
+| Read-only API/MCP | Reuse membership/MFA/company/object guards and redaction. No approve/pay/recipient/config-write tools. Imported evidence retains provenance and follows existing validation/snapshot paths. |
+
+Exact routes, database columns, role assignments, review states, usage event and timezone must be fixed in the selected phase specification before coding. These capability contracts do not authorize speculative tables or scaffolding.
+
+### Compatibility and activation
+
+Apply only additive migrations after isolated acceptance; never rewrite applied migrations. Existing companies keep name storage off and existing policy behavior by default. Implement active-rule/document updates together with their enabling controls, not by treating this future section as permission to bypass rules 35, 17 or 51-63.
+
+Support/billing/operations permissions are distinct from company membership and existing live-testnet activation administration. Narrow access to specific functions through the current server guards; no general custom-role framework is required. All high-impact actions use validated services and safe audit references.
+
+Future employee storage follows the narrowed [profile ADR](docs/decisions/ADR-worker-profiles.md). General documents, photos and notes from the earlier concept are not part of the initial profile exception. Retention/deletion/backup behavior must be settled before real profile rollout.
+
+### Operations and production separation
+
+Use bounded validation/retry loops, deduplicated events/jobs, visible failure ownership and independent reconciliation. On an unknown payment outcome inspect provider/settlement state; never switch providers or retry blindly. AI/retrieval outage must not disable deterministic review of approved records.
+
+Commercial launch requires measured availability/recovery objectives, restore/interrupted-job evidence, security review, incident/support owners and published data terms. No zero-failure guarantee.
+
+Stripe subscription billing is not a payroll rail. Production payroll needs a separately approved partner/jurisdiction/tax/funding/authorization/returns specification; Arc remains testnet and the current PaymentRail controls remain intact. Business registration/provider activation gate live subscription collection separately.
+
+## 28. Public-launch tooling decisions (2026-10-06; recommendations, not installed)
+
+### Database authority: retain Supabase/Postgres
+
+Kleeno relies on PostgreSQL transactions, RLS, composite tenant constraints, triggers, immutable records and existing repositories. Keep one authoritative application database. Do not add Turso as a second payroll store, replica-by-application, cache of sensitive records or agent memory by default.
+
+The [Supabase acquisition announcement](https://supabase.com/blog/supabase-is-acquiring-turso), dated October 2 and reviewed October 6, says existing users need no change: Supabase continues around Postgres and Turso around SQLite. The announcement does not establish automatic feature compatibility or a migration requirement.
+
+Reconsider Turso only for a demonstrated embedded/offline/isolated workload that PostgreSQL cannot reasonably serve. A future decision must prove access control, synchronization/conflict handling, deletion, operational cost and recovery without weakening existing invariants. No such requirement is established for launch.
+
+### Observability: evaluate managed Grafana Cloud
+
+Grafana Cloud is a candidate for Step 11, not the customer dashboard, admin database or authoritative audit trail. Start with existing provider diagnostics; adopt managed monitoring when cross-service alerts and retention justify its cost. Do not build a self-hosted observability cluster for launch.
+
+Official sources reviewed October 6: [Grafana Cloud introduction](https://grafana.com/docs/grafana-cloud/learn-and-build/get-started/learn/) describes managed telemetry and open standards; [Supabase Metrics API](https://supabase.com/docs/guides/observability/metrics) documents Prometheus-compatible metrics and a managed Grafana path. The Supabase API is beta, so confirm current labels, limits and available plan at implementation. No pricing/SLA or provider certification is inherited as a Kleeno guarantee.
+
+Planned signals: application availability/error/latency, auth failure rate, database saturation/connections, queue age/job failures, webhook lag/rejection, AI validation/timeouts/cost, subscription event processing and unresolved settlement counts. Financial totals/user counts still come from authorized application records; telemetry is diagnostic.
+
+Controls before adoption:
+- Export only allow-listed redacted metadata; no names, salaries, policies/prompts, request bodies, tokens, raw SQL parameters or support content. No session replay on confidential screens by default.
+- No employee IDs or unbounded per-worker labels. Use low-cardinality aggregates and safe request correlation references only where needed and access-controlled.
+- Credentials remain server-side, scoped and rotated; monitoring receives no application service-role key or financial mutation tools. Review telemetry region/retention/subprocessors and sampling/ingestion budget.
+- Define each alert's severity, threshold, owner, response and runbook; test failure and recovery delivery. Telemetry failure cannot stop deterministic payroll validation or trigger payment.
+- Select availability/RTO/RPO targets from measured capacity/provider capabilities, demonstrate restoration and isolate staging from production telemetry.
+
+Monitoring/incident coverage is a paid-launch requirement even if Grafana is not selected. Selection, procurement and setup belong to the later approved operations phase.

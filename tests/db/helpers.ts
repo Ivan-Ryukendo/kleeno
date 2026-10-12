@@ -1,7 +1,8 @@
 // Shared setup for DB tests. Runs against a real Supabase; creates fresh, uniquely named test companies and users per run.
-// Immutable rows (audit, runs, calculations) can never be deleted by design, so test companies are left in place: dev DB only.
+// Immutable rows remain in the disposable stack or pinned test project; never dev/prod.
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { Client } from "pg";
 import { keccak256, toHex } from "viem";
 import type { ConfigParams } from "@/core/config";
 import { obligationMachine, runMachine, type ObligationState, type RunState } from "@/core/domain/machines";
@@ -21,8 +22,12 @@ const URL_ = process.env.SUPABASE_URL!;
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Never touch production data (rule: DB tests only on dev or the local stack).
-if (!URL_ || URL_ === process.env.SUPABASE_PROD_URL) throw new Error("tests/db refuses to run: SUPABASE_URL is missing or is the production project");
+// Check the allowlist again before creating clients, without reading any owner configuration.
+const host = URL_ ? new URL(URL_).hostname : "";
+const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(host);
+const pinned = host === "axcgcjpmcdujxkvroqox.supabase.co" && process.env.SUPABASE_TEST_PROJECT_REF === "axcgcjpmcdujxkvroqox";
+const denyTarget = process.env.DB_TEST_FORBIDDEN_URL;
+if (!URL_ || !(loopback || pinned) || (denyTarget && new URL(denyTarget).origin === new URL(URL_).origin)) throw new Error("tests/db refuses to run: isolated loopback or pinned kleeno-test required");
 
 export const admin = createClient(URL_, SERVICE, { auth: { persistSession: false } });
 export const BASE = "http://localhost:3000";
@@ -186,3 +191,10 @@ export async function proposedBatch(c: TestCompany, r: BuiltRun, authorizerId: s
 }
 
 export const stores = { obligations: dbStore<ObligationState>("obligations"), obligationMachine };
+
+/** Runs one statement as the table owner (the service role has least-privilege grants, e.g. SELECT-only on billing_worker_usage). Only for isolated fixtures. */
+export async function asOwner(sql: string, params: unknown[] = []) {
+  const client = new Client({ connectionString: process.env.SUPABASE_TEST_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres" });
+  await client.connect();
+  try { return await client.query(sql, params); } finally { await client.end(); }
+}

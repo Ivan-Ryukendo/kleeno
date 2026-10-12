@@ -47,6 +47,19 @@ describe("proposing a plan", () => {
     const sim = (await admin.from("payroll_runs").insert({ company_id: c.id, mode: "SIMULATION", period_start: "2026-11-01", period_end: "2026-11-30", config_version: run.config.version }).select("id").single()).data!;
     await expect(proposeBatch(payment(c), sim.id, [])).rejects.toMatchObject({ code: "SIMULATION_CANNOT_PAY" });
   });
+
+  it("falls back to a human-signed plan when planner setup lacks a wallet, while preserving manual-hold validation", async () => {
+    const { c, run, obs } = await setup(); // test company has no approver wallet/guard provisioning
+    await expect(proposeBatch(payment(c), run.runId, [randomUUID()], { planner: true })).rejects.toMatchObject({ code: "PLAN_INVALID" });
+
+    const plan = await proposeBatch(payment(c), run.runId, [obs[0].id], { planner: true });
+    expect(plan.source).toBe("FALLBACK");
+    expect(plan.proposal).toBeNull();
+    expect(plan.held).toBe(1);
+    const stored = (await admin.from("payment_batches").select("plan").eq("id", plan.batchId).single()).data!;
+    expect(stored.plan.source).toBe("FALLBACK");
+    expect(stored.plan.heldIds).toEqual([obs[0].id]);
+  });
 });
 
 describe("signing", () => {

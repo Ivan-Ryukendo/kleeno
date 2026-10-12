@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
-import { countryOptions, timezoneOptions } from "@/core/company";
+import { countryOptions } from "@/core/company";
+import { timeZoneChoices } from "@/lib/timezone-display";
 import { isOwner } from "@/core/tenancy";
 import { pageSession } from "@/server/auth/page-session";
 import { getCompany } from "@/server/db/company";
@@ -17,10 +18,9 @@ export default async function OnboardingPage() {
   const factors = (await client.auth.mfa.listFactors()).data?.totp ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <h1 className="text-2xl font-medium tracking-tight">Let&apos;s set up {company.profile.name}</h1>
-      <p className="mt-2 text-muted-foreground">Three short steps. You can change everything later in Settings.</p>
-      <OnboardingWizard profile={company.profile} options={{ countries: countryOptions(), zones: timezoneOptions() }} mfaRequired={company.mfaRequired} mfaOn={factors.length > 0 && actor.aal === "aal2"} />
+    <div className="mx-auto w-full max-w-[30rem]">
+      <p className="sr-only">Set up {company.profile.name}</p>
+      <OnboardingWizard profile={company.profile} options={{ countries: countryOptions(), zones: timeZoneChoices() }} mfaRequired={company.mfaRequired} mfaOn={factors.length > 0 && actor.aal === "aal2"} />
     </div>
   );
 }

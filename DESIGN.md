@@ -412,3 +412,19 @@ Sections 1-9 describe a marketing site. They apply to the public pages only (lan
 - **Auth pages** (login, invite, onboarding, select company): one centred hairline card on white, 400-480px wide, Kleeno wordmark above. The login card keeps a slot for a "Continue with Google" button (P4g).
 - **Motion:** §10 unchanged (150-250 ms, reduced-motion respected). Sidebar collapse and drawer use the 200 ms panel timing.
 - **Accessibility:** focus ring 2px primary with 2px offset on every control; contrast AA; icon-only buttons carry a label; Ctrl+K is also reachable with a visible button.
+
+## 12. Future workspace direction (2026-10-06; planned, not implemented)
+
+This section records the approved direction for [roadmap Steps 3-4](docs/roadmap.md#future-product-delivery-sequence-approved-direction-2026-10-06). It does not replace the implemented shell or authorize UI changes in this documentation session. The owner reviews the mapped journeys before implementation.
+
+- Keep the existing Kleeno product appearance: Sofia Sans, white workspace, warm-grey navigation, hairline borders, semantic tokens and dense readable tables. Reference products inform interaction, not a new brand or automatic dark theme.
+- Future primary navigation: Dashboard, Payroll, All Workers. Settings and Help are secondary. Map existing routes/actions into this structure before changing navigation; preserve permissions and deep links.
+- Auth layout: email/password and sign-in first, Google after a divider. Preserve invite-only access, password-manager/paste support, labels, error recovery and MFA.
+- Payroll has Table / Workflow / Payments / Activity views. Source/formula inspection is adjacent to the selected cell; explain inputs, policy version, steps and final value without obscuring money or approval decisions.
+- Workflow is read-only and inspectable, with status text, counts, evidence and permitted actions. Supply a step-list equivalent; color alone does not carry state. No drag-and-drop executable workflow editor.
+- Right-click, hover and drag are optional accelerators. Supply visible click/touch controls, keyboard alternatives, focus disclosure, accessible names and stable focus. Do not make comment creation a hidden or ambiguous side effect of every cell selection.
+- Specify loading, empty, stale, error and permission-denied states; unknown data is not zero. Show Data required for missing inputs.
+- Apply ui-ux-pro-max accessibility guidance within existing Kleeno rules: readable contrast, keyboard/screen-reader navigation, zoom/reflow, focus not hidden by sticky UI, and contextual status announcements.
+- CSS transitions remain default. Motion is already installed as motion/react and is only for interactions CSS cannot express cleanly. Keep 150-250 ms timing, respect reduced motion, and do not animate money or approval decision surfaces.
+
+Future admin information architecture does not automatically restyle the existing admin surface; retain its current visual rules until its specific design review. No new colors, dependencies or reference-prompt changes are selected here.

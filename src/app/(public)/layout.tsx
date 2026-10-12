@@ -44,7 +44,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
       </footer>
-      <Analytics />
+      {process.env.NODE_ENV === "production" && <Analytics />}
     </>
   );
 }

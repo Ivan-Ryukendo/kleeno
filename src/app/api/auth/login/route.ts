@@ -33,7 +33,9 @@ export const POST = openRoute({ body: Body }, async ({ body, jar, cookies, corre
   const active = rows.length === 1 ? rows[0].company_id : rows.find((r) => r.company_id === previous)?.company_id;
   cookies.push(active ? companyCookie(active) : clearCompanyCookie());
 
-  const factors = (await client.auth.mfa.listFactors()).data?.totp ?? []; // verified TOTP factors only
+  const { data: factorData, error: factorError } = await client.auth.mfa.listFactors();
+  if (factorError || !factorData) throw new AuthError(401, "UNAUTHENTICATED", "could not verify authenticator factors");
+  const factors = factorData.totp; // verified TOTP factors only
   if (factors.length > 0) return { next: "mfa", factorId: factors[0].id };
   return { next: rows.some((r) => r.companies?.mfa_required) ? "enrol" : "dashboard" };
 });

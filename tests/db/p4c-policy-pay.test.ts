@@ -1,0 +1,54 @@
+import { randomUUID } from "node:crypto";
+import { expect, it } from "vitest";
+import { calculatePayroll } from "@/core/engine";
+import { scopeOverrideKey, scopeReview } from "@/core/config";
+import { parseUsdc } from "@/core/money";
+import { WorkerMetadataSchema } from "@/core/workers";
+import { createWorker, listWorkers, updateWorkerMetadata } from "@/server/db/workers";
+import { createConfigDraft, advanceAiConfig, configAction, loadConfig } from "@/server/db/configs";
+import { loadRunAdjustments, setRunAdjustments } from "@/server/db/calculate";
+import { saveCalculation } from "@/server/db/calculations";
+import { activeConfig, admin, makeCompany, CONFIG_PARAMS as PARAMS, userClient } from "./helpers";
+
+it("S71 metadata/selectors are encrypted; current explicit overrides and equal-rank conflicts govern approval", async () => {
+  const c = await makeCompany(), other = await makeCompany();
+  const who = { companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles, correlationId: randomUUID() };
+  const metadata = WorkerMetadataSchema.parse({ department: "Synthetic Engineering", tags: ["remote"], employmentStart: "2026-10-16" });
+  const w = await createWorker(who, { pseudonym: "W001", payType: "SALARIED", compensation: { baseAmount: parseUsdc("3100"), hourlyRate: 0n }, metadata });
+  const raw = (await admin.from("workers").select("metadata_enc").eq("id", w.id).single()).data!;
+  expect(raw.metadata_enc).not.toContain(metadata.department);
+  expect(await updateWorkerMetadata({ ...who, companyId: other.id }, w.id, metadata)).toBe(false);
+  const scopedRules = [{ id: "engineering", scope: { groups: [{ field: "department" as const, value: metadata.department! }] }, values: { overtimeMultiplier: "2" }, clauseIds: ["C1"] }];
+  const draft = await createConfigDraft(who, { params: { ...PARAMS, scopedRules }, clauses: [{ id: "C1", text: "Synthetic Engineering receives overtime at 2 times the rate." }] });
+  await advanceAiConfig(who, draft.id);
+  await expect(configAction(who, draft.id, "approve")).rejects.toMatchObject({ code: "FLAGS_UNCONFIRMED" });
+  const review = scopeReview({ ...PARAMS, scopedRules }, [{ workerId: w.id, payType: "SALARIED", ...metadata }]);
+  expect(await configAction(who, draft.id, "approve", { confirmOverrides: review.overrides.map(scopeOverrideKey) })).toBe("APPROVED");
+  expect((await admin.from("payroll_configurations").update({ params_enc: "changed" }).eq("id", draft.id)).error).not.toBeNull();
+  expect((await loadConfig(c.id, draft.version))?.config.scopedRules).toEqual(scopedRules);
+  const clash = await createConfigDraft(who, { params: { ...PARAMS, scopedRules: [...scopedRules, { id: "remote", scope: { groups: [{ field: "tag" as const, value: "remote" }] }, values: { overtimeMultiplier: "3" }, clauseIds: ["C1"] }] }, clauses: [{ id: "C1", text: "Review conflicting 2 and 3 times overtime." }] });
+  await advanceAiConfig(who, clash.id);
+  await expect(configAction(who, clash.id, "approve", { confirmOverrides: [] })).rejects.toThrow(/equal-rank/);
+  expect((await listWorkers(admin, c.id))[0].metadata).toEqual(metadata);
+});
+
+it("S73 adjustment ciphertext freezes atomically with snapshot and stale revisions cannot be saved", async () => {
+  const c = await makeCompany(), cfg = await activeConfig(c);
+  const who = { companyId: c.id, userId: c.payroll.id, roles: c.payroll.roles, correlationId: randomUUID() };
+  const { id: workerId } = await createWorker(who, { pseudonym: "W001", payType: "SALARIED", compensation: { baseAmount: parseUsdc("100"), hourlyRate: 0n } });
+  const run = await admin.from("payroll_runs").insert({ company_id: c.id, mode: "SIMULATION", period_start: "2026-10-01", period_end: "2026-10-31", config_version: cfg.config.version, created_by: c.payroll.id }).select("id").single();
+  expect(run.error).toBeNull(); const runId = run.data!.id;
+  const additions = [{ id: "bonus", kind: "BONUS" as const, amount: "25", reason: "Synthetic performance award" }];
+  await setRunAdjustments(who, runId, workerId, additions);
+  const raw = (await admin.from("run_adjustments").select("*").eq("run_id", runId).single()).data!;
+  expect(JSON.stringify(raw)).not.toContain(additions[0].reason);
+  expect((await loadRunAdjustments(admin, c.id, runId)).get(workerId)).toEqual(additions);
+  const entries = [{ worker: { workerId, payType: "SALARIED" as const, baseAmount: parseUsdc("100"), hourlyRate: 0n }, input: { adjustments: additions } }];
+  const calc = calculatePayroll(cfg.config, entries);
+  await expect(saveCalculation(c.id, runId, cfg.config, entries, calc, { adjustmentRevision: 0 })).rejects.toThrow();
+  expect((await admin.from("calculations").select("id").eq("run_id", runId)).data).toEqual([]);
+  await saveCalculation(c.id, runId, cfg.config, entries, calc, { adjustmentRevision: 1 });
+  await expect(setRunAdjustments(who, runId, workerId, [])).rejects.toThrow();
+  const reader = await userClient(c.payroll);
+  expect((await reader.from("run_adjustments").update({ payload_enc: "x" }).eq("id", raw.id)).error).not.toBeNull();
+});

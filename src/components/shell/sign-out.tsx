@@ -2,23 +2,26 @@
 
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { postJson } from "@/lib/api";
 
-export function SignOutItem() {
+/** Ends the session on the server, then leaves the workspace. */
+export function useSignOut() {
   const router = useRouter();
-  const { state, isMobile } = useSidebar();
+  return async () => {
+    await postJson("/api/auth/logout");
+    router.push("/login");
+    router.refresh();
+  };
+}
+
+/** "Sign out" inside the account chip menu. */
+export function SignOutMenuItem() {
+  const signOut = useSignOut();
   return (
-    <SidebarMenuButton
-      tooltip={state === "collapsed" && !isMobile ? "Sign out" : undefined}
-      onClick={async () => {
-        await postJson("/api/auth/logout");
-        router.push("/login");
-        router.refresh();
-      }}
-    >
+    <DropdownMenuItem onClick={signOut}>
       <LogOut aria-hidden />
-      <span>Sign out</span>
-    </SidebarMenuButton>
+      Sign out
+    </DropdownMenuItem>
   );
 }

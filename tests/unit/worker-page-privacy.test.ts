@@ -1,0 +1,32 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
+import { beforeEach, expect, it, vi } from "vitest";
+const state = vi.hoisted(() => ({ roles: ["VIEWER"] as string[] }));
+vi.mock("next/server", () => ({ connection: vi.fn() }));
+vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", userId: "user", roles: state.roles }, client: {}, companies: [] }) }));
+vi.mock("@/server/db/workers", () => ({ listWorkers: vi.fn(async () => [{ id: "worker", pseudonym: "W001", payType: "HOURLY", compensation: { baseAmount: 123000000n, hourlyRate: 456000000n }, walletAddress: "private-wallet", active: true, history: [], metadata: {} }]) }));
+vi.mock("@/server/db/table-views", () => ({ initialTable: async () => ({ initial: { rows: [{ code: "W001" }], rowIds: ["worker"] } }) }));
+vi.mock("@/server/db/views", () => ({ workerHistoryView: vi.fn() }));
+vi.mock("@/components/table-view", () => ({ TableView: () => "Worker table" }));
+vi.mock("@/components/worker-forms", () => ({ AddWorkerForm: () => null }));
+vi.mock("@/components/worker-directory", () => ({ WorkerDirectory: ({ rows }: { rows: { id: string; view?: { base: string; walletAddress: string } }[] }) => createElement("ul", null, rows.map((r) => createElement("li", { key: r.id }, createElement("a", { href: `/workers?worker=${r.id}` }, "history"), r.view ? `${r.view.base} ${r.view.walletAddress}` : ""))) }));
+vi.mock("@/components/resource-column-form", () => ({ ResourceColumnForm: () => null }));
+vi.mock("@/components/worker-history", () => ({ WorkerHistoryPanel: () => null }));
+import WorkersPage from "@/app/(app)/(workspace)/workers/page";
+import { listWorkers } from "@/server/db/workers";
+beforeEach(() => vi.clearAllMocks());
+it.each(["VIEWER", "OWNER"])("%s sees directory/history links without private payee loads", async (role) => {
+  state.roles = [role];
+  const html = renderToStaticMarkup(await WorkersPage({ searchParams: Promise.resolve({}) }));
+  expect(listWorkers).not.toHaveBeenCalled();
+  expect(html).not.toContain("123.00");
+  expect(html).not.toContain("private-wallet");
+  expect(html).toContain("/workers?worker=worker");
+  expect(html).toContain("Your role cannot inspect pay amounts or wallet addresses");
+});
+it("payroll role retains its payee list", async () => {
+  state.roles = ["HR_APPROVER"];
+  const html = renderToStaticMarkup(await WorkersPage({ searchParams: Promise.resolve({}) }));
+  expect(listWorkers).toHaveBeenCalled();
+  expect(html).toContain("123.00");
+});

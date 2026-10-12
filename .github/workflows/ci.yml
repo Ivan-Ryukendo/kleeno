@@ -57,21 +57,70 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3.0.1
         with:
-          version: latest
+          version: 2.120.0
       - run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api,inbucket,mailpit
       - name: Export local Supabase settings and a throwaway data key
         run: |
           supabase status -o env > /tmp/supabase.env
+          TEST_DATA_KEY=$(openssl rand -base64 48)
+          TEST_WAITLIST_SECRET=$(openssl rand -base64 32)
+          echo "::add-mask::$TEST_DATA_KEY"
+          echo "::add-mask::$TEST_WAITLIST_SECRET"
           {
             echo "SUPABASE_URL=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
             echo "NEXT_PUBLIC_SUPABASE_URL=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
             echo "SUPABASE_SERVICE_ROLE_KEY=$(grep '^SERVICE_ROLE_KEY=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(grep '^ANON_KEY=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
-            echo "DATA_ENCRYPTION_KEY=$(openssl rand -base64 48)"
+            echo "DATA_ENCRYPTION_KEY=$TEST_DATA_KEY"
             echo "OPENROUTER_API_KEY=unused-in-db-tests"
-            echo "WAITLIST_SECRET=$(openssl rand -base64 32)"
+            echo "WAITLIST_SECRET=$TEST_WAITLIST_SECRET"
             echo "SITE_MODE=app"
           } >> "$GITHUB_ENV"
       - run: npm run test:db
+      - name: Stop disposable Supabase stack
+        if: always()
+        run: supabase stop --no-backup
+
+  e2e:
+    # R2.6: authenticated browser SIMULATION journey (sign in, dashboard, workers, run, no live payment path) on a throwaway local Supabase. Never the cloud projects.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v3.0.1
+        with:
+          version: 2.120.0
+      - run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api,inbucket,mailpit
+      - name: Export local Supabase settings and a throwaway data key
+        run: |
+          supabase status -o env > /tmp/supabase.env
+          TEST_DATA_KEY=$(openssl rand -base64 48)
+          TEST_WAITLIST_SECRET=$(openssl rand -base64 32)
+          echo "::add-mask::$TEST_DATA_KEY"
+          echo "::add-mask::$TEST_WAITLIST_SECRET"
+          {
+            echo "SUPABASE_URL=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(grep '^API_URL=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$(grep '^SERVICE_ROLE_KEY=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(grep '^ANON_KEY=' /tmp/supabase.env | cut -d= -f2- | tr -d '"')"
+            echo "DATA_ENCRYPTION_KEY=$TEST_DATA_KEY"
+            echo "OPENROUTER_API_KEY=unused-in-db-tests"
+            echo "WAITLIST_SECRET=$TEST_WAITLIST_SECRET"
+            echo "SITE_MODE=app"
+          } >> "$GITHUB_ENV"
+      - name: Build the app against isolated services
+        run: npm run build
+        env:
+          SITE_URL: http://localhost:3000
+      - run: npx playwright install --with-deps chromium
+      - name: Browser SIMULATION journey
+        run: npm run test:e2e
+      - name: Stop disposable Supabase stack
+        if: always()
+        run: supabase stop --no-backup

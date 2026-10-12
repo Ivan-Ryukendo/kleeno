@@ -45,7 +45,7 @@ Never: `--no-verify`, `--amend` on pushed commits, force-push, history rewrites,
 5. From P2 on: open the production URL and confirm it loads, and that login works for P2+.
 6. `git checkout main && git pull`.
 
-Tags: `demo-freeze` on Oct 8 (`git tag demo-freeze && git push origin demo-freeze`). Nothing merges after that except additive fixes the user approves.
+Tags: `demo-freeze` on **Oct 12, 2026** (`git tag demo-freeze && git push origin demo-freeze`), following the Oct 9 core checkpoint and conditional Oct 10–12 retrieval phase. Submission deadline **Oct 17, 2026** (PRD §12). Nothing merges after freeze except additive fixes the user approves. Backup before the planned Oct 14 production deployment; Oct 15–16 rehearse and check submission artifacts. This document schedules the tag/deploy; the planning update does not execute them.
 
 ## 5. Going public (P5, before submission)
 The hackathon requires a public repo link. Do these in order; the visibility flip needs the user's explicit OK on the day.
@@ -59,7 +59,7 @@ The hackathon requires a public repo link. Do these in order; the visibility fli
 8. Keep the repo public until judging ends. Afterwards the user may continue product work in a new private repo; forks and clones of the public one can't be recalled.
 
 ## 6. Hosting checks before submission (user decisions)
-- **Supabase:** free projects pause after about a week without activity. Judging runs after Oct 10, so upgrade `kleeno-prod` to Pro for the judging weeks, or make sure it is used regularly. Pro also adds daily backups.
+- **Supabase:** review current pause/backup terms before submission and keep `kleeno-prod` available for judging after the **Oct 17** deadline; choose a suitable plan or activity arrangement through the existing hosting checklist. Do not assume the changed deadline also confirms judging dates.
 - **Vercel:** Hobby is for non-commercial use. It's fine for the hackathon; move to Pro before real pilot businesses use Kleeno.
 - **OpenRouter:** the $5 cap may run out if many judges use the AI steps. Raise it for the judging window, or accept that AI steps pause.
 - **Final smoke test:** open the live URL in a private window, log into the demo company, confirm SIMULATION works and that live payments are OFF there.

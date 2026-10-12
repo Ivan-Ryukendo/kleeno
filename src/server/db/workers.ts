@@ -4,10 +4,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { auditEvent } from "@/core/audit";
 import { TransitionError } from "@/core/domain/machines";
 import type { PayType } from "@/core/engine";
-import { WorkflowError } from "@/core/workflow";
+import { isPayrollRole, WorkflowError, type Role } from "@/core/workflow";
+import { WorkerMetadataSchema, type WorkerMetadata } from "@/core/workers";
 import { openJson, sealJson } from "@/server/crypto";
 import { writeAudit } from "./audit";
 import { db, must } from "./client";
+import { keyset, loadAllRows } from "./paged";
 
 // Compensation is encrypted at rest (S41): { baseAmount, hourlyRate } as micro-USDC strings, versioned and immutable.
 export interface Compensation {
@@ -22,6 +24,7 @@ interface Who {
   companyId: string;
   userId: string;
   correlationId: string;
+  roles?: readonly Role[];
 }
 
 async function insertCompensation(who: Who, workerId: string, version: number, c: Compensation, reason: CompReason) {
@@ -31,9 +34,11 @@ async function insertCompensation(who: Who, workerId: string, version: number, c
   await writeAudit(auditEvent({ companyId: who.companyId, event: "compensation.version", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { version, reason } }));
 }
 
-export async function createWorker(who: Who, input: { pseudonym: string; payType: PayType; compensation: Compensation }) {
+export async function createWorker(who: Who, input: { pseudonym: string; payType: PayType; compensation: Compensation; metadata?: WorkerMetadata }) {
   const id = randomUUID();
-  must(await db().from("workers").insert({ id, company_id: who.companyId, pseudonym: input.pseudonym, pay_type: input.payType }).select("id"), "worker insert"); // unique (company, pseudonym)
+  const metadata = WorkerMetadataSchema.parse(input.metadata ?? {});
+  const metadata_enc = await sealJson(who.companyId, "workers", "metadata_enc", id, metadata);
+  must(await db().from("workers").insert({ id, company_id: who.companyId, pseudonym: input.pseudonym, pay_type: input.payType, metadata_enc, employment_start: metadata.employmentStart, employment_end: metadata.employmentEnd }).select("id"), "worker insert"); // unique (company, pseudonym)
   try {
     await insertCompensation(who, id, 1, input.compensation, "INITIAL");
   } catch (e) {
@@ -44,6 +49,17 @@ export async function createWorker(who: Who, input: { pseudonym: string; payType
   return { id };
 }
 
+export async function updateWorkerMetadata(who: Who, workerId: string, input: WorkerMetadata): Promise<boolean> {
+  if (!isPayrollRole(who.roles ?? [])) throw new WorkflowError("FORBIDDEN", "only the payroll side edits worker evidence");
+  const metadata = WorkerMetadataSchema.parse(input);
+  const w = (await db().from("workers").select("id").eq("company_id", who.companyId).eq("id", workerId).maybeSingle()).data;
+  if (!w) return false;
+  const metadata_enc = await sealJson(who.companyId, "workers", "metadata_enc", workerId, metadata);
+  must(await db().from("workers").update({ metadata_enc, employment_start: metadata.employmentStart, employment_end: metadata.employmentEnd }).eq("company_id", who.companyId).eq("id", workerId).select("id"), "worker metadata");
+  await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.metadata", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { metadataUpdated: true } }));
+  return true;
+}
+
 /**
  * A promotion, raise or correction is a new immutable compensation version (S19, S20); it applies to the next calculation,
  * never to an approved run. Returns false when the worker is not in the caller's company (handlers answer 404).
@@ -52,12 +68,21 @@ export async function addCompensationVersion(who: Who, workerId: string, c: Comp
   const w = (await db().from("workers").select("id, active, pay_type").eq("id", workerId).eq("company_id", who.companyId).maybeSingle()).data;
   if (!w) return false;
   if (!w.active) throw new TransitionError("INVALID_TRANSITION", "this worker has left; reactivate before changing pay");
+  const scheduled = await db().from("effective_compensations").select("id").eq("company_id", who.companyId).eq("worker_id", workerId).limit(1);
+  if (scheduled.error) throw new Error("effective compensation history unavailable");
+  if (scheduled.data?.length) throw new WorkflowError("CONFLICT", "This worker uses effective compensation history; schedule a dated change instead");
   const last = (await db().from("compensations").select("version").eq("worker_id", workerId).eq("company_id", who.companyId).order("version", { ascending: false }).limit(1).maybeSingle()).data;
-  await insertCompensation(who, workerId, (last?.version ?? 0) + 1, c, reason); // unique (worker, version): a concurrent edit fails instead of overwriting
-  if (payType && payType !== w.pay_type) {
-    must(await db().from("workers").update({ pay_type: payType }).eq("id", workerId).eq("company_id", who.companyId).select("id"), "worker pay type");
-    await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.pay_type", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { from: w.pay_type, to: payType } }));
-  }
+  const id = randomUUID();
+  const payload_enc = await sealJson(who.companyId, "compensations", "payload_enc", id, { baseAmount: c.baseAmount, hourlyRate: c.hourlyRate });
+  // One commit binds the immutable version, current pay type and audit; delayed responses cannot overwrite later pay types.
+  const result = must(await db().rpc("append_immediate_compensation", {
+    p_company: who.companyId, p_worker: workerId, p_actor: who.userId, p_correlation: who.correlationId,
+    p_event: { id, expected_version: last?.version ?? 0, payload_enc, reason, pay_type: payType ?? null },
+  }), "compensation append");
+  if (result === "NOT_FOUND") return false;
+  if (result === "FORBIDDEN") throw new WorkflowError("FORBIDDEN", "only current payroll members change compensation");
+  if (result === "INVALID_TRANSITION") throw new TransitionError("INVALID_TRANSITION", "this worker has left; reactivate before changing pay");
+  if (result !== "OK") throw new WorkflowError("CONFLICT", "worker compensation changed; reload before changing pay");
   return true;
 }
 
@@ -71,7 +96,7 @@ export async function archiveWorker(who: Who, workerId: string, input: { leftOn:
   const w = (await db().from("workers").select("id, active").eq("id", workerId).eq("company_id", who.companyId).maybeSingle()).data;
   if (!w) return null;
   if (!w.active) throw new TransitionError("INVALID_TRANSITION", "this worker has already left");
-  const done = must(await db().from("workers").update({ active: false, left_on: input.leftOn, left_reason: input.reason }).eq("id", workerId).eq("company_id", who.companyId).eq("active", true).select("id"), "worker archive");
+  const done = must(await db().from("workers").update({ active: false, left_on: input.leftOn, left_reason: input.reason, employment_end: input.leftOn }).eq("id", workerId).eq("company_id", who.companyId).eq("active", true).select("id"), "worker archive");
   if (done.length === 0) throw new TransitionError("STALE_STATE", "this worker has already left"); // lost a race
   await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.archive", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId, refs: { leftOn: input.leftOn, reason: input.reason } }));
   const { count } = await db().from("obligations").select("id", { count: "exact", head: true }).eq("company_id", who.companyId).eq("worker_id", workerId).in("status", OPEN_OBLIGATIONS);
@@ -82,7 +107,7 @@ export async function reactivateWorker(who: Who, workerId: string): Promise<bool
   const w = (await db().from("workers").select("id, active").eq("id", workerId).eq("company_id", who.companyId).maybeSingle()).data;
   if (!w) return false;
   if (w.active) throw new TransitionError("INVALID_TRANSITION", "this worker is already active");
-  const done = must(await db().from("workers").update({ active: true, left_on: null, left_reason: null }).eq("id", workerId).eq("company_id", who.companyId).eq("active", false).select("id"), "worker reactivate");
+  const done = must(await db().from("workers").update({ active: true, left_on: null, left_reason: null, employment_end: null }).eq("id", workerId).eq("company_id", who.companyId).eq("active", false).select("id"), "worker reactivate");
   if (done.length === 0) throw new TransitionError("STALE_STATE", "this worker is already active");
   await writeAudit(auditEvent({ companyId: who.companyId, event: "worker.reactivate", entityType: "worker", entityId: workerId, actor: who.userId, actorType: "user", correlationId: who.correlationId }));
   return true;
@@ -139,12 +164,16 @@ export interface WorkerRow {
   leftOn: string | null;
   leftReason: string | null;
   history: { version: number; reason: string; baseAmount: bigint; hourlyRate: bigint; at: string }[]; // newest first
+  metadata: WorkerMetadata;
 }
 
 /** Reads through `reader` (the user-scoped client, so RLS applies) and decrypts on the server. */
 export async function listWorkers(reader: SupabaseClient, companyId: string, opts: { activeOnly?: boolean } = {}): Promise<WorkerRow[]> {
-  const workers = must(await reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason").eq("company_id", companyId).order("pseudonym"), "workers read").filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
-  const comps = must(await reader.from("compensations").select("id, worker_id, version, reason, created_at, payload_enc").eq("company_id", companyId).order("version", { ascending: false }), "compensations read");
+  const allWorkers = await loadAllRows<{ id: string; pseudonym: string; pay_type: PayType; wallet_address: string | null; wallet_source: string; wallet_confirmed_address: string | null; active: boolean; left_on: string | null; left_reason: string | null; metadata_enc: string | null; employment_start: string | null; employment_end: string | null }>((after, size) => keyset(reader.from("workers").select("id, pseudonym, pay_type, wallet_address, wallet_source, wallet_confirmed_address, active, left_on, left_reason, metadata_enc, employment_start, employment_end", { count: "exact" }).eq("company_id", companyId), after, size), "workers");
+  allWorkers.sort((a, b) => (a.pseudonym < b.pseudonym ? -1 : a.pseudonym > b.pseudonym ? 1 : a.id < b.id ? -1 : 1)); // business order in memory; paging is by id
+  const workers = allWorkers.filter((w) => w.active || !opts.activeOnly); // runs use activeOnly: leavers are not paid new periods
+  const comps = await loadAllRows<{ id: string; worker_id: string; version: number; reason: string; created_at: string; payload_enc: string }>((after, size) => keyset(reader.from("compensations").select("id, worker_id, version, reason, created_at, payload_enc", { count: "exact" }).eq("company_id", companyId), after, size), "compensations");
+  comps.sort((a, b) => b.version - a.version || (a.id < b.id ? -1 : 1));
   return Promise.all(
     workers.map(async (w) => {
       const history = await Promise.all(
@@ -154,6 +183,7 @@ export async function listWorkers(reader: SupabaseClient, companyId: string, opt
         }),
       );
       const cur = history[0];
+      const metadata = WorkerMetadataSchema.parse(w.metadata_enc ? await openJson<WorkerMetadata>(companyId, "workers", "metadata_enc", w.id, w.metadata_enc) : {});
       return {
         id: w.id,
         pseudonym: w.pseudonym,
@@ -167,7 +197,23 @@ export async function listWorkers(reader: SupabaseClient, companyId: string, opt
         leftOn: w.left_on,
         leftReason: w.left_reason,
         history,
+        metadata: { ...metadata, employmentStart: w.employment_start, employmentEnd: w.employment_end },
       };
     }),
   );
+}
+
+export interface WorkerSummary { total: number; employees: number; contractors: number; unspecified: number; unconfirmedWallets: number }
+
+/** Dashboard counts of active workers: decrypts only the worker metadata (type), never compensation. Read-only, through the user-scoped client. */
+export async function workerSummary(reader: SupabaseClient, companyId: string): Promise<WorkerSummary> {
+  const rows = await loadAllRows<{ id: string; wallet_address: string | null; wallet_confirmed_address: string | null; metadata_enc: string | null }>((after, size) => keyset(reader.from("workers").select("id, wallet_address, wallet_confirmed_address, metadata_enc", { count: "exact" }).eq("company_id", companyId).eq("active", true), after, size), "workers");
+  const types = await Promise.all(rows.map(async (w) => WorkerMetadataSchema.parse(w.metadata_enc ? await openJson<WorkerMetadata>(companyId, "workers", "metadata_enc", w.id, w.metadata_enc) : {}).workerType));
+  return {
+    total: rows.length,
+    employees: types.filter((t) => t === "EMPLOYEE").length,
+    contractors: types.filter((t) => t === "CONTRACTOR").length,
+    unspecified: types.filter((t) => t === null).length,
+    unconfirmedWallets: rows.filter((w) => w.wallet_address && w.wallet_address.toLowerCase() !== w.wallet_confirmed_address?.toLowerCase()).length,
+  };
 }

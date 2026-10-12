@@ -1,9 +1,9 @@
 <p align="center">
-  <a href="https://kleeno.orclide.com"><img src="docs/media/banner.svg" alt="Kleeno: payroll that can't pay the wrong person" width="100%"></a>
+  <a href="https://kleeno.orclide.com"><img src="docs/media/banner.svg" alt="Kleeno — Verified Payroll Automation" width="100%"></a>
 </p>
 
 <p align="center">
-  <strong>AI-assisted payroll reconciliation and guarded USDC settlement for teams that pay contractors.</strong>
+  <strong>Kleeno — Verified Payroll Automation: payroll reconciliation and guarded USDC settlement for teams that pay contractors.</strong>
 </p>
 
 <p align="center">
@@ -136,6 +136,8 @@ cd contracts && forge build && forge test
 | [`docs/security.md`](docs/security.md) | Controls, tests and status |
 | [`docs/roadmap.md`](docs/roadmap.md) | What comes after the hackathon |
 | [`PROGRESS.md`](PROGRESS.md) | Where the build stands |
+| [`docs/p4-p5-readiness.md`](docs/p4-p5-readiness.md) | Current P4 closeout, verification gaps and P5 next steps |
+| [`docs/evidence-grounded-ai.md`](docs/evidence-grounded-ai.md) | Evidence/learning assessment, implementation specs and protected retrieval evaluation plan |
 
 ## Project status
 
@@ -143,8 +145,14 @@ cd contracts && forge build && forge test
 |---|---|
 | P0 Setup · P1 Thin slice (guarded payment on Arc) · P2 Foundation (engine, auth, encryption, workers) | Done |
 | Waitlist and landing page ([kleeno.orclide.com](https://kleeno.orclide.com)) | Live |
-| P3 Data + AI (policy to rules, CSV import, reconciliation, table views) | In progress |
-| P4 Payments · P4b Payment Planner · P5 Demo + submission | Planned |
+| P3 Data + AI (policy to rules, CSV import, reconciliation, table views) · P3b company system | Merged Oct 2–3 |
+| P4 Payments · P4u app shell | Core merged Oct 3; planner/standing extensions implemented locally; DB/live acceptance pending; Gateway/x402 provider paths unverified |
+| P4g Google sign-in | Slice 1 built locally, uncommitted; real provider round trip unverified |
+| P4c Policy + pay · P4d Dashboard · P4b Payment Planner | Implemented locally; consolidated acceptance in progress; additive schema and deployed proof pending |
+| Conditional P4r Evidence-Grounded AI / approved precedent | Synthetic in-memory retrieval/evidence implemented; no real searchable storage/provider integration; token hashes do not measure semantic quality |
+| P5 Demo + submission | Audit, synthetic seed, browser intake and CI workflow authored; demo/traction/model drafts present; isolated CI/release/video/submission open; freeze Oct 12, deadline Oct 17 |
+
+AI understands. Evidence grounds. Validation verifies. Humans govern. Deterministic code executes. Audit proves. Evidence-Grounded AI and Controlled Learning are planned extensions of existing validation/approval controls; learning creates proposals, not authority. Dates and conditional scope: [`PRD.md`](PRD.md#12-timeline-and-cuts). Status reflects repository history and phase notes as of Oct 5; it does not imply fresh cloud verification.
 
 ## Contact
 

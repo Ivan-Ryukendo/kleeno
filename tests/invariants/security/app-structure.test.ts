@@ -20,12 +20,14 @@ const routes = src.filter((f) => f.startsWith("src/app/api/") && f.endsWith("/ro
 /** Routes that may skip the session check. Each one must use `openRoute` and is listed here on purpose. */
 const OPEN_ROUTES = [
   "src/app/api/auth/login/route.ts",
+  "src/app/api/auth/oauth/google/route.ts", // P4g: only builds the Google authorize URL; the account is checked at /auth/callback (S74)
   "src/app/api/invites/accept/route.ts", // P3b: public, but only with a valid one-time invite token (S62)
   // W: public waitlist (rate-limited, S53–S55) and the admin password step (behind the secret-path gate, S52)
   "src/app/api/waitlist/route.ts",
   "src/app/api/waitlist/survey/route.ts",
   "src/app/api/admin/login/route.ts",
   "src/app/api/circle/webhook/route.ts", // P4: Circle signs the raw body (S27); the handler only triggers a re-check
+  "src/app/api/stripe/webhook/route.ts", // Billing TEST: raw-byte timestamp/HMAC verification; durable hints only, no session or entitlement.
   "src/app/api/x402/verify/route.ts", // P4 slice 6: Kleeno Verify is public and paid over x402: no session, the price + rate limit + unguessable target gate it (S68)
 ]; // the receipt page is a page, not a route: it checks its own signed token (S36)
 

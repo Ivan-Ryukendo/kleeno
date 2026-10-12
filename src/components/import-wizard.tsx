@@ -1,13 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { LocalNameUnlock } from "@/components/local-name-unlock";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { CSV_LIMITS, IngestError, parseCsv, type ParsedCsv } from "@/core/ingest/csv";
 import { mapRows, missingRequired, suggestMapping, type Mapping } from "@/core/ingest/map";
 import { codeFor, emptyNameKey, NameKeyError, openNameKey, sealNameKey, WORKER_CODE } from "@/core/ingest/name-key";
 import { FIELDS, validateRows, type ImportType, type Rejected, type RowItem } from "@/core/ingest/rows";
+import { DocumentError } from "@/core/ingest/documents";
+import { parseXlsx, type ImportSheet } from "@/core/ingest/xlsx";
 import { postJson } from "@/lib/api";
 
 const select = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
@@ -59,7 +62,7 @@ const RejectList = ({ rejected }: { rejected: Rejected[] }) => (
 );
 
 /** Parse, map and anonymise in the browser. Only mapped, typed fields are sent; names and the raw file never leave this computer (S25, rule 35). */
-export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[]; workerCodes: string[]; nextCode: number }) {
+export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs: RunOption[]; workerCodes: string[]; nextCode: number; contextKey: string }) {
   const router = useRouter();
   const [runId, setRunId] = useState(runs[0]?.id ?? "");
   const [type, setType] = useState<ImportType>("TIMESHEETS");
@@ -71,8 +74,15 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
   const [result, setResult] = useState<ServerResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sheets, setSheets] = useState<ImportSheet[]>([]);
+  const [sheetIndex, setSheetIndex] = useState(0);
+  const generation = useRef(0), controller = useRef<AbortController | null>(null);
+  useEffect(() => () => { generation.current++; controller.current?.abort(); }, []);
 
   const reset = () => {
+    generation.current++;
+    controller.current?.abort();
+    setBusy(false);
     setPrepared(null);
     setResult(null);
     setError(null);
@@ -81,21 +91,39 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
   async function onFile(file: File | undefined) {
     reset();
     setParsed(null);
+    setSheets([]);
+    setSheetIndex(0);
     if (!file) return;
     if (file.size > CSV_LIMITS.bytes) return setError("The file is larger than 5 MB.");
+    const ticket = generation.current;
+    const c = new AbortController(); controller.current = c;
+    setBusy(true);
     try {
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
-      const p = parseCsv(text);
+      let p: ParsedCsv;
+      if (/\.xlsx$/i.test(file.name)) {
+        const choices = await parseXlsx(file,c.signal);
+        if (!choices.length) throw new IngestError("EMPTY", "The workbook has no usable sheets.");
+        if (ticket !== generation.current) return;
+        setSheets(choices);
+        p = choices[0].parsed;
+      } else {
+        if (!/\.csv$/i.test(file.name)) throw new IngestError("MALFORMED", "Choose CSV (UTF-8) or an .xlsx workbook.");
+        const text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
+        p = parseCsv(text);
+      }
+      if (ticket !== generation.current) return;
       setParsed(p);
       setMapping(suggestMapping(type, p.headers));
     } catch (e) {
-      setError(e instanceof IngestError ? e.message : "That file is not valid UTF-8 text. Save it as CSV (UTF-8) and try again.");
+      if (ticket === generation.current) setError(e instanceof IngestError || e instanceof DocumentError ? e.message : "That file is not valid UTF-8 text. Save it as CSV (UTF-8) and try again.");
     }
+    finally { if (ticket === generation.current) setBusy(false); }
   }
 
   async function prepare() {
     if (!parsed) return;
     reset();
+    const ticket = generation.current;
     const missing = missingRequired(type, mapping);
     if (missing.length) return setError(`Choose a column for: ${missing.join(", ")}.`);
     setBusy(true);
@@ -105,25 +133,29 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
       let key = emptyNameKey(nextCode);
       if (usesNames) {
         if (passphrase.length < 12) throw new NameKeyError("WEAK_PASSPHRASE");
-        if (keyFile) key = await openNameKey(keyFile, passphrase);
+        if (keyFile) key = await openNameKey(keyFile, passphrase, nextCode);
       }
       const items = mapRows(type, parsed, mapping, (raw) => (WORKER_CODE.test(raw.toUpperCase()) ? raw.toUpperCase() : codeFor(key, raw)));
-      if (usesNames) download("kleeno-name-key.json", await sealNameKey(key, passphrase)); // saved before anything is sent
+      const sealed = usesNames ? await sealNameKey(key, passphrase) : null;
+      if (ticket !== generation.current) return;
+      if (sealed) download("kleeno-name-key.json", sealed); // saved before anything is sent
       const { good, rejected } = validateRows(type, items);
       const codes = new Set(workerCodes);
       const unknownCodes = [...new Set(good.map((g) => (g.value as { workerRef: string }).workerRef))].filter((c) => !codes.has(c));
       setPrepared({ items, localRejected: rejected, unknownCodes });
     } catch (e) {
-      setError(e instanceof NameKeyError ? e.message : "Could not prepare the file.");
+      if (ticket === generation.current) setError(e instanceof NameKeyError ? e.message : "Could not prepare the file.");
     }
-    setBusy(false);
+    if (ticket === generation.current) setBusy(false);
   }
 
   async function send() {
     if (!prepared) return;
+    const ticket = ++generation.current;
     setBusy(true);
     setError(null);
     const r = await postJson<ServerResult>("/api/imports", { runId, type, mapping, items: prepared.items });
+    if (ticket !== generation.current) return;
     if (r.ok && r.data) {
       setResult(r.data);
       setPrepared(null);
@@ -171,10 +203,14 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
       </div>
 
       <div>
-        <Label htmlFor="file">CSV file (UTF-8, up to 5 MB, 10,000 rows)</Label>
-        <input id="file" type="file" accept=".csv,text/csv" onChange={(e) => onFile(e.target.files?.[0])} className="mt-2 block text-sm" />
+        <Label htmlFor="file">CSV or Excel file (up to 5 MB, 10,000 rows, 50 columns)</Label>
+        <div className="mt-2 rounded-box border border-dashed border-field-border p-4" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (e.dataTransfer.files.length > 1) { reset(); setError("Choose one CSV or XLSX file at a time."); } else void onFile(e.dataTransfer.files[0]); }}><input id="file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }} className="block max-w-full text-sm" /><p className="mt-2 text-sm text-muted-foreground">Browse or drop one file here. Spreadsheet formulas are never evaluated; cached values still need your review.</p></div>
         <p className="mt-2 text-sm text-muted-foreground">Amounts must be in USD. The file is read on this computer; only the columns you choose below are sent, and names are replaced by worker codes first.</p>
       </div>
+
+      {sheets.length > 1 && <div><Label htmlFor="sheet">Workbook sheet</Label><select id="sheet" className={select} value={sheetIndex} disabled={busy} onChange={e => { reset(); const index = Number(e.target.value); setSheetIndex(index); setParsed(sheets[index].parsed); setMapping(suggestMapping(type,sheets[index].parsed.headers)); }}>{sheets.map((sheet,i)=><option key={i} value={i}>{sheet.name}</option>)}</select></div>}
+      {busy && <p role="status" className="text-sm text-muted-foreground">Reading or checking on this computer…</p>}
+      <LocalNameUnlock key={contextKey} contextKey={contextKey} workerCodes={workerCodes} />
 
       {parsed && (
         <>
@@ -221,11 +257,11 @@ export function ImportWizard({ runs, workerCodes, nextCode }: { runs: RunOption[
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="keyfile">Existing name key file (if you have one)</Label>
-                  <input id="keyfile" type="file" accept=".json,application/json" className="mt-2 block text-sm" onChange={async (e) => setKeyFile((await e.target.files?.[0]?.text()) ?? null)} />
+                  <input id="keyfile" type="file" accept=".json,application/json" disabled={busy} className="mt-2 block max-w-full text-sm" onChange={async (e) => { reset(); const ticket = generation.current; const file = e.target.files?.[0]; setKeyFile(null); if (!file) return; if (file.size > CSV_LIMITS.bytes) return setError("That name key file is too large."); setBusy(true); try { const text = await file.text(); if (ticket === generation.current) setKeyFile(text); } catch { if (ticket === generation.current) setError("That name key file could not be read."); } finally { if (ticket === generation.current) setBusy(false); } }} />
                 </div>
                 <div>
                   <Label htmlFor="pass">Passphrase (at least 12 characters)</Label>
-                  <Input id="pass" type="password" autoComplete="off" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} />
+                  <Input id="pass" type="password" autoComplete="off" disabled={busy} value={passphrase} onChange={(e) => { reset(); setPassphrase(e.target.value); }} />
                 </div>
               </div>
             </div>

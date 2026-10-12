@@ -6,7 +6,7 @@ import { activeConfig, admin, approvedRun, makeCompany, totp, userClient, type T
 let a: TestCompany;
 let b: TestCompany;
 let inventory: { table_name: string; rls_enabled: boolean; has_company_id: boolean; company_id_not_null: boolean; anon_any: boolean; authenticated_select: boolean; authenticated_write: boolean; truncate_guarded: boolean }[];
-const NO_SELECT = new Set(["company_keys"]); // wrapped data keys are never readable through the public API
+const NO_SELECT = new Set(["company_keys", "gateway_transfers"]); // wrapped data keys and saved burn/operator signatures are never readable through the public API (20261008000006)
 
 beforeAll(async () => {
   a = await makeCompany({ live: true });

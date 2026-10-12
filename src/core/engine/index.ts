@@ -1,12 +1,32 @@
 import { canonicalHash } from "../canonical";
-import type { PayrollConfig } from "../config";
-import { div, mul, parseDecimal, ratio, roundRatioToCent, type MicroUsdc, type Ratio } from "../money";
+import { resolveScopedConfig, type PayrollConfig } from "../config";
+import { div, mul, parseDecimal, parseUsdc, ratio, roundRatioToCent, type MicroUsdc, type Ratio } from "../money";
+import { CalendarDateSchema, type WorkerMetadata } from "../workers";
+import { z } from "zod";
+import { segmentedComponents, type CompensationSegment, type DatedHours } from "./effective-compensation";
+import { CompensationSegmentsSchema, DatedHoursSchema } from "./effective-compensation-schema";
+import { CalculationVersionsSchema, CURRENT_CALCULATION_VERSIONS } from "./versions";
+
+export const PayAdjustmentsSchema = z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/), kind: z.enum(["BONUS", "COMMISSION", "REIMBURSEMENT", "FIXED_DEDUCTION"]), amount: z.string().regex(/^\d+(\.\d{1,6})?$/).refine(v => parseUsdc(v) <= 1_000_000_000_000_000n, "amount exceeds supported cap"), reason: z.string().trim().min(1).max(300) }).strict()).max(50).refine(a => new Set(a.map(v => v.id)).size === a.length, "duplicate adjustment ID");
+export type PayAdjustment = z.infer<typeof PayAdjustmentsSchema>[number];
+export interface PayrollPeriod { start: string; end: string }
+/** Inclusive UTC calendar dates; invalid/missing ranges never become an assumed full period. */
+export function employmentDays(period: PayrollPeriod, worker: { employmentStart?: string | null; employmentEnd?: string | null }) {
+  const date = (s: string) => Date.parse(`${CalendarDateSchema.parse(s)}T00:00:00Z`) / 86400000;
+  const start = date(period.start), end = date(period.end);
+  if (end < start) throw new Error("period ends before it starts");
+  const employmentStart = worker.employmentStart ? date(worker.employmentStart) : start;
+  const employmentEnd = worker.employmentEnd ? date(worker.employmentEnd) : end;
+  if (worker.employmentStart && worker.employmentEnd && employmentEnd < employmentStart) throw new Error("employment ends before it starts");
+  return { periodDays: end - start + 1, activeDays: Math.max(0, Math.min(end, employmentEnd) - Math.max(start, employmentStart) + 1), activeStart: Math.max(start, employmentStart), activeEnd: Math.min(end, employmentEnd) };
+}
 
 export type PayType = "SALARIED" | "HOURLY" | "RETAINER";
 
 /** Compensation snapshot. SALARIED: baseAmount per period. RETAINER: baseAmount per period (+ hourlyRate for approved extra hours). HOURLY: hourlyRate. */
-export interface EngineWorker {
+export interface EngineWorker extends Partial<WorkerMetadata> {
   workerId: string;
+  pseudonym?: string;
   payType: PayType;
   baseAmount: MicroUsdc;
   hourlyRate: MicroUsdc;
@@ -14,6 +34,9 @@ export interface EngineWorker {
 
 /** Reconciled period totals (P3 buckets them by ISO week, docs/phases/P2.md). Decimal strings, default "0". */
 export interface WorkerInput {
+  datedHours?: DatedHours;
+  adjustments?: PayAdjustment[];
+  unpaidLeave?: { date: string; hours: string }[];
   workedHours?: string;
   approvedOvertimeHours?: string; // SALARIED: approved hours above the weekly threshold
   approvedAboveCapHours?: string; // HOURLY: approved hours above the contracted cap
@@ -24,8 +47,10 @@ export interface WorkerInput {
 }
 
 export interface EngineEntry {
+  compensationSegments?: CompensationSegment[];
   worker: EngineWorker;
   input: WorkerInput;
+  period?: PayrollPeriod;
 }
 
 export interface TraceLine {
@@ -78,7 +103,22 @@ const IGNORED_INPUTS: Record<PayType, InputKey[]> = {
   RETAINER: ["paidLeaveHours", "unpaidLeaveHours", "approvedOvertimeHours", "approvedAboveCapHours"],
 };
 
-function calculateLine(config: PayrollConfig, { worker: w, input }: EngineEntry): PayrollLine {
+function calculateLine(baseConfig: PayrollConfig, entry: EngineEntry): PayrollLine {
+  const { worker: w, input, period } = entry;
+  if (entry.compensationSegments !== undefined) {
+    const parsed = CompensationSegmentsSchema.safeParse(entry.compensationSegments);
+    if (!parsed.success) throw new EngineBlocked(w.workerId, "invalid effective compensation segments");
+    if (parsed.data.length === 1) {
+      const segment = parsed.data[0];
+      if (!period || segment.start !== period.start || segment.end !== period.end || segment.start > segment.end || segment.effectiveFrom > segment.start || segment.payType !== w.payType || !DatedHoursSchema.safeParse(input.datedHours ?? []).success) throw new EngineBlocked(w.workerId, "whole-period compensation requires one compatible immutable rate");
+      // A single rate needs no date allocation: preserve approved legacy OT/leave/cap/proration semantics.
+      const result = calculateLine(baseConfig, { worker: { ...w, baseAmount: BigInt(segment.baseAmount), hourlyRate: BigInt(segment.hourlyRate) }, input, period });
+      const pricedRules = new Set(["BASE_SALARY", "FIXED_RETAINER", "HOURLY_RATE", "OVERTIME", "UNPAID_LEAVE", "PRORATION"]);
+      return { ...result, trace: result.trace.map(row => pricedRules.has(row.rule) ? { ...row, source: `compensation.effective.${segment.sourceId}`, inputs: { ...row.inputs, pricedInputSource: row.source, compensationSourceId: segment.sourceId, compensationVersion: String(segment.sourceVersion), effectiveFrom: segment.effectiveFrom } } : row) };
+    }
+  }
+  const resolved = resolveScopedConfig(baseConfig, w);
+  const config = resolved.config;
   const v = config.version;
   const trace: TraceLine[] = [];
   const add = (component: string, source: string, rule: string, inputs: Record<string, string>, amount: MicroUsdc) =>
@@ -91,11 +131,31 @@ function calculateLine(config: PayrollConfig, { worker: w, input }: EngineEntry)
   // Fail closed: a non-zero input this pay type ignores would silently underpay.
   for (const k of IGNORED_INPUTS[w.payType]) if (gt(hrs(input[k]), ZERO)) blocked(`${k} does not apply to ${w.payType} workers`);
   const worked = hrs(input.workedHours);
+  const adjustments = PayAdjustmentsSchema.parse(input.adjustments ?? []);
+  let proration = ratio(1n);
+  let days: ReturnType<typeof employmentDays> | undefined;
+  if (period) {
+    try { days = employmentDays(period, w); } catch { blocked("invalid employment or period dates"); }
+    if (w.payType !== "HOURLY" && days!.activeDays !== days!.periodDays) {
+      if (config.prorationMethod !== "ACTUAL_CALENDAR_DAYS") blocked("calendar-day proration must be approved in the configuration");
+      proration = ratio(BigInt(days!.activeDays), BigInt(days!.periodDays));
+    }
+  } else if (w.employmentStart || w.employmentEnd) blocked("employment dates require the actual payroll period");
+  const base = (component: string, rule: string) => {
+    add(component, "worker.compensation", rule, { baseAmount: w.baseAmount.toString() }, roundRatioToCent(micro(w.baseAmount)));
+    if (proration.n !== proration.d) {
+      const prorated = roundRatioToCent(mul(micro(w.baseAmount), proration));
+      add("proration", "worker.employmentDates", "PRORATION", { method: "ACTUAL_CALENDAR_DAYS", periodStart: period!.start, periodEnd: period!.end, employmentStart: w.employmentStart ?? "", employmentEnd: w.employmentEnd ?? "", activeDays: String(days!.activeDays), periodDays: String(days!.periodDays) }, prorated - trace[trace.length - 1].amount);
+    }
+  };
+  for (const d of resolved.decisions) add("scope", "config.scopedRules", d.winner, { parameter: d.parameter, category: d.category, winningRule: d.winner, overriddenRules: d.overridden.join(",") }, 0n);
 
-  if (w.payType === "SALARIED") {
+  if (entry.compensationSegments !== undefined) {
+    for (const component of segmentedComponents(config, entry)) trace.push({ ...component, step: trace.length + 1 });
+  } else if (w.payType === "SALARIED") {
     const scheduled = parseDecimal(config.scheduledHoursPerPeriod);
     const rate = div(micro(w.baseAmount), scheduled); // exact hourly rate, never rounded on its own
-    add("base", "worker.compensation", "BASE_SALARY", { baseAmount: w.baseAmount.toString() }, roundRatioToCent(micro(w.baseAmount)));
+    base("base", "BASE_SALARY");
     const paidLeave = hrs(input.paidLeaveHours);
     if (gt(paidLeave, ZERO)) add("paid_leave", "input.paidLeaveHours", "PAID_LEAVE", { hours: show(paidLeave) }, 0n); // no deduction
     const ot = hrs(input.approvedOvertimeHours);
@@ -103,7 +163,19 @@ function calculateLine(config: PayrollConfig, { worker: w, input }: EngineEntry)
       const m = parseDecimal(config.overtimeMultiplier);
       add("overtime", "input.approvedOvertimeHours", "OVERTIME", { hours: show(ot), rate: show(rate), multiplier: config.overtimeMultiplier }, roundRatioToCent(mul(mul(rate, ot), m)));
     }
-    const unpaid = hrs(input.unpaidLeaveHours);
+    let unpaid = hrs(input.unpaidLeaveHours);
+    if (input.unpaidLeave) {
+      let all = ZERO, applicable = ZERO;
+      for (const leave of input.unpaidLeave) {
+        const day = Date.parse(`${CalendarDateSchema.parse(leave.date)}T00:00:00Z`) / 86400000;
+        const h = hrs(leave.hours);
+        all = ratio(all.n * h.d + h.n * all.d, all.d * h.d);
+        if (!days || (day >= days.activeStart && day <= days.activeEnd)) applicable = ratio(applicable.n * h.d + h.n * applicable.d, applicable.d * h.d);
+      }
+      if (gt(all, unpaid) || gt(unpaid, all)) blocked("dated unpaid leave does not match the reconciled total");
+      if (gt(all, applicable)) add("unpaid_leave_excluded", "input.unpaidLeave", "PRORATION", { hours: show(sub(all, applicable)), reason: "outside active employment dates; already excluded by proration" }, 0n);
+      unpaid = applicable;
+    } else if (proration.n !== proration.d && gt(unpaid, ZERO)) blocked("partial employment requires dated unpaid leave evidence");
     if (gt(unpaid, ZERO)) add("unpaid_leave", "input.unpaidLeaveHours", "UNPAID_LEAVE", { hours: show(unpaid), rate: show(rate) }, -roundRatioToCent(mul(rate, unpaid)));
   } else if (w.payType === "HOURLY") {
     const rate = micro(w.hourlyRate);
@@ -120,7 +192,7 @@ function calculateLine(config: PayrollConfig, { worker: w, input }: EngineEntry)
     const excluded = sub(room, above);
     if (gt(excluded, ZERO)) add("excluded_unapproved", "input.workedHours", "OVERTIME", { hours: show(excluded) }, 0n); // shown, not paid
   } else {
-    add("retainer", "worker.compensation", "FIXED_RETAINER", { baseAmount: w.baseAmount.toString() }, roundRatioToCent(micro(w.baseAmount)));
+    base("retainer", "FIXED_RETAINER");
     const extra = hrs(input.approvedExtraHours);
     if (gt(extra, ZERO)) {
       if (w.hourlyRate === 0n) blocked("extra hours without an agreed rate");
@@ -128,6 +200,7 @@ function calculateLine(config: PayrollConfig, { worker: w, input }: EngineEntry)
     }
   }
 
+  for (const a of adjustments.filter(a => a.kind !== "FIXED_DEDUCTION")) add(a.kind.toLowerCase(), `hr.adjustment.${a.id}`, "ONE_OFF_ADDITION", { kind: a.kind, amount: a.amount, reason: a.reason }, roundRatioToCent(micro(parseUsdc(a.amount))));
   const gross = trace.reduce((s, t) => s + t.amount, 0n);
   if (gross < 0n) blocked("negative gross");
   let deductions = 0n;
@@ -136,11 +209,17 @@ function calculateLine(config: PayrollConfig, { worker: w, input }: EngineEntry)
     deductions += amount;
     add(`deduction_${d.code.toLowerCase()}`, "config.deductions", "PERCENT_DEDUCTION", { percent: d.percent, gross: gross.toString() }, -amount);
   }
+  for (const a of adjustments.filter(a => a.kind === "FIXED_DEDUCTION")) {
+    const amount = roundRatioToCent(micro(parseUsdc(a.amount)));
+    deductions += amount;
+    add(`fixed_deduction_${a.id}`, `hr.adjustment.${a.id}`, "FIXED_DEDUCTION", { amount: a.amount, reason: a.reason }, -amount);
+  }
   if (deductions > gross) blocked("deductions exceed gross");
   return { workerId: w.workerId, gross, deductions, net: gross - deductions, trace };
 }
 
-export function calculatePayroll(config: PayrollConfig, entries: EngineEntry[]): PayrollCalculation {
+// Preserve v1 arithmetic, helper semantics and hash payload; upgrades get a separate implementation and frozen fixtures.
+function calculatePayrollV1(config: PayrollConfig, entries: EngineEntry[]): PayrollCalculation {
   const seen = new Set<string>();
   for (const e of entries) {
     if (seen.has(e.worker.workerId)) throw new EngineBlocked(e.worker.workerId, "more than one entry for this worker (would pay twice)");
@@ -154,8 +233,15 @@ export function calculatePayroll(config: PayrollConfig, entries: EngineEntry[]):
   return { configVersion: config.version, lines, totals, calculationHash };
 }
 
+export function calculatePayroll(config: PayrollConfig, entries: EngineEntry[], versions: unknown = CURRENT_CALCULATION_VERSIONS): PayrollCalculation {
+  const selected = CalculationVersionsSchema.parse(versions);
+  if (selected.engineVersion === 1 && selected.hashVersion === 1) return calculatePayrollV1(config, entries);
+  // Future hash formats must bind both version identifiers; v1 keeps its historical payload unchanged.
+  throw new Error("Unsupported calculation engine/hash versions");
+}
+
 /** Independent checks before CALCULATION_VALIDATED (ARCHITECTURE 10). Empty list = valid. */
-export function verifyCalculation(config: PayrollConfig, entries: EngineEntry[], calc: PayrollCalculation): string[] {
+export function verifyCalculation(config: PayrollConfig, entries: EngineEntry[], calc: PayrollCalculation, versions: unknown = CURRENT_CALCULATION_VERSIONS): string[] {
   const problems: string[] = [];
   let totals = { gross: 0n, deductions: 0n, net: 0n };
   for (const l of calc.lines) {
@@ -166,6 +252,6 @@ export function verifyCalculation(config: PayrollConfig, entries: EngineEntry[],
     totals = { gross: totals.gross + l.gross, deductions: totals.deductions + l.deductions, net: totals.net + l.net };
   }
   if (totals.gross !== calc.totals.gross || totals.deductions !== calc.totals.deductions || totals.net !== calc.totals.net) problems.push("totals do not match line sums");
-  if (calculatePayroll(config, entries).calculationHash !== calc.calculationHash) problems.push("recomputation does not reproduce the hash");
+  if (calculatePayroll(config, entries, versions).calculationHash !== calc.calculationHash) problems.push("recomputation does not reproduce the hash");
   return problems;
 }

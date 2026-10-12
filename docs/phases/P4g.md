@@ -2,6 +2,8 @@
 
 Status: draft 2026-10-03. Timing (user, 2026-10-03): straight after P4, before the hackathon deadline. Decisions below are agent defaults; the user confirms them before the build starts.
 
+Timeline update 2026-10-05: submission **October 17, 2026**; slice 1 closure target Oct 5, dependent on the real Google spike and user check (still unverified). Slice 2 remains cuttable. Then P4c → P4d → optional P4b → conditional P4r, with Oct 12 freeze and P5 validation/demo through Oct 17 (PRD §12). The deadline extension does not count provider setup as completed or start retrieval work inside this auth phase.
+
 ## Goal
 An invited user can sign in with "Continue with Google" instead of email + password. Invite-only access, MFA, re-auth, four-eyes and the site lockdown all still hold. Microsoft sign-in is the same pattern and comes later (decision 7).
 
@@ -52,4 +54,16 @@ Before coding: read the current Supabase docs for `signInWithOAuth` + `exchangeC
 S74 · S75 (slice 2 only). S15, S43, S51–S58, S62 must still pass.
 
 ## Timeline
-About half a day for slice 1 and half a day for slice 2, right after P4 merges (~Oct 4–5). PRD §12 dates for P4c onward shift by up to a day.
+Original build estimate: half a day per slice. Current target: slice 1 closure Oct 5, dependent on real provider setup/checks; slice 2 cuttable. Follow PRD §12 and `../p4-p5-readiness.md` for the Oct 17 schedule; do not mechanically shift phases or consume the Oct 13–16 validation window.
+
+## Progress
+
+### Slice 1 backend (2026-10-03, branch `p4g-google-auth`; not committed)
+Built with the defaults of decisions 1-7; slice 2 not started. The Google round trip has **not** run: the user has not configured Google Cloud or the Supabase provider, so the decision-1 spike (unknown Google email refused with sign-up off; matching email links to the same user ID) stays **UNVERIFIED** and S74 is `unverified`.
+- **Start:** `POST /api/auth/oauth/google` (open route, app mode only, strict `{ next? }`) returns `{ url }`. PKCE, scopes `openid email profile`, `skipBrowserRedirect`; the code verifier is an httpOnly SameSite=lax cookie set by the server. `redirectTo = <origin>/auth/callback` exactly (no query, so it matches the Supabase Redirect URLs entry). The allow-listed destination travels in the 10-minute httpOnly SameSite=lax cookie `kleeno-oauth-next`, set by the start route, read again through `safeNext` in the callback and cleared on every callback outcome; the callback never takes `next` from its URL.
+- **Callback:** `GET /auth/callback` (thin; checks in `src/server/auth/oauth.ts` `completeCallback`, ports in `oauth-session.ts`): no code / provider error / failed, expired or reused code -> `/login?error=oauth`; no membership -> local sign-out, cookies cleared, `/login?error=no-access`; a verified factor -> `/login?step=mfa&factor=<id>&next=<path>`; an `mfa_required` company without a factor -> `/account` (enrol); several companies and no remembered one -> `/select-company`; else the allow-listed `next` (default `/dashboard`). The session stays aal1 until the code is verified; every page re-checks aal2 as for passwords. Success is audited as `OAUTH_LOGIN_OK` with a correlation ID; failures are logged (references only) because a failed or refused sign-in has no company to audit against.
+- **Admin:** `authenticateAdmin` also requires `password` in the session `amr`, so a Google session never reaches the admin area.
+- **Proxy:** `/auth/callback` is in the app-mode public list only; waitlist mode gives the usual 404. `scripts/probe-site.ts` probes the callback and the start route.
+- **Config:** `supabase/config.toml` has `[auth.external.google]` with `enabled = false` locally (the CLI will not start an enabled provider with empty credentials; CI's db job has none). Cloud projects are set in the dashboard. `.env.example` lists the two variable names.
+- **Tests:** `unit/oauth-redirect`, `unit/oauth-callback`, `invariants/security/oauth-structure` (waitlist 404 through the real proxy), `db/oauth` (non-password sessions via an email one-time link; no-membership refused and revoked; MFA after OAuth-style sessions; admin guard).
+- **Open for the user's browser spike:** the two decision-1 checks above (the `redirectTo` query risk is gone: it has no query now), plus actual MFA round-trip. Status corrected 2026-10-05 from source: login page/form already consume `step`, validated `factor` and allow-listed `next`; UI wiring is built, browser verification remains pending.

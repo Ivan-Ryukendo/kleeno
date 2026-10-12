@@ -88,7 +88,8 @@ export async function authenticate(jar: CookieJar, opts: { allowAal1?: boolean; 
     row = rows[0];
   }
   const company = row.companies!;
-  const { data: aalData } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  const { data: aalData, error: aalError } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aalError || !aalData?.currentLevel) throw new AuthError(401, "UNAUTHENTICATED", "sign in required");
   const aal = aalData?.currentLevel === "aal2" ? "aal2" : "aal1";
   // A user who has a verified factor always needs it, whatever the company flag says (a password alone must not suffice).
   const needsMfa = company.mfa_required || aalData?.nextLevel === "aal2";
@@ -104,7 +105,8 @@ export async function authenticateUser(jar: CookieJar, opts: { sink?: PendingCoo
   if (error || !data.user) throw new AuthError(401, "UNAUTHENTICATED", "sign in required");
   const rows = await membershipsOf(data.user.id);
   if (rows.length === 0) throw new AuthError(403, "NO_ACCESS", "this account has no company access");
-  const { data: aalData } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  const { data: aalData, error: aalError } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aalError || !aalData?.currentLevel) throw new AuthError(401, "UNAUTHENTICATED", "sign in required");
   const aal = aalData?.currentLevel === "aal2" ? "aal2" : "aal1";
   return { userId: data.user.id, client, aal, nextLevel: aalData?.nextLevel ?? "aal1", companies: rows.map(asMembership) };
 }

@@ -5,7 +5,7 @@ import { env } from "@/server/env";
 
 export const metadata: Metadata = {
   title: "Privacy",
-  description: "What Kleeno stores when you join the waitlist, why, for how long, and how to have it deleted.",
+  description: "What Kleeno stores for the waitlist and payroll review, how it is protected, and how to request deletion.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -79,9 +79,21 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2>When Kleeno itself launches</h2>
+          <h2>Payroll review and testnet pilots</h2>
           <p>
-            The product is designed so the most sensitive payroll data never reaches us: worker names are removed in your browser before upload, pay and policy fields are encrypted per company, and real-company users sign in with a second factor. A full data note will come with the product.
+            The public waitlist does not accept payroll files. In an authorized payroll workspace, imports remove worker names and bank details in your browser. Original policy documents and the passphrase-encrypted name key stay on your device. Review extracted policy clauses before submitting them and remove names or other personal details from the policy text.
+          </p>
+          <p>
+            Workspace records include pseudonymous worker IDs, mapped hours and leave, policy clauses, compensation, calculations, human decisions and audit references. Pay and policy fields are encrypted with a per-company key before storage in Supabase; authorized server processes decrypt them to calculate or display results. Workspace access follows company membership and roles, and real-company users require MFA. Hosting is provided by Vercel.
+          </p>
+          <p>
+            AI requests through OpenRouter contain bounded policy clauses and structured pseudonymous facts, not worker names, bank details or wallet addresses. AI proposes; validated deterministic code calculates and people approve. Real-data pilots require a review of the configured provider&apos;s data-use and retention terms. Synthetic retrieval demonstrations do not authorize real policy embeddings or a searchable plaintext copy.
+          </p>
+          <p>
+            SIMULATION cannot pay. Any authorized payment demonstration uses Arc testnet only. Testnet transfers expose the net amount, recipient wallet address and transaction references publicly; on-chain records cannot be deleted. Circle manages the company&apos;s testnet wallets. Do not publish a worker-name-to-wallet mapping.
+          </p>
+          <p>
+            Approved workspace evidence is retained until an authorized company-deletion request is completed; the final pilot retention period must be agreed before accepting real business data. Deletion removes the company&apos;s live records and wrapped data key. Shared sign-in accounts remain available to their other companies. Provider backups expire on the provider&apos;s schedule and may contain records and keys until then; live deletion is not immediate backup erasure. To request a pilot export or deletion, use your existing Kleeno contact. No customer payroll content is sent to the public site analytics.
           </p>
         </section>
       </div>

@@ -20,7 +20,7 @@ const PUBLIC = ["/", "/privacy", "/robots.txt", "/sitemap.xml", "/icon.svg", "/o
 const LOCKED = [
   "/dashboard", "/login", "/account", "/workers", "/runs/abc", "/runs/abc.png",
   "/admin", "/Admin", "/ADMIN/login", "/admin/login", "/%61dmin", "/admin%2Flogin", "/admin/contacts/x",
-  "/api/admin/login", "/api/admin/export", "/api/auth/login", "/api/workers", "/api/runs", "/api/runs/x/approve",
+  "/api/admin/login", "/api/admin/export", "/api/auth/login", "/api/auth/oauth/google", "/auth/callback", "/auth/callback?code=x", "/api/workers", "/api/runs", "/api/runs/x/approve",
   "/dashboard.json", "/login.php", "/index.html", "/page", "/(app)/dashboard", "/kleeno-not-found",
   "/.env", "/.env.local", "/.git/config", "/package.json", "/next.config.ts", "/src/proxy.ts",
   "/%2e%2e/%2e%2e/etc/passwd", "/..%2fdashboard", "/privacy/../dashboard", "/_next/../dashboard", "/wp-admin", "/server-status",

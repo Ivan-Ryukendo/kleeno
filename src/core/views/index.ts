@@ -14,6 +14,8 @@ export interface ColumnDef {
   type: ColType;
   roles?: readonly Role[]; // visible only to these roles (default: everyone in the company)
   values?: readonly string[]; // the choices of an enum column (the filter shows a list)
+  resource?: boolean;
+  formula?: string;
 }
 export interface TableDef {
   label: string;
@@ -29,6 +31,17 @@ const PAYROLL: readonly Role[] = ["PAYROLL_APPROVER", "HR_APPROVER", "PAYMENT_AP
 export const MATCH_VALUES = ["AUTO_MATCHED", "MATCHED_AFTER_REVIEW", "EXCEPTION"] as const;
 
 export const TABLES = {
+  runs: {
+    label: "Pay runs", scope: "company",
+    columns: [
+      { id: "periodStart", label: "Period start", type: "date" },
+      { id: "periodEnd", label: "Period end", type: "date" },
+      { id: "mode", label: "Mode", type: "enum", values: ["SIMULATION", "LIVE_TESTNET"] },
+      { id: "status", label: "Status", type: "text" },
+      { id: "created", label: "Created", type: "date" },
+    ],
+    defaults: ["periodStart", "periodEnd", "mode", "status"], order: ["periodStart"], search: ["status", "mode"], totals: [],
+  },
   workers: {
     label: "Workers",
     scope: "company",
@@ -100,10 +113,10 @@ export const TABLES = {
     scope: "run",
     columns: [
       { id: "worker", label: "Worker", type: "text" },
-      { id: "gross", label: "Gross (USDC)", type: "money" },
-      { id: "deductions", label: "Deductions (USDC)", type: "money" },
-      { id: "net", label: "Net (USDC)", type: "money" },
-      { id: "paid", label: "Actually paid (USDC)", type: "money" },
+      { id: "gross", label: "Gross (USDC)", type: "money", roles: PAYROLL },
+      { id: "deductions", label: "Deductions (USDC)", type: "money", roles: PAYROLL },
+      { id: "net", label: "Net (USDC)", type: "money", roles: PAYROLL },
+      { id: "paid", label: "Actually paid (USDC)", type: "money", roles: PAYROLL },
     ],
     defaults: ["worker", "gross", "deductions", "net", "paid"],
     order: ["worker"],
@@ -140,16 +153,21 @@ export interface TableResult {
   total: number; // rows matching the view (rows may be capped)
   totals: Record<string, string>;
   truncated: boolean;
+  rowIds?: string[];
+  availableColumns?: ColumnDef[];
+  cells?: Record<string, Record<string, import("./resources").ResourceCell>>;
 }
 
 export class ViewError extends Error {}
 
-export const columnsFor = (table: TableId, roles: readonly Role[]): ColumnDef[] => (TABLES[table].columns as readonly ColumnDef[]).filter((c) => !c.roles || hasRole(roles, ...c.roles));
+export const columnsFor = (table: TableId, roles: readonly Role[], custom: readonly ColumnDef[] = []): ColumnDef[] => [...TABLES[table].columns, ...custom].filter((c: ColumnDef) => !c.roles || hasRole(roles, ...c.roles));
 export const defaultView = (table: TableId, roles: readonly Role[]): ViewDef => ({ table, columns: TABLES[table].defaults.filter((id) => columnsFor(table, roles).some((c) => c.id === id)), filters: [], sort: null, search: "" });
 
 /** The allow-list check (S59). Throws on any column the role cannot see, an operator the column type does not have, or an unparsable value. */
-export function validateView(def: ViewDef, roles: readonly Role[]): ViewDef {
-  const cols = new Map(columnsFor(def.table, roles).map((c) => [c.id, c]));
+export function validateView(def: ViewDef, roles: readonly Role[], custom: readonly ColumnDef[] = []): ViewDef {
+  ViewSchema.parse(def);
+  if (new Set(def.columns).size !== def.columns.length) throw new ViewError("columns must be unique");
+  const cols = new Map(columnsFor(def.table, roles, custom).map((c) => [c.id, c]));
   const known = (id: string) => cols.get(id) ?? (() => { throw new ViewError(`unknown column: ${id}`); })();
   def.columns.forEach(known);
   for (const f of def.filters) {
@@ -166,16 +184,17 @@ export type Row = Record<string, string | number | null>;
 /** Comparable form of a cell or a filter value: money and numbers as exact scaled integers, dates as text, the rest lower-cased text. */
 function norm(type: ColType, v: string | number | null): bigint | string {
   const s = v === null ? "" : String(v).trim();
-  if (type === "money" || type === "number") return s === "" ? -1n : parseUsdc(s); // blank sorts first
+  if (type === "money" || type === "number") return s === "" ? -1n : s.startsWith("-") && type === "number" ? -parseUsdc(s.slice(1)) : parseUsdc(s);
   return type === "date" ? s : s.toLowerCase();
 }
 
 function checkValue(type: ColType, v: string) {
-  if ((type === "money" || type === "number") && !/^\d+(\.\d{1,6})?$/.test(v.trim())) throw new ViewError(type === "money" ? "amount filters need a number like 1200.50" : "number filters need a number like 8.5");
+  if ((type === "money" || type === "number") && !(type === "number" ? /^-?\d+(\.\d{1,6})?$/ : /^\d+(\.\d{1,6})?$/).test(v.trim())) throw new ViewError(type === "money" ? "amount filters need a number like 1200.50" : "number filters need a number like 8.5");
   if (type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) throw new ViewError("date filters need YYYY-MM-DD");
 }
 
 function matches(type: ColType, cell: string | number | null, op: string, raw: string): boolean {
+  if ((type === "number" || type === "money" || type === "date") && (cell === null || String(cell).trim() === "")) return false;
   const have = norm(type, cell);
   const want = norm(type, raw);
   switch (op) {
@@ -191,14 +210,18 @@ function matches(type: ColType, cell: string | number | null, op: string, raw: s
 }
 
 /** Search, filter and sort. Pure: the same rows and view always give the same result. */
-export function applyView(rows: Row[], def: ViewDef): Row[] {
+export function applyView(rows: Row[], def: ViewDef, custom: readonly ColumnDef[] = []): Row[] {
   const t = TABLES[def.table] as TableDef;
-  const type = (id: string) => (t.columns.find((c) => c.id === id) as ColumnDef).type;
+  const type = (id: string) => ([...t.columns, ...custom].find((c) => c.id === id) as ColumnDef).type;
   const q = def.search.trim().toLowerCase();
   const out = rows.filter((r) => (!q || t.search.some((id) => String(r[id] ?? "").toLowerCase().includes(q))) && def.filters.every((f) => matches(type(f.column), r[f.column] ?? null, f.op, f.value)));
   const keys = def.sort ? [{ column: def.sort.column, sign: def.sort.dir === "asc" ? 1 : -1 }, ...t.order.map((column) => ({ column, sign: 1 }))] : t.order.map((column) => ({ column, sign: 1 }));
   return [...out].sort((a, b) => {
     for (const { column, sign } of keys) {
+      const missingA = a[column] === null || a[column] === undefined || a[column] === "";
+      const missingB = b[column] === null || b[column] === undefined || b[column] === "";
+      if (missingA !== missingB) return missingA ? -1 : 1;
+      if (missingA) continue;
       const x = norm(type(column), a[column] ?? null);
       const y = norm(type(column), b[column] ?? null);
       if (x !== y) return (x < y ? -1 : 1) * sign;
@@ -215,8 +238,10 @@ export function totalsFor(rows: Row[], def: ViewDef): Record<string, string> {
 }
 
 /** CSV of the view: only the columns the role may see, every cell escaped against spreadsheet formulas (S25, S60). */
-export function toCsv(rows: Row[], def: ViewDef, roles: readonly Role[]): string {
-  const cols = columnsFor(def.table, roles).filter((c) => def.columns.includes(c.id));
+export function toCsv(rows: Row[], def: ViewDef, roles: readonly Role[], custom: readonly ColumnDef[] = []): string {
+  const visible = columnsFor(def.table, roles, custom);
+  // Unavailable fields stay excluded even if a caller supplies an old view definition.
+  const cols = def.columns.map((id) => visible.find((c) => c.id === id)).filter((c): c is ColumnDef => !!c);
   const quote = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v);
   return [cols.map((c) => quote(escapeCell(c.label))).join(","), ...rows.map((r) => cols.map((c) => quote(escapeCell(String(r[c.id] ?? "")))).join(","))].join("\r\n") + "\r\n";
 }

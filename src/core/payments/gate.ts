@@ -46,6 +46,7 @@ export async function runGate(obligationId: string, repo: PaymentsRepo, chain: C
     ["PLAN_HASH_MISMATCH", !!batch && computePlanHash(batch.plan) === batch.planHash],
     ["NOT_IN_PLAN", !!batch && batch.plan.obligations.some((p) => p.id === o.id && p.amount === o.amount && p.recipient === o.recipient)],
     ["AUTHORIZER_MISSING", !!batch && !!batch.authorizerId],
+    ["STANDING_NOT_VALID", batch?.authorizationType !== "STANDING" || batch.standingValid === true],
     ["SAME_USER_APPROVAL", !!batch && !!batch.authorizerId && batch.authorizerId !== ctx.approvalApproverId],
     ["RUN_NOT_LIVE", run.mode === "LIVE_TESTNET"],
     ["RUN_NOT_APPROVED", RUN_APPROVED_OR_LATER.has(run.status)],
