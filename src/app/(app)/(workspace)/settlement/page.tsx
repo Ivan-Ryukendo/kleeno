@@ -79,7 +79,7 @@ export default async function SettlementPage({ searchParams }: { searchParams: P
               </Link>
             </div>
 
-            {run.batch && <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><Chip>{run.batch.status.replaceAll("_", " ").toLowerCase()}</Chip><span>{run.batch.source === "AI" ? "Suggested by AI, not applied" : "Recorded payment plan"}</span><code className="break-all">{run.batch.planHash}</code></div>}
+            {run.batch && <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><Chip>{run.batch.status.replaceAll("_", " ").toLowerCase()}</Chip><span>{run.batch.source === "FALLBACK" ? "Deterministic fallback plan" : "AI-proposed plan"}</span><code className="break-all">{run.batch.planHash}</code></div>}
             {run.obligations.length === 0 ? (
               <p className="mt-6 text-muted-foreground">
                 {run.status === "PENDING_APPROVAL" ? "Waiting for payroll approval on the run page." : "The payment obligations are created when payroll is approved."}
