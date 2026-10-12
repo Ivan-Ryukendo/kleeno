@@ -43,4 +43,3 @@ export async function proposeConfig(who: Who, policyText: string, provider: AiPr
   await advanceAiConfig(who, draft.id);
   return { status: result.status, executionId, problems: [], flags: result.flags, warnings, cacheHit, config: draft };
 }
-

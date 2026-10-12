@@ -21,4 +21,3 @@ export async function proposeResourceColumns(who: { companyId: string; userId: s
   const executionId = await recordExecution(who, { operation: "POLICY_INTERPRET", inputRef: ref, schemaVersion: RESOURCE_SCHEMA_VERSION, promptVersion: RESOURCE_PROMPT_VERSION, provider: provider.name, telemetry: provider.telemetry?.(), result: logged });
   return { status: result.status, executionId, proposals: result.status === "NEEDS_HUMAN_REVIEW" ? [] : result.output?.columns ?? [], problems: result.problems, flags: result.flags };
 }
-

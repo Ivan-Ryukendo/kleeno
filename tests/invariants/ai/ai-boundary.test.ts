@@ -89,4 +89,3 @@ describe("S23 injection fixtures", () => {
     expect(safe, JSON.stringify(r)).toBe(true);
   });
 });
-
