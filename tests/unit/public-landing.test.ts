@@ -57,3 +57,10 @@ it("exposes the how-it-works accordion as buttons with aria-expanded", () => {
   expect(html.match(/aria-expanded="(true|false)"/g)).toHaveLength(4);
   expect(html.match(/aria-expanded="true"/g)).toHaveLength(1);
 });
+
+it("follows DESIGN.md §13: small corners, no orange orbit motif, no GitHub link, no invented claims", () => {
+  expect(html).not.toMatch(/rounded-full|rounded-\[(1\.25|2|2\.5)rem\]/);
+  expect(html).not.toMatch(/orbit/);
+  expect(html).not.toMatch(/github/i);
+  expect(text).not.toMatch(/\d+\+?\s*(companies|customers|teams|pilots)|trusted by|in production/i);
+});

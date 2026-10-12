@@ -59,24 +59,12 @@ const faqs = [
   { q: "What do you do with my email?", a: "We use it only to tell you about Kleeno's launch and early access, and to contact you if you ask for a call. We never sell it. You can ask us to delete it at any time; see the privacy note." },
 ];
 
-const ink = "inline-flex min-h-12 cursor-pointer items-center justify-center rounded-[1.25rem] bg-primary px-8 text-base font-medium text-primary-foreground transition-[background-color,transform] duration-200 hover:bg-primary/85 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
-const outline = "inline-flex min-h-12 cursor-pointer items-center justify-center rounded-[1.25rem] border-[1.5px] border-primary bg-white px-8 text-base font-medium text-foreground transition-[background-color,transform] duration-200 hover:bg-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
+const ink = "inline-flex min-h-12 cursor-pointer items-center justify-center rounded-[0.375rem] bg-primary px-8 text-base font-medium text-primary-foreground transition-[background-color,transform] duration-200 hover:bg-primary/85 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
+const outline = "inline-flex min-h-12 cursor-pointer items-center justify-center rounded-[0.375rem] border-[1.5px] border-primary bg-white px-8 text-base font-medium text-foreground transition-[background-color,transform] duration-200 hover:bg-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
 const section = "scroll-mt-28 px-5 py-32 sm:px-8 md:py-48";
 const h2 = "text-[clamp(2.25rem,4.5vw,4rem)] font-medium leading-[1.04] tracking-[-0.02em]";
-const card = "group relative overflow-hidden rounded-[2.5rem] p-7 sm:p-9";
+const card = "group relative overflow-hidden rounded-[0.5rem] p-7 sm:p-9";
 const lift = "transition-transform duration-700 ease-out group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100";
-
-// Film grain for the ink frames: an inline SVG noise tile (data: URLs are allowed by the CSP img-src; remote images are not).
-const grain = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
-
-/** Decorative orbit arc (DESIGN.md §1, landing page only). */
-function Orbit({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden focusable="false" viewBox="0 0 1200 400" preserveAspectRatio="none" className={className}>
-      <path d="M-20 360 C 220 40, 760 -40, 1220 180" fill="none" className="stroke-orbit" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-}
 
 export default function LandingPage() {
   const jsonLd = {
@@ -95,7 +83,6 @@ export default function LandingPage() {
       <LandingMotion>
         {/* Attention */}
         <section aria-labelledby="hero-title" className="relative px-5 pb-32 pt-16 sm:px-8 md:pb-48 md:pt-24">
-          <Orbit className="pointer-events-none absolute inset-x-0 top-64 -z-10 hidden h-[26rem] w-full opacity-70 md:block" />
           <div className="mx-auto flex w-full max-w-6xl flex-col items-center text-center">
             <h1 id="hero-title" className="w-full max-w-6xl text-balance text-[clamp(2.75rem,6vw,6rem)] font-medium leading-[0.98] tracking-[-0.02em]">
               Payroll that can&apos;t pay the wrong person.
@@ -110,9 +97,7 @@ export default function LandingPage() {
             <p className="mt-6 text-sm text-muted-foreground">In development · Arc testnet only, no real funds</p>
           </div>
 
-          <div data-hero-frame className="relative mx-auto mt-16 w-full max-w-6xl overflow-hidden rounded-[2rem] bg-ink p-2 shadow-card sm:rounded-[2.5rem] sm:p-6 md:mt-24 md:p-12">
-            <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_0%,color-mix(in_oklab,var(--orbit)_38%,transparent),transparent_70%)]" />
-            <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.08] mix-blend-overlay" style={{ backgroundImage: grain }} />
+          <div className="relative mx-auto mt-16 w-full max-w-6xl overflow-hidden rounded-[0.5rem] border border-foreground/10 bg-card p-2 sm:p-4 md:mt-24 md:p-8">
             <div className="relative">
               <RunReviewVisual />
             </div>
@@ -166,7 +151,7 @@ export default function LandingPage() {
               {[...chain, ...chain].map((c, i) => (
                 <span key={i} className="flex items-center gap-10">
                   {c}
-                  <span className="size-3 rounded-full bg-orbit" />
+                  <span aria-hidden className="size-2 rounded-[0.125rem] bg-foreground/30" />
                 </span>
               ))}
             </div>
@@ -271,8 +256,7 @@ export default function LandingPage() {
 
         {/* Action */}
         <section id="join" aria-labelledby="join-title" className="scroll-mt-28 px-3 pb-8 sm:px-6">
-          <div className="relative mx-auto max-w-[90rem] overflow-hidden rounded-[2.5rem] bg-ink px-6 py-20 text-white sm:px-12 md:py-32 lg:px-20">
-            <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_70%_at_0%_100%,color-mix(in_oklab,var(--orbit)_30%,transparent),transparent_70%)]" />
+          <div className="relative mx-auto max-w-[90rem] overflow-hidden rounded-[0.5rem] bg-ink px-6 py-20 text-white sm:px-12 md:py-32 lg:px-20">
             <div className="relative grid items-center gap-14 lg:grid-cols-[1.2fr_1fr]">
               <div>
                 <h2 id="join-title" className="text-[clamp(2.5rem,6vw,5.5rem)] font-medium leading-[0.98] tracking-[-0.02em]">
@@ -282,7 +266,7 @@ export default function LandingPage() {
                   Join the waitlist for launch news, pricing and early-access offers. One email field; unsubscribe any time.
                 </p>
               </div>
-              <div className="rounded-[2.5rem] bg-card p-7 text-foreground shadow-card sm:p-10">
+              <div className="rounded-[0.5rem] bg-card p-7 text-foreground sm:p-10">
                 <h3 className="text-2xl font-medium tracking-[-0.02em]">Join the waitlist</h3>
                 <p className="mb-6 mt-2 text-muted-foreground">Be first to try Kleeno when it opens.</p>
                 <WaitlistForm />

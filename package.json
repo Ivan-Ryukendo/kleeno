@@ -19,7 +19,6 @@
     "@base-ui/react": "^1.8.0",
     "@circle-fin/developer-controlled-wallets": "^10.8.1",
     "@circle-fin/smart-contract-platform": "^10.8.1",
-    "@gsap/react": "^2.1.2",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "@vercel/analytics": "^2.0.1",

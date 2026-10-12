@@ -68,7 +68,7 @@ export function RunReviewVisual() {
   const th = cn("h-9 border-b px-2 text-left font-medium text-muted-foreground sm:px-2.5", hair);
   const td = cn("h-10 border-b px-2 py-1.5 sm:px-2.5 sm:py-0", hair);
   return (
-    <figure className={cn("w-full overflow-hidden rounded-[0.5rem] bg-white text-left text-foreground shadow-card", text13)}>
+    <figure className={cn("w-full overflow-hidden rounded-[0.5rem] bg-white text-left text-foreground", text13)}>
       <div className={cn("flex items-center justify-between gap-3 border-b px-4 py-2.5 sm:px-5", hair)}>
         <p className="truncate text-muted-foreground">
           Northwind Remote <span aria-hidden>/</span> Payroll <span aria-hidden>/</span> <span className="text-foreground">October 2026</span>
@@ -346,17 +346,17 @@ export function ReceiptVisual() {
 /** Small pill-shaped renderings that sit inline inside a heading (gpt-taste inline typography images). */
 export function InlinePill({ variant }: { variant: "signers" | "trace" }) {
   return (
-    <span aria-hidden className="mx-[0.15em] inline-flex h-[0.78em] w-[1.9em] -translate-y-[0.06em] items-center justify-center gap-[0.12em] overflow-hidden rounded-full bg-primary align-middle">
+    <span aria-hidden className="mx-[0.15em] inline-flex h-[0.78em] w-[1.9em] -translate-y-[0.06em] items-center justify-center gap-[0.12em] overflow-hidden rounded-[0.375rem] bg-primary align-middle">
       {variant === "signers" ? (
         <>
-          <span className="size-[0.32em] rounded-full bg-background" />
-          <span className="size-[0.32em] rounded-full bg-orbit" />
+          <span className="size-[0.32em] rounded-[0.1em] bg-background" />
+          <span className="size-[0.32em] rounded-[0.1em] bg-background/50" />
         </>
       ) : (
         <span className="flex w-[1.2em] flex-col gap-[0.07em]">
-          <span className="h-[0.06em] w-full rounded-full bg-background/80" />
-          <span className="h-[0.06em] w-3/4 rounded-full bg-background/60" />
-          <span className="h-[0.06em] w-1/2 rounded-full bg-orbit" />
+          <span className="h-[0.06em] w-full rounded-[0.03em] bg-background/80" />
+          <span className="h-[0.06em] w-3/4 rounded-[0.03em] bg-background/60" />
+          <span className="h-[0.06em] w-1/2 rounded-[0.03em] bg-background/40" />
         </span>
       )}
     </span>

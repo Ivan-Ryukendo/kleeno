@@ -1,18 +1,13 @@
 "use client";
 
-import { useRef } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useGSAP } from "@gsap/react";
+import { useEffect, useRef } from "react";
 
-gsap.registerPlugin(useGSAP, ScrollTrigger);
-
-// Landing-page motion only (DESIGN.md §10: orbit/scroll motion is allowed on the landing page, never on working screens).
+// Landing-page motion only (DESIGN.md §13: gsap is approved for public pages, never for app-theme screens or money/approval surfaces).
+// gsap and ScrollTrigger are loaded with dynamic import() after hydration, so they stay out of the initial bundle.
 // The markup is server-rendered and fully visible without JavaScript; every tween below runs only when the visitor
 // has not asked for reduced motion, so `prefers-reduced-motion: reduce` gets the same static page (no pin, no scrub).
 // Hooks are data attributes so the sections stay server components:
 //   data-rise            fades in and rises once when it enters
-//   data-hero-frame      the hero media frame settles in on load
 //   data-marquee         a track with its content duplicated once; loops left
 //   data-pin-section     container; its [data-pin] child pins on wide screens while [data-proof] cards scroll past
 //   data-proof           scales 0.92 -> 1 and fades in entering; fades gently (opacity only) leaving
@@ -20,16 +15,18 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
 export function LandingMotion({ children }: { children: React.ReactNode }) {
   const scope = useRef<HTMLDivElement>(null);
 
-  useGSAP(
-    () => {
+  useEffect(() => {
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+
+    void (async () => {
+      const [{ default: gsap }, { ScrollTrigger }] = await Promise.all([import("gsap"), import("gsap/ScrollTrigger")]);
+      if (cancelled || !scope.current) return;
+      gsap.registerPlugin(ScrollTrigger);
       const mm = gsap.matchMedia();
 
       mm.add("(prefers-reduced-motion: no-preference)", () => {
         const q = gsap.utils.selector(scope);
-
-        q("[data-hero-frame]").forEach((el) => {
-          gsap.from(el, { y: 48, scale: 0.94, opacity: 0, duration: 1.2, ease: "power3.out", delay: 0.15 });
-        });
 
         q("[data-rise]").forEach((el) => {
           gsap.from(el, { y: 32, opacity: 0, duration: 0.9, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 88%", once: true } });
@@ -67,10 +64,14 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
       // Web fonts change heights after first layout; re-measure so pin and card ranges match the final page.
       document.fonts?.ready.then(() => ScrollTrigger.refresh());
 
-      return () => mm.revert();
-    },
-    { scope },
-  );
+      cleanup = () => mm.revert();
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []);
 
   return <div ref={scope}>{children}</div>;
 }

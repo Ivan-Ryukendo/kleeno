@@ -47,10 +47,10 @@ export function FaqItem({ question, answer }: { question: string; answer: string
   }
 
   return (
-    <details ref={details} className="rounded-[1.25rem] bg-white px-6 py-5 transition-shadow duration-200 hover:shadow-nav" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
-      <summary onClick={toggle} className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-[1.25rem] text-lg font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
+    <details ref={details} className="rounded-[0.5rem] bg-white px-6 py-5 transition-colors duration-200 hover:bg-white/60" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary onClick={toggle} className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-[0.375rem] text-lg font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
         <h3>{question}</h3>
-        <span aria-hidden data-open={open} className={cn("flex size-10 shrink-0 items-center justify-center rounded-full bg-background text-2xl leading-none transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none", open && "rotate-45")}>
+        <span aria-hidden data-open={open} className={cn("flex size-10 shrink-0 items-center justify-center rounded-[0.375rem] bg-background text-2xl leading-none transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none", open && "rotate-45")}>
           +
         </span>
       </summary>

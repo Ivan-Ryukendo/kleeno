@@ -9,8 +9,8 @@ const sections = [
   { href: "/#faq", label: "FAQ" },
 ];
 
-const navLink = "inline-flex min-h-11 items-center rounded-full px-4 text-base font-medium transition-colors duration-150 hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
-const cta = "inline-flex min-h-11 items-center rounded-[1.25rem] bg-primary px-5 text-base font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
+const navLink = "inline-flex min-h-11 items-center rounded-[0.375rem] px-4 text-base font-medium transition-colors duration-150 hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
+const cta = "inline-flex min-h-11 items-center rounded-[0.375rem] bg-primary px-5 text-base font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
 const footLink = "inline-flex min-h-11 items-center text-white/80 transition-colors duration-150 hover:text-white focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/50";
 
 // Public pages (landing, privacy). Vercel Web Analytics is cookieless and runs only here, never on signed-in or admin pages.
@@ -19,13 +19,13 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   const appOpen = siteMode() === "app";
   return (
     <>
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-5 focus:py-3 focus:shadow-nav">
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[0.375rem] focus:border focus:border-foreground/15 focus:bg-white focus:px-5 focus:py-3">
         Skip to content
       </a>
       <header className="sticky top-0 z-40 px-3 pt-3 sm:px-4 sm:pt-6">
-        <nav aria-label="Main" className="relative mx-auto flex max-w-5xl items-center justify-between gap-3 rounded-full border border-white/70 bg-white/70 py-2 pl-5 pr-2 shadow-nav backdrop-blur-xl backdrop-saturate-150 sm:pl-7">
+        <nav aria-label="Main" className="relative mx-auto flex max-w-5xl items-center justify-between gap-3 rounded-[0.5rem] border border-foreground/10 bg-white/90 py-2 pl-5 pr-2 backdrop-blur-md sm:pl-6">
           <Link href="/" className="flex min-h-11 items-center gap-2 text-xl font-medium tracking-tight">
-            <span aria-hidden className="inline-block size-3 rounded-full bg-primary" />
+            <span aria-hidden className="inline-block size-3 rounded-[0.25rem] bg-primary" />
             Kleeno
           </Link>
           <ul className="hidden items-center gap-1 md:flex">
@@ -48,13 +48,13 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               <span className="hidden sm:inline">Join the waitlist</span>
             </Link>
             <details className="group md:hidden">
-              <summary aria-label="Menu" className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
+              <summary aria-label="Menu" className="flex size-11 cursor-pointer list-none items-center justify-center rounded-[0.375rem] transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
                 <span aria-hidden className="flex w-5 flex-col gap-1.5">
-                  <span className="h-0.5 w-full rounded-full bg-foreground transition-transform duration-200 group-open:translate-y-1 group-open:rotate-45" />
-                  <span className="h-0.5 w-full rounded-full bg-foreground transition-transform duration-200 group-open:-translate-y-1 group-open:-rotate-45" />
+                  <span className="h-0.5 w-full rounded-[0.125rem] bg-foreground transition-transform duration-200 group-open:translate-y-1 group-open:rotate-45" />
+                  <span className="h-0.5 w-full rounded-[0.125rem] bg-foreground transition-transform duration-200 group-open:-translate-y-1 group-open:-rotate-45" />
                 </span>
               </summary>
-              <ul className="absolute inset-x-0 top-[calc(100%+0.5rem)] rounded-[2.5rem] bg-white p-3 shadow-card">
+              <ul className="absolute inset-x-0 top-[calc(100%+0.5rem)] rounded-[0.5rem] border border-foreground/10 bg-white p-3 shadow-[0_4px_16px_rgb(0_0_0/8%)]">
                 {sections.map((s) => (
                   <li key={s.href}>
                     <Link href={s.href} className={`${navLink} w-full text-lg`}>{s.label}</Link>
