@@ -20,6 +20,8 @@ const Sub = ({ children, risk }: { children: ReactNode; risk?: boolean }) => <p 
 const Small = ({ children }: { children: ReactNode }) => <small className="text-[0.9375rem] font-[450] tracking-normal text-muted-foreground">{children}</small>;
 
 export interface TileData {
+  /** No current run means historical tiles have no selected reporting period and were not queried. */
+  periodSelected: boolean;
   /** null: the settled runs of the year could not be read completely. */
   months: { year: number; cells: MonthCell[]; settled: number } | null;
   toPay: { month: string; value: string | null; hiddenForRole: boolean; openExceptions: number; simulation: boolean } | null;
@@ -39,7 +41,7 @@ export function StatTiles({ data }: { data: TileData }) {
             </li>
           ))}
         </ol> : null}
-        <Sub>{months ? `Calendar year ${months.year}, the year of the selected run. A month counts once a run ending in it is settled. Simulations never settle.` : "The settled runs of this year could not be read completely."}</Sub>
+        <Sub>{months ? `Calendar year ${months.year}, the year of the selected run. A month counts once a run ending in it is settled. Simulations never settle.` : data.periodSelected ? "The settled runs of this year could not be read completely." : "No run is selected, so settled month history is not loaded."}</Sub>
       </Stat>
 
       <Stat icon={<Wallet aria-hidden className="size-4" />} label={toPay ? `To pay in ${toPay.month}` : "To pay"} chip={<Chip>Planned</Chip>} value={toPay?.value ? <>{toPay.value} <Small>USDC</Small></> : <span className="text-base font-medium text-muted-foreground">{toPay ? (toPay.hiddenForRole ? "Not shown for your role" : "Not available yet") : "No run yet"}</span>} risk={!!toPay?.value && toPay.openExceptions > 0}>
@@ -48,7 +50,7 @@ export function StatTiles({ data }: { data: TileData }) {
       </Stat>
 
       <Stat icon={<Sigma aria-hidden className="size-4" />} label={`Paid in ${paid.year}`} chip={<Chip tone="ok">Settled</Chip>} value={paid.value ? <>{paid.value} <Small>USDC</Small></> : <span className="text-base font-medium text-muted-foreground">{paid.hiddenForRole ? "Not shown for your role" : paid.runs === 0 ? "None settled yet" : "Not available"}</span>}>
-        <Sub>{paid.runs === null ? "The settled runs could not be read completely." : paid.runs === 0 ? `No run ending in ${paid.year} has settled. Simulations never pay.` : paid.value ? `All ${paid.runs} settled run${paid.runs === 1 ? "" : "s"} ending in ${paid.year} · ${paid.payments} payment${paid.payments === 1 ? "" : "s"} · Arc testnet USDC, no real funds` : paid.hiddenForRole ? `${paid.runs} settled run${paid.runs === 1 ? "" : "s"} ending in ${paid.year}; amounts are visible to payroll and payment roles.` : `${paid.runs} settled run${paid.runs === 1 ? "" : "s"} ending in ${paid.year}; the total could not be read completely.`}</Sub>
+        <Sub>{paid.runs === null ? data.periodSelected ? "The settled runs could not be read completely." : "No run is selected, so settled totals are not loaded." : paid.runs === 0 ? `No run ending in ${paid.year} has settled. Simulations never pay.` : paid.value ? `All ${paid.runs} settled run${paid.runs === 1 ? "" : "s"} ending in ${paid.year} · ${paid.payments} payment${paid.payments === 1 ? "" : "s"} · Arc testnet USDC, no real funds` : paid.hiddenForRole ? `${paid.runs} settled run${paid.runs === 1 ? "" : "s"} ending in ${paid.year}; amounts are visible to payroll and payment roles.` : `${paid.runs} settled run${paid.runs === 1 ? "" : "s"} ending in ${paid.year}; the total could not be read completely.`}</Sub>
       </Stat>
 
       <Stat icon={<Users aria-hidden className="size-4" />} label="Workers" value={workers.total ?? <span className="text-base font-medium text-muted-foreground">Not available</span>}>
