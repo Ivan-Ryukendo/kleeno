@@ -37,9 +37,11 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </ul>
           <div className="flex items-center gap-1">
             {appOpen && (
-              <Link href="/login" className={`${navLink} hidden sm:inline-flex`}>
-                Sign in
-              </Link>
+              <span className="hidden sm:block">
+                <Link href="/login" className={navLink}>
+                  Sign in
+                </Link>
+              </span>
             )}
             <Link href="/#join" className={cta}>
               <span className="sm:hidden">Join</span>

@@ -94,7 +94,7 @@ export default function LandingPage() {
       <LandingMotion>
         {/* Attention */}
         <section aria-labelledby="hero-title" className="relative px-5 pb-32 pt-16 sm:px-8 md:pb-48 md:pt-24">
-          <Orbit className="pointer-events-none absolute inset-x-0 top-24 -z-10 hidden h-[28rem] w-full opacity-70 md:block" />
+          <Orbit className="pointer-events-none absolute inset-x-0 top-64 -z-10 hidden h-[26rem] w-full opacity-70 md:block" />
           <div className="mx-auto flex w-full max-w-6xl flex-col items-center text-center">
             <h1 id="hero-title" className="w-full max-w-6xl text-balance text-[clamp(2.75rem,6vw,6rem)] font-medium leading-[0.98] tracking-[-0.02em]">
               Payroll that can&apos;t pay the wrong person.

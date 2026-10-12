@@ -4,7 +4,7 @@
 
 import { cn } from "@/lib/utils";
 
-const chip = "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium";
+const chip = "inline-flex items-center gap-1.5 rounded-full text-left sm:whitespace-nowrap px-2.5 py-1 text-xs font-medium";
 
 function Status({ kind, children }: { kind: "ok" | "risk"; children: React.ReactNode }) {
   return (
