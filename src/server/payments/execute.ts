@@ -147,13 +147,19 @@ export async function assertRecoverRate(companyId: string) {
  */
 export async function onCircleNotification(n: { notificationId: string; circleTxId: string }, o: { deps?: AgentDeps; correlationId?: string } = {}) {
   const correlationId = o.correlationId ?? newCorrelationId();
-  const attempt = (await db().from("payment_attempts").select("obligation_id, company_id").eq("circle_tx_id", n.circleTxId).maybeSingle()).data;
+  const attemptRead = await db().from("payment_attempts").select("obligation_id, company_id").eq("circle_tx_id", n.circleTxId).maybeSingle();
+  if (attemptRead.error) throw new Error("db webhook attempt read failed");
+  const attempt = attemptRead.data;
   if (!attempt) return { handled: false as const };
-  const seen = (await db().from("webhook_notifications").select("id").eq("provider", "circle").eq("notification_id", n.notificationId).maybeSingle()).data;
+  const seenRead = await db().from("webhook_notifications").select("id").eq("provider", "circle").eq("notification_id", n.notificationId).maybeSingle();
+  if (seenRead.error) throw new Error("db webhook notification read failed");
+  const seen = seenRead.data;
   if (seen) return { handled: false as const, duplicate: true as const }; // replay or retry of one already processed: nothing to do
   const deps = o.deps ?? (await agentDeps(attempt.company_id, correlationId));
   const out = await resumeObligation(attempt.obligation_id, deps);
-  const ob = (await db().from("obligations").select("batch_id").eq("id", attempt.obligation_id).maybeSingle()).data;
+  const obRead = await db().from("obligations").select("batch_id").eq("id", attempt.obligation_id).maybeSingle();
+  if (obRead.error) throw new Error("db webhook obligation read failed");
+  const ob = obRead.data;
   if (ob?.batch_id) await rollUp(attempt.company_id, ob.batch_id, SYSTEM, correlationId);
   // Remembered only after success, so a failure returns 500 and Circle's retry is processed. Two deliveries racing both run; re-checking is idempotent (Arc decides).
   const saved = await db().from("webhook_notifications").insert({ company_id: attempt.company_id, provider: "circle", notification_id: n.notificationId, circle_tx_id: n.circleTxId }).select("id");
