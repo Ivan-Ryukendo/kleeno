@@ -7,29 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { describeFacts, type ReconCategory, type ResolutionAction } from "@/core/reconciliation";
 import { postJson } from "@/lib/api";
+import { ACTION_LABEL, CATEGORY_LABEL } from "@/components/exception-labels";
 
 const big = "h-9 rounded-field px-4 text-sm";
 const select = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 
-export const CATEGORY_LABEL: Record<ReconCategory, string> = {
-  DUPLICATE_TIMESHEET: "Duplicate timesheet lines",
-  LEAVE_WORK_CONFLICT: "Leave and work on the same day",
-  UNAPPROVED_OVERTIME: "Hours above the limit without approval",
-  UNEXPLAINED_MISSING_HOURS: "Unexplained missing hours",
-};
 
-export const ACTION_LABEL: Record<ResolutionAction, string> = {
-  KEEP_FIRST: "Keep the first line",
-  KEEP_LATEST: "Keep the latest line",
-  KEEP_ALL: "Keep all lines (separate shifts)",
-  KEEP_WORK: "Keep the work, drop the leave",
-  KEEP_LEAVE: "Keep the leave, drop the work",
-  KEEP_BOTH: "Keep both (they fit in one day)",
-  APPROVE_HOURS: "Approve these hours (they are paid)",
-  EXCLUDE_HOURS: "Do not pay these hours",
-  TREAT_AS_PAID_LEAVE: "Treat as paid leave (no deduction)",
-  TREAT_AS_UNPAID_LEAVE: "Treat as unpaid leave (deducts pay)",
-};
+
+
 
 export interface ExceptionRow {
   id: string;
