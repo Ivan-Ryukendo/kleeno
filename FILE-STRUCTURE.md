@@ -27,6 +27,7 @@ Kleeno/                                  repo root = Next.js app root
 ├─ package.json                     [P0] scripts: dev, build, lint, test, test:invariants, test:db, test:e2e; lockfile committed
 ├─ tsconfig.json / next.config.ts   [P0] TS strict mode, Next.js config; security headers (CSP, frame-ancestors, Referrer-Policy) [P2]
 ├─ vitest.config.ts                 [P0] unit + invariant runner
+├─ vitest.migrations.config.ts      [R2.10] opt-in CI loopback populated-schema upgrade runner (no env-file loader)
 |-- playwright.config.ts             [P5, added] Playwright runner (Chromium; discovery passes, browser execution not run; local DB unavailable)
 ├─ vercel.json + .vercelignore     [W] build only Production on Git pushes (no Preview deploys); never upload .env*/tooling with `vercel deploy`
 ├─ .github/workflows/ci.yml         [P0] lint, typecheck, vitest, forge test, DB tests (local Supabase), npm audit, gitleaks; no secrets
@@ -161,6 +162,7 @@ Kleeno/                                  repo root = Next.js app root
    ├─ fixtures/                     [P1+] PROTECTED: fixture data + expected results (synthetic, labelled); ai/ (policy, injection/) and reconciliation/ (six-worker demo cast) [P3]
    ├─ unit/                         [P1+] core unit tests, mirrors src/core
    ├─ db/                           [P2] RLS + write denial on every table, IDOR + handler authz, re-auth, immutability, kill switch, idempotency, integrity, append-only audit, four-eyes, compare-and-set, trace (local Supabase in CI)
+   ├─ migrations/                   [R2.10] populated payroll/ciphertext/audit and AI-counter preservation across ordered upgrades and no-op replay
    |-- e2e/                          [P5, added] payroll.spec.ts; runner discovery passes, browser execution pending local DB
 ```
 
