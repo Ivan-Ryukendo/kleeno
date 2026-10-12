@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ReadinessPanel, type BlockerCard } from "@/components/dashboard/readiness-panel";
 import { StatTiles } from "@/components/dashboard/stat-tiles";
 import { ActivityPanel, TodoPanel, type Todo } from "@/components/dashboard/todo-activity";
-import { LinkButton, Panel } from "@/components/dashboard/ui";
+import { Chip, LinkButton, Panel } from "@/components/dashboard/ui";
 import { LocalTime } from "@/components/local-time";
 import { describeFacts } from "@/core/reconciliation";
 import { setupChecklist } from "@/core/setup";
@@ -33,6 +33,14 @@ const EXCEPTION_BLOCKER = "Resolve open exceptions before review sign-off";
 const CARD_LIMIT = 4;
 const CATEGORY: Record<string, string> = { DUPLICATE_TIMESHEET: "Duplicate timesheet lines", LEAVE_WORK_CONFLICT: "Leave and work on the same day", UNAPPROVED_OVERTIME: "Hours above the limit without approval", UNEXPLAINED_MISSING_HOURS: "Unexplained missing hours" };
 const modeLabel = (mode: string) => (mode === "SIMULATION" ? "Simulation" : "Live testnet");
+
+function MonthlyGrossPanel() {
+  return (
+    <Panel id="gross-history-h" title="Monthly gross pay" chip={<Chip>Planned</Chip>} className="mt-4">
+      <p className="m-0 p-4 text-sm text-muted-foreground">Gross history is not available yet. This chart is planned.</p>
+    </Panel>
+  );
+}
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ run?: string }> }) {
   await connection();
@@ -176,17 +184,45 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         {selected.mode === "SIMULATION" && <p className="mt-3 text-xs text-muted-foreground">Simulation ends with validated calculation and variance review. It creates no payment obligations.</p>}
 
         {yearRead && <StatTiles data={{
+          periodSelected: true,
           months: months ? { year, cells: months.cells, settled: months.settled } : null,
           toPay: { month: monthName(selected.period_end), value: period.netTotal, hiddenForRole: !financial, openExceptions: period.openExceptions, simulation: selected.mode === "SIMULATION" },
           paid: yearRead.paid,
           workers,
         }} />}
 
+        <MonthlyGrossPanel />
+
         <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
           <TodoPanel todos={todos} roleText={roleText} cutoff={cutoffText} />
           <ActivityPanel items={period.activity.items} unavailable={period.activity.unavailable} truncated={!!period.activity.graphTruncated} viewAllHref={`/audit?run=${selected.id}`} />
         </div>
-      </> : periodUnavailable ? <section className="mt-5 panel"><h2 className="text-lg">Period details unavailable</h2><p role="alert" className="mt-3 text-sm text-signal">Period evidence could not be loaded. No counts, totals or payment readiness can be inferred. Retry after checking database readiness.</p></section> : <Panel id="first-h" title="Your first payroll period" className="mt-5"><div className="p-4"><p className="text-muted-foreground">Approve a policy and start a run to see its progress and recorded metrics.</p><Link className="mt-2 inline-flex min-h-11 items-center underline underline-offset-4 sm:min-h-8" href="/audit">View company audit history</Link></div></Panel>}
+      </> : periodUnavailable ? (
+        <>
+          <section className="mt-5 panel">
+            <h2 className="text-lg">Period details unavailable</h2>
+            <p role="alert" className="mt-3 text-sm text-signal">Period evidence could not be loaded. No counts, totals or payment readiness can be inferred. Retry after checking database readiness.</p>
+          </section>
+          <MonthlyGrossPanel />
+        </>
+      ) : (
+        <>
+          <Panel id="first-h" title="Your first payroll period" className="mt-5">
+            <div className="p-4">
+              <p className="text-muted-foreground">Approve a policy and start a run to see its progress and recorded metrics.</p>
+              <Link className="mt-2 inline-flex min-h-11 items-center underline underline-offset-4 sm:min-h-8" href="/audit">View company audit history</Link>
+            </div>
+          </Panel>
+          <StatTiles data={{
+            periodSelected: false,
+            months: null,
+            toPay: null,
+            paid: { year: now.getUTCFullYear(), value: null, payments: 0, runs: null, hiddenForRole: !financial },
+            workers,
+          }} />
+          <MonthlyGrossPanel />
+        </>
+      )}
 
       {payroll && (
         <Panel id="start-run-h" anchor="start-run" title="Start a run" className="mt-5">
