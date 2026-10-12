@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "@/app/(app)/(workspace)/dashboard/page";
 
-const state = vi.hoisted(() => ({ ready: false, signed: false, exported: false, outcome: null as string | null, denied: false, failed: false, periodFailed: false, activityFailed: false, reads: 0, open: 0, exceptions: [] as unknown[] }));
+const state = vi.hoisted(() => ({ ready: false, signed: false, exported: false, outcome: null as string | null, denied: false, failed: false, periodFailed: false, activityFailed: false, noRun: false, reads: 0, open: 0, exceptions: [] as unknown[] }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("@/server/display-timezone", () => ({ viewerTimeZone: async () => "UTC" }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
@@ -20,7 +20,7 @@ vi.mock("@/app/(app)/(workspace)/dashboard/dashboard-data", () => ({
   workerFacts: async () => ({ total: 1, employees: 1, contractors: 0, unspecified: 0, unconfirmedWallets: 0 }),
 }));
 vi.mock("@/server/db/views", () => ({
-  dashboardView: async () => ({ company: { name: "Synthetic Company", live_payments_enabled: false, guard_address: null }, runs: [], selected: { id: "run-1", period_start: "2026-10-01", period_end: "2026-10-31", mode: "SIMULATION", status: "CALCULATION_VALIDATED", config_version: 1 } }),
+  dashboardView: async () => ({ company: { name: "Synthetic Company", live_payments_enabled: false, guard_address: null }, runs: [], selected: state.noRun ? null : { id: "run-1", period_start: "2026-10-01", period_end: "2026-10-31", mode: "SIMULATION", status: "CALCULATION_VALIDATED", config_version: 1 } }),
   periodSteps: () => [], periodView: async () => { if (state.periodFailed) throw new Error("db audit run references failed (PGRST205): PRIVATE_DRIVER_DETAIL"); return { workers: 1, autoMatched: null, openExceptions: state.open, netTotal: "125.00", settled: 0, obligations: 0, canSign: false, activity: { items: [], graphTruncated: false, unavailable: state.activityFailed } }; },
 }));
 vi.mock("@/server/db/reviewer-summary", () => ({ reviewerSummary: async () => {
@@ -30,7 +30,7 @@ vi.mock("@/server/db/reviewer-summary", () => ({ reviewerSummary: async () => {
 
 const render = async () => renderToStaticMarkup(await DashboardPage({ searchParams: Promise.resolve({}) }));
 describe("dashboard review journey", () => {
-  beforeEach(() => { Object.assign(state, { ready: false, signed: false, exported: false, outcome: null, denied: false, failed: false, periodFailed: false, activityFailed: false, reads: 0, open: 0, exceptions: [] }); });
+  beforeEach(() => { Object.assign(state, { ready: false, signed: false, exported: false, outcome: null, denied: false, failed: false, periodFailed: false, activityFailed: false, noRun: false, reads: 0, open: 0, exceptions: [] }); });
   it("leads with explicit readiness blockers rather than no-action or a fabricated ready percentage", async () => {
     const html = await render();
     expect(html).toContain("Review readiness");
@@ -113,4 +113,23 @@ it("keeps the start-run section, pay-runs section and run selector reachable", a
   expect(html).toContain('id="pay-runs"');
   expect(html).toContain("Select run");
   expect(html).toContain('href="/runs/run-1"');
+});
+
+it("shows honest no-run dashboard tiles and a planned monthly gross panel without invented figures", async () => {
+  state.noRun = true;
+  try {
+    const html = await render();
+    expect(html).toMatch(/Months paid in 20\d\d/);
+    expect(html).toContain("No run yet");
+    expect(html).not.toContain("Paid in 0");
+    expect(html).not.toContain("None settled yet");
+    expect(html).toContain("Workers");
+    expect(html).toContain("Monthly gross pay");
+    expect(html).toContain("Gross history is not available yet.");
+    expect(html).toContain("This chart is planned.");
+    expect(html).not.toContain("$58,320");
+    expect(html).not.toContain("79,102");
+  } finally {
+    state.noRun = false;
+  }
 });
