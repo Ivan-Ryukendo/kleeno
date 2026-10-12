@@ -1,199 +1,345 @@
-// Product-true renderings for the public landing page (DESIGN.md §1-9, rule 45).
-// Every figure here is illustrative and synthetic (W001-style codes, no names, no real pay); rule 42 forbids presenting it as traction.
-// Pure markup: no hooks, so these stay server-rendered. Colours come from tokens only.
+// Product renderings for the public landing page. They copy the approved product mockups (docs/mockups/payroll-table.html,
+// payroll-import.html, payroll-calculation.html, payroll-payments.html, receipt.html) and the built screens: the sample
+// company "Northwind Remote", its people and amounts are the mockups' own sample data, money is Arc testnet USDC in
+// SIMULATION, and wallets/transactions appear only as short fragments (never a full address or hash).
+// Product look on purpose (DESIGN.md §11: white surface, hairlines, 13px text, 4px chips, 8px corners) so visitors see the
+// real app. Pure markup, no hooks, so these stay server-rendered. Colours come from tokens only.
 
+import { CalendarDays, Check, ChevronDown, CircleAlert, CirclePause } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const chip = "inline-flex items-center gap-1.5 rounded-full text-left sm:whitespace-nowrap px-2.5 py-1 text-xs font-medium";
+const text13 = "text-[0.8125rem] leading-5";
+const hair = "border-foreground/10";
+const num = "[font-variant-numeric:tabular-nums]";
 
-function Status({ kind, children }: { kind: "ok" | "risk"; children: React.ReactNode }) {
+type TagTone = "gray" | "brown" | "yellow" | "green" | "blue" | "purple" | "pink";
+const tagTone: Record<TagTone, string> = {
+  gray: "bg-tag-gray text-tag-gray-fg",
+  brown: "bg-tag-brown text-tag-brown-fg",
+  yellow: "bg-tag-yellow text-tag-yellow-fg",
+  green: "bg-tag-green text-tag-green-fg",
+  blue: "bg-tag-blue text-tag-blue-fg",
+  purple: "bg-tag-purple text-tag-purple-fg",
+  pink: "bg-tag-pink text-tag-pink-fg",
+};
+
+function Tag({ tone, children }: { tone: TagTone; children: React.ReactNode }) {
+  return <span className={cn("inline-block whitespace-nowrap rounded-[0.25rem] px-[7px] text-[0.8125rem] leading-5", tagTone[tone])}>{children}</span>;
+}
+
+type StatusKind = "matched" | "review" | "hold" | "ok";
+/** Check column chip, as in the product: Matched (success tint) or Needs review / On hold (risk tint). */
+function Status({ kind, children }: { kind: StatusKind; children: React.ReactNode }) {
+  const risk = kind === "review" || kind === "hold";
+  const Icon = kind === "review" ? CircleAlert : kind === "hold" ? CirclePause : Check;
   return (
-    <span className={cn(chip, kind === "risk" ? "bg-signal text-white" : "border border-foreground/15 bg-background text-foreground")}>
-      <span aria-hidden className={cn("size-1.5 rounded-full", kind === "risk" ? "bg-white" : "bg-foreground/60")} />
+    <span className={cn("inline-flex items-center gap-[5px] whitespace-nowrap rounded-[0.25rem] px-[7px] text-[0.8125rem] font-medium leading-5", risk ? "bg-signal/10 text-signal" : "bg-success-soft text-success")}>
+      <Icon aria-hidden className="hidden size-3.5 sm:block" strokeWidth={2.25} />
       {children}
     </span>
   );
 }
 
-const runRows = [
-  { code: "W001", type: "Salaried", hours: "—", net: "2,400.00", status: <Status kind="ok">Matched</Status> },
-  { code: "W002", type: "Hourly", hours: "82.0", net: "3,075.00", status: <Status kind="ok">Matched</Status> },
-  { code: "W003", type: "Hourly", hours: "96.5", net: "Held", status: <Status kind="risk">Exception: duplicate timesheet</Status> },
-  { code: "W004", type: "Retainer", hours: "—", net: "Held", status: <Status kind="risk">DO NOT PAY: wallet changed</Status> },
-  { code: "W005", type: "Hourly", hours: "42.0", net: "1,612.50", status: <Status kind="ok">Matched</Status> },
+/** Top-bar run mode badge (product shell). */
+function ModeChip() {
+  return <span className="rounded-[0.25rem] border border-foreground/15 px-1.5 py-0.5 text-xs font-semibold tracking-[0.02em]">SIMULATION</span>;
+}
+
+function Person({ name, code }: { name: string; code: string }) {
+  return (
+    <span className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-2">
+      <b className="font-medium">{name}</b>
+      <span className="text-xs text-muted-foreground">{code}</span>
+    </span>
+  );
+}
+
+const runRows: { name: string; code: string; status: [StatusKind, string]; job: [TagTone, string]; dept: [TagTone, string]; type: [TagTone, string]; pay: string }[] = [
+  { name: "Ava Chen", code: "W001", status: ["matched", "Matched"], job: ["pink", "CEO & Co-founder"], dept: ["green", "Management"], type: ["blue", "Salaried"], pay: "$9,000.00" },
+  { name: "Marcus Bell", code: "W002", status: ["matched", "Matched"], job: ["gray", "CTO"], dept: ["blue", "Engineering"], type: ["blue", "Salaried"], pay: "$8,500.00" },
+  { name: "Sofia Ramos", code: "W003", status: ["matched", "Matched"], job: ["green", "Head of Sales"], dept: ["pink", "Sales"], type: ["brown", "Retainer"], pay: "$6,000.00" },
+  { name: "Kenji Watanabe", code: "W004", status: ["review", "Needs review"], job: ["brown", "Front-end developer"], dept: ["blue", "Engineering"], type: ["purple", "Hourly"], pay: "$6,390.00" },
+  { name: "Lena Fischer", code: "W005", status: ["matched", "Matched"], job: ["blue", "HR lead"], dept: ["brown", "People"], type: ["blue", "Salaried"], pay: "$5,200.00" },
+  { name: "Noah Kim", code: "W014", status: ["hold", "On hold"], job: ["purple", "DevOps engineer"], dept: ["blue", "Engineering"], type: ["purple", "Hourly"], pay: "$7,800.00" },
 ];
 
-/** Hero: an illustrative pay-run review, as the reviewer sees it before approving. */
+/** Hero: the Payroll page, Table tab, as a reviewer sees it before approving (mockups/payroll-table.html). */
 export function RunReviewVisual() {
+  const th = cn("h-9 border-b px-2 text-left font-medium text-muted-foreground sm:px-2.5", hair);
+  const td = cn("h-10 border-b px-2 py-1.5 sm:px-2.5 sm:py-0", hair);
   return (
-    <figure className="w-full">
-      <div className="overflow-hidden rounded-[1.25rem] bg-card text-left text-foreground shadow-card">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-foreground/10 px-5 py-4 sm:px-7">
-          <div>
-            <p className="text-base font-medium tracking-[-0.02em]">Pay run · 1–15 September</p>
-            <p className="text-sm text-muted-foreground">5 workers · policy version 3 · USD</p>
-          </div>
-          <span className={cn(chip, "border border-foreground/20 bg-white text-foreground")}>SIMULATION · no money moves</span>
+    <figure className={cn("w-full overflow-hidden rounded-[0.5rem] bg-white text-left text-foreground shadow-card", text13)}>
+      <div className={cn("flex items-center justify-between gap-3 border-b px-4 py-2.5 sm:px-5", hair)}>
+        <p className="truncate text-muted-foreground">
+          Northwind Remote <span aria-hidden>/</span> Payroll <span aria-hidden>/</span> <span className="text-foreground">October 2026</span>
+        </p>
+        <ModeChip />
+      </div>
+      <div className="px-4 pt-4 sm:px-5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="text-xl font-medium tracking-tight sm:text-2xl">Payroll</p>
+          <span className={cn("inline-flex h-8 items-center gap-2 rounded-[0.375rem] border px-3 font-medium", hair)}>
+            <CalendarDays aria-hidden className="size-4 text-muted-foreground" />
+            October 2026 · Run 10
+            <ChevronDown aria-hidden className="size-4 text-muted-foreground" />
+          </span>
         </div>
-        <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-          <caption className="sr-only">Illustrative pay run with synthetic workers</caption>
+        <div className={cn("mt-3 flex gap-0.5 overflow-hidden border-b", hair)}>
+          {["Table", "Workflow", "Payments", "Activity"].map((t, i) => (
+            <span key={t} className={cn("-mb-px border-b-2 px-2.5 py-2 font-medium", i === 0 ? "border-foreground text-foreground" : "border-transparent text-muted-foreground")}>{t}</span>
+          ))}
+        </div>
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+          <span><b className={cn("font-medium text-foreground", num)}>14</b> workers</span>
+          <span><b className={cn("font-medium text-foreground", num)}>12</b> matched automatically</span>
+          <span className="font-medium text-signal">1 needs review</span>
+          <span className="font-medium text-signal">1 on hold</span>
+          <span className="hidden lg:inline">Click any number to see how it is calculated</span>
+        </p>
+      </div>
+      <div className="mt-3 overflow-hidden">
+        <table className={cn("w-full border-separate border-spacing-0", num)}>
+          <caption className="sr-only">Payroll table for October 2026, sample company Northwind Remote</caption>
           <thead>
-            <tr className="text-left text-muted-foreground">
-              <th scope="col" className="px-5 py-3 font-medium sm:px-7">Worker</th>
-              <th scope="col" className="hidden px-3 py-3 font-medium md:table-cell">Pay type</th>
-              <th scope="col" className="hidden px-3 py-3 text-right font-medium md:table-cell">Hours</th>
-              <th scope="col" className="px-3 py-3 text-right font-medium">Net pay</th>
-              <th scope="col" className="hidden px-5 py-3 font-medium sm:table-cell sm:px-7">Status</th>
+            <tr>
+              <th scope="col" className={cn(th, "pl-3 sm:pl-5")}>Name</th>
+              <th scope="col" className={th}>Check</th>
+              <th scope="col" className={cn(th, "hidden lg:table-cell")}>Job title</th>
+              <th scope="col" className={cn(th, "hidden xl:table-cell")}>Department</th>
+              <th scope="col" className={cn(th, "hidden md:table-cell")}>Pay type</th>
+              <th scope="col" className={cn(th, "pr-3 text-right sm:pr-5")}>Monthly pay</th>
             </tr>
           </thead>
           <tbody>
             {runRows.map((r) => (
-              <tr key={r.code} className="border-t border-foreground/10">
-                <th scope="row" className="px-5 py-3 text-left font-medium sm:px-7">
-                  {r.code}
-                  <span className="mt-1 block sm:hidden">{r.status}</span>
+              <tr key={r.code} className={r.status[0] !== "matched" ? "bg-signal/[0.03]" : undefined}>
+                <th scope="row" className={cn(td, "pl-3 text-left font-normal sm:pl-5")}>
+                  <Person name={r.name} code={r.code} />
                 </th>
-                <td className="hidden px-3 py-3 md:table-cell">{r.type}</td>
-                <td className="hidden px-3 py-3 text-right md:table-cell">{r.hours}</td>
-                <td className="px-3 py-3 text-right font-medium">{r.net === "Held" ? <span className="text-signal">Held</span> : `$${r.net}`}</td>
-                <td className="hidden px-5 py-3 sm:table-cell sm:px-7">{r.status}</td>
+                <td className={td}><Status kind={r.status[0]}>{r.status[1]}</Status></td>
+                <td className={cn(td, "hidden lg:table-cell")}><Tag tone={r.job[0]}>{r.job[1]}</Tag></td>
+                <td className={cn(td, "hidden xl:table-cell")}><Tag tone={r.dept[0]}>{r.dept[1]}</Tag></td>
+                <td className={cn(td, "hidden md:table-cell")}><Tag tone={r.type[0]}>{r.type[1]}</Tag></td>
+                <td className={cn(td, "whitespace-nowrap pr-3 text-right sm:pr-5")}>{r.pay}</td>
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="font-medium">
+              <td className="h-9 py-1.5 pl-3 sm:pl-5">Count 14</td>
+              <td className="h-9 px-2 py-1.5 sm:px-2.5">Matched 12 of 14</td>
+              <td className="hidden lg:table-cell" />
+              <td className="hidden xl:table-cell" />
+              <td className="hidden md:table-cell" />
+              <td className="h-9 whitespace-nowrap pr-3 text-right sm:pr-5"><span className="hidden font-normal text-muted-foreground sm:inline">Sum </span>$79,102.00</td>
+            </tr>
+          </tfoot>
         </table>
-        <p className="border-t border-foreground/10 px-5 py-3 text-sm text-muted-foreground sm:px-7">Every amount opens its calculation trace. Held rows wait for a person.</p>
       </div>
     </figure>
   );
 }
 
-/** Bento A: two timesheet rows that claim the same day. */
-export function DuplicateTimesheetVisual() {
+/** Bento A: import check comparing hours with last month (mockups/payroll-import.html, "Valid rows by worker"). */
+export function HoursCheckVisual() {
   const rows = [
-    { day: "Mon 8 Sep", h: "8.0", src: "timesheet A", dup: false },
-    { day: "Tue 9 Sep", h: "8.0", src: "timesheet A", dup: true },
-    { day: "Tue 9 Sep", h: "8.0", src: "timesheet B", dup: true },
-    { day: "Wed 10 Sep", h: "7.5", src: "timesheet A", dup: false },
+    { name: "Kenji Watanabe", code: "W004", hours: "142.0", prev: "103.0", change: "+38%", review: true },
+    { name: "Tomás Ortega", code: "W006", hours: "84.0", prev: "80.0", change: "+5%", review: false },
+    { name: "Mei Lin", code: "W009", hours: "64.0", prev: "64.0", change: "0%", review: false },
+    { name: "Amara Diallo", code: "W011", hours: "88.0", prev: "86.0", change: "+2%", review: false },
   ];
+  const th = cn("h-9 border-b px-2.5 text-left font-medium text-muted-foreground", hair);
+  const td = cn("h-10 border-b px-2.5", hair);
   return (
-    <div className="rounded-[1.25rem] bg-white p-4 shadow-nav sm:p-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium">W003 · imported rows</p>
-        <Status kind="risk">Exception</Status>
-      </div>
-      <ul className="mt-3 space-y-1.5 text-sm [font-variant-numeric:tabular-nums]">
-        {rows.map((r, i) => (
-          <li key={i} className={cn("flex items-center justify-between gap-3 rounded-full px-3 py-2", r.dup ? "bg-signal/10 ring-1 ring-signal/40" : "bg-background")}>
-            <span>{r.day}</span>
-            <span className="text-muted-foreground">{r.src}</span>
-            <span className="font-medium">{r.h} h</span>
+    <div className={cn("overflow-hidden rounded-[0.5rem] border bg-white", hair, text13)}>
+      <p className={cn("flex items-center justify-between gap-3 border-b px-3.5 py-2.5 font-medium", hair)}>
+        oct-2026-timesheets.csv
+        <span className="font-normal text-muted-foreground">compared with September</span>
+      </p>
+      <table className={cn("w-full border-separate border-spacing-0", num)}>
+        <thead>
+          <tr>
+            <th scope="col" className={cn(th, "pl-3.5")}>Worker</th>
+            <th scope="col" className={cn(th, "text-right")}>Hours</th>
+            <th scope="col" className={cn(th, "hidden text-right sm:table-cell")}>September</th>
+            <th scope="col" className={cn(th, "pr-3.5")}>Check</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.code} className={r.review ? "bg-signal/[0.04]" : undefined}>
+              <th scope="row" className={cn(td, "py-1.5 pl-3.5 text-left font-normal")}><Person name={r.name} code={r.code} /></th>
+              <td className={cn(td, "text-right")}>{r.hours}</td>
+              <td className={cn(td, "hidden text-right sm:table-cell")}>{r.prev}</td>
+              <td className={cn(td, "pr-3.5")}>
+                {r.review ? <Status kind="review">{r.change} · Needs review</Status> : <span className="text-muted-foreground">{r.change} · Matches</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="px-3.5 py-2.5 text-muted-foreground">Pay policy v3 §6 asks for review above a 25% change.</p>
+    </div>
+  );
+}
+
+/** Bento B: a payout wallet changed before payday, held out of the plan (mockups/payroll-payments.html). */
+export function WalletChangeVisual() {
+  return (
+    <div className={cn("grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 rounded-[0.5rem] bg-white px-4 py-3 text-foreground", text13, num)}>
+      <Person name="Noah Kim" code="W014" />
+      <span className="text-right font-medium">$7,800.00</span>
+      <span className="text-muted-foreground">
+        Payout wallet ends <span className="font-mono text-foreground">e07D</span> · <span className="text-signal">changed Oct 6</span>
+      </span>
+      <span className="inline-flex items-center gap-[5px] justify-self-end rounded-[0.25rem] bg-signal px-[7px] font-medium leading-5 text-white">
+        <CirclePause aria-hidden className="size-3.5" strokeWidth={2.25} />
+        Hold · DO NOT PAY
+      </span>
+    </div>
+  );
+}
+
+const policyRows = [
+  ["Salary", "One twelfth of annual salary each month", "Benefits §1.2"],
+  ["Overtime, salaried staff", "1.5 × hourly equivalent in release weeks", "Platform rules §3"],
+  ["Home office stipend", "$150 a month, full-time employees", "Benefits §3.1"],
+];
+
+/** Bento C and proof card: pay settings with the policy clause each one comes from (mockups/payroll-calculation.html). */
+export function PolicyRuleVisual({ compact = false }: { compact?: boolean }) {
+  const rows = compact ? policyRows.slice(1, 3) : policyRows;
+  return (
+    <div className={cn("overflow-hidden rounded-[0.5rem] border bg-white", hair, text13)}>
+      <ul>
+        {rows.map(([setting, used, source]) => (
+          <li key={setting} className={cn("grid gap-1 border-b px-3.5 py-2.5", hair, !compact && "sm:grid-cols-[10rem_1fr_auto] sm:items-center sm:gap-3")}>
+            <span className="font-medium">{setting}</span>
+            <span><span className="text-muted-foreground">Used: </span>{used}</span>
+            <span><Tag tone="gray">{source}</Tag></span>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-sm text-muted-foreground">Duplicate timesheet: same worker, same day, two sources. Evidence attached; a person resolves it.</p>
+      <p className="px-3.5 py-2.5 text-muted-foreground">Pay policy v3 · approved Sep 28 by Maya Reyes</p>
     </div>
   );
 }
 
-/** Bento B: a recipient wallet that changed just before payday. */
-export function WalletChangeVisual() {
+const traceSteps = [
+  { n: 4, label: "Base salary", value: "$6,500.00", how: "Annual salary $78,000.00 ÷ 12", source: "Agreement §3.1" },
+  { n: 6, label: "Release-week overtime", value: "$332.39", how: "6 h × hourly equivalent × 1.5", source: "Platform rules §3" },
+  { n: 7, label: "Home office stipend", value: "$150.00", how: "Flat monthly amount", source: "Benefits §3.1" },
+  { n: 8, label: "Wages", value: "$6,982.39", how: "$6,500.00 + $332.39 + $150.00", source: null },
+];
+
+/** Bento D and proof card: calculation steps in the order they ran (mockups/payroll-calculation.html, Daniel Okafor W008). */
+export function TraceVisual({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex flex-col gap-3 rounded-[1.25rem] bg-white/10 p-4 ring-1 ring-white/15 sm:flex-row sm:items-center sm:p-5">
-      <code className="rounded-full bg-white/10 px-3 py-2 text-sm text-white/80 line-through decoration-white/50">0x7a3d…91c4</code>
-      <span aria-hidden className="text-white/60 sm:rotate-0">→</span>
-      <code className="rounded-full bg-white px-3 py-2 text-sm text-foreground">0x1f08…e42b</code>
-      <span className="sm:ml-auto"><Status kind="risk">DO NOT PAY until confirmed</Status></span>
+    <div className={cn("overflow-hidden rounded-[0.5rem] border bg-white", hair, text13, num)}>
+      {!compact && (
+        <p className={cn("flex items-center justify-between gap-3 border-b px-3.5 py-2.5", hair)}>
+          <Person name="Daniel Okafor" code="W008" />
+          <span className="text-muted-foreground">Salaried · Engineering</span>
+        </p>
+      )}
+      <ol>
+        {traceSteps.map((s) => (
+          <li key={s.n} className={cn("grid grid-cols-[1.5rem_1fr_auto] gap-x-2 border-b px-3.5 py-2.5 last:border-b-0", hair, s.label === "Wages" && "bg-foreground/[0.03] font-medium")}>
+            <span className="text-muted-foreground">{s.n}</span>
+            <span className="min-w-0">
+              {s.label}
+              {!compact && (
+                <span className="mt-0.5 block font-normal text-muted-foreground">
+                  {s.how}
+                  {s.source && <> · {s.source}</>}
+                </span>
+              )}
+            </span>
+            <span className="text-right">{s.value}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
 
-/** Bento C: a policy sentence becoming a cited rule. */
-export function PolicyRuleVisual() {
-  return (
-    <div className="space-y-2 text-sm">
-      <blockquote className="rounded-[1.25rem] bg-background px-4 py-3 text-muted-foreground">“Hours above 40 in a week are paid at one and a half times the hourly rate.”</blockquote>
-      <p className="rounded-full bg-primary px-4 py-2 font-medium text-primary-foreground">overtime · 1.5× after 40 h/week · cites §4.2</p>
-    </div>
-  );
-}
-
-/** Bento D and proof card: a line-by-line calculation trace. */
-export function TraceVisual({ dark = false }: { dark?: boolean }) {
-  const lines = [
-    ["Base", "40.0 h × $37.50", "1,500.00"],
-    ["Overtime", "2.0 h × $56.25", "112.50"],
-    ["Net pay", "", "1,612.50"],
+/** Proof card: the import check before upload (mockups/payroll-import.html). */
+export function ImportVisual() {
+  const stats = [
+    ["Rows in file", "42", "Header row not counted"],
+    ["Valid", "40", "Ready to import"],
+    ["Rejected", "2", "Skipped, with reasons"],
+    ["Duplicates", "0", "Same worker, date and hours"],
   ];
   return (
-    <dl className={cn("space-y-1 text-sm [font-variant-numeric:tabular-nums]", dark ? "text-white" : "text-foreground")}>
-      {lines.map(([k, how, v], i) => (
-        <div key={k} className={cn("grid grid-cols-[1fr_auto] gap-x-3 py-1.5", i === lines.length - 1 && (dark ? "border-t border-white/20 pt-2.5 font-medium" : "border-t border-foreground/15 pt-2.5 font-medium"))}>
-          <dt>
-            {k}
-            {how && <span className={cn("ml-2", dark ? "text-white/70" : "text-muted-foreground")}>{how}</span>}
-          </dt>
-          <dd className="text-right">${v}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className={cn("overflow-hidden rounded-[0.5rem] border bg-white", hair, text13, num)}>
+      <ul className="grid grid-cols-2 sm:grid-cols-4">
+        {stats.map(([k, v, hint]) => (
+          <li key={k} className={cn("border-b border-r px-3.5 py-3", hair)}>
+            <p className="text-muted-foreground">{k}</p>
+            <p className="mt-0.5 text-lg font-medium">{v}</p>
+            <p className="text-xs text-muted-foreground">{hint}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="px-3.5 py-2.5 text-muted-foreground">
+        Names stay on this computer. Kleeno receives <span className="text-foreground">W004</span>, never “Kenji Watanabe”.
+      </p>
+    </div>
   );
 }
 
-/** Proof card: an import summary where names never left the browser. */
-export function ImportVisual() {
-  return (
-    <ul className="grid gap-2 text-sm sm:grid-cols-3">
-      {[
-        ["Rows read", "In your browser"],
-        ["Names", "Replaced by W-codes"],
-        ["Mismatches", "Raised as exceptions"],
-      ].map(([k, v]) => (
-        <li key={k} className="rounded-[1.25rem] bg-background px-4 py-3">
-          <p className="text-muted-foreground">{k}</p>
-          <p className="mt-1 font-medium">{v}</p>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Proof card: two different people sign two different approvals. */
+/** Proof card: payroll approval and plan signing by two different people (mockups/payroll-payments.html). */
 export function ApprovalsVisual() {
+  const rows = [
+    { step: "Payroll approval", who: "Leo Hart", role: "HR approver", when: "Approved Oct 8" },
+    { step: "Payment plan", who: "Sam Ortiz", role: "Payment approver", when: "Signed Oct 8" },
+  ];
   return (
-    <ul className="space-y-2 text-sm">
-      {[
-        ["Payroll approval", "HR approver · re-entered password"],
-        ["Payment approval", "Payment approver · a different person"],
-      ].map(([k, v]) => (
-        <li key={k} className="flex items-center justify-between gap-3 rounded-full bg-background py-2 pl-4 pr-2">
-          <span>
-            <span className="font-medium">{k}</span>
-            <span className="ml-2 hidden text-muted-foreground sm:inline">{v}</span>
-          </span>
-          <span className={cn(chip, "bg-primary text-primary-foreground")}>Signed</span>
-        </li>
-      ))}
-    </ul>
+    <div className={cn("overflow-hidden rounded-[0.5rem] border bg-white", hair, text13)}>
+      <ul>
+        {rows.map((r) => (
+          <li key={r.step} className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b px-3.5 py-2.5", hair)}>
+            <span>
+              <span className="font-medium">{r.step}</span>
+              <span className="ml-2 text-muted-foreground">
+                {r.who} · {r.role}
+              </span>
+            </span>
+            <Status kind="ok">{r.when}</Status>
+          </li>
+        ))}
+      </ul>
+      <p className="px-3.5 py-2.5 text-muted-foreground">Different people, each re-entering their password. 12 payments ready · $64,912.00 · 1 on hold</p>
+    </div>
   );
 }
 
-/** Proof card: the worker's receipt on Arc testnet. Hash is a placeholder shape, not a real transaction. */
+/** Proof card: the worker's payment receipt (mockups/receipt.html). No name on a receipt by design. */
 export function ReceiptVisual() {
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm [font-variant-numeric:tabular-nums]">
-      <div>
-        <dt className="text-muted-foreground">Amount</dt>
-        <dd className="mt-0.5 text-lg font-medium">1,612.50 USDC</dd>
+    <div className={cn("overflow-hidden rounded-[0.5rem] border bg-white", hair, text13, num)}>
+      <div className="px-3.5 pt-3.5">
+        <p className="text-muted-foreground">You received</p>
+        <p className="mt-0.5 text-2xl font-medium tracking-tight">$6,390.00 USDC</p>
+        <p className="text-muted-foreground">from Northwind Remote</p>
+        <p className="mt-2"><Status kind="ok">Settled · verified</Status></p>
       </div>
-      <div>
-        <dt className="text-muted-foreground">Network</dt>
-        <dd className="mt-0.5 font-medium">Arc testnet</dd>
-      </div>
-      <div className="col-span-2">
-        <dt className="text-muted-foreground">Transaction</dt>
-        <dd className="mt-0.5 truncate font-mono text-sm">0x4be1…c09d · matched to obligation W005-0915</dd>
-      </div>
-    </dl>
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 px-3.5 sm:grid-cols-4">
+        {[
+          ["Date", "Sep 30, 2026"],
+          ["Network", "Arc testnet"],
+          ["Asset", "USDC"],
+          ["Transaction", "0x7a3f…c91e"],
+        ].map(([k, v]) => (
+          <div key={k}>
+            <dt className="text-muted-foreground">{k}</dt>
+            <dd className={cn("font-medium", k === "Transaction" && "font-mono")}>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className={cn("mt-3 border-t px-3.5 py-2.5 text-muted-foreground", hair)}>Arc testnet USDC, no real funds</p>
+    </div>
   );
 }
 

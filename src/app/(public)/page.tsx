@@ -5,7 +5,7 @@ import { LandingMotion, ScrubWords } from "@/components/landing-motion";
 import { LandingSteps, type LandingStep } from "@/components/landing-steps";
 import {
   ApprovalsVisual,
-  DuplicateTimesheetVisual,
+  HoursCheckVisual,
   ImportVisual,
   InlinePill,
   PolicyRuleVisual,
@@ -41,7 +41,7 @@ const audiences = [
 const proofs = [
   { title: "The rule cites its sentence", body: "Each pay rule points back to the policy clause it came from, with the approved version.", visual: <PolicyRuleVisual /> },
   { title: "The data is reconciled", body: "Timesheets, approvals and pay records are compared before anything is calculated.", visual: <ImportVisual /> },
-  { title: "The amount is traced", body: "Deterministic code shows every input, rate and step behind a net amount.", visual: <TraceVisual /> },
+  { title: "The amount is traced", body: "Deterministic code shows every input, rate and step behind each amount, with the clause it came from.", visual: <TraceVisual /> },
   { title: "Two different people sign", body: "One person approves payroll; another approves payment. Neither can do both.", visual: <ApprovalsVisual /> },
   { title: "The receipt proves it", body: "Payment settles on Arc and is matched back to the obligation it paid.", visual: <ReceiptVisual /> },
 ];
@@ -110,14 +110,13 @@ export default function LandingPage() {
             <p className="mt-6 text-sm text-muted-foreground">In development · Arc testnet only, no real funds</p>
           </div>
 
-          <div data-hero-frame className="relative mx-auto mt-16 w-full max-w-6xl overflow-hidden rounded-[2.5rem] bg-ink p-3 shadow-card sm:p-6 md:mt-24 md:p-12">
+          <div data-hero-frame className="relative mx-auto mt-16 w-full max-w-6xl overflow-hidden rounded-[2rem] bg-ink p-2 shadow-card sm:rounded-[2.5rem] sm:p-6 md:mt-24 md:p-12">
             <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_0%,color-mix(in_oklab,var(--orbit)_38%,transparent),transparent_70%)]" />
             <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.08] mix-blend-overlay" style={{ backgroundImage: grain }} />
             <div className="relative">
               <RunReviewVisual />
             </div>
           </div>
-          <p className="mx-auto mt-4 max-w-6xl text-center text-sm text-muted-foreground">Illustrative rendering with synthetic workers. Not customer data.</p>
         </section>
 
         {/* Interest: the failure modes, as a gapless bento */}
@@ -131,7 +130,7 @@ export default function LandingPage() {
                 <h3 className="text-3xl font-medium tracking-[-0.02em] sm:text-4xl">Hours that don&apos;t add up</h3>
                 <p className="mt-4 max-w-md text-lg leading-relaxed text-muted-foreground">Missed, unapproved or duplicated timesheet hours slip into pay. Kleeno flags each one with the rows that prove it.</p>
                 <div className={`mt-10 ${lift}`}>
-                  <DuplicateTimesheetVisual />
+                  <HoursCheckVisual />
                 </div>
               </li>
               <li data-rise className={`${card} bg-ink text-white md:col-span-2`}>
@@ -145,14 +144,14 @@ export default function LandingPage() {
                 <h3 className="text-2xl font-medium tracking-[-0.02em]">Rules in formulas</h3>
                 <p className="mt-3 leading-relaxed text-muted-foreground">Overtime and rates nobody can explain when a number is questioned.</p>
                 <div className={`mt-6 ${lift}`}>
-                  <PolicyRuleVisual />
+                  <PolicyRuleVisual compact />
                 </div>
               </li>
               <li data-rise className={`${card} bg-white`}>
                 <h3 className="text-2xl font-medium tracking-[-0.02em]">Answers after payday</h3>
                 <p className="mt-3 leading-relaxed text-muted-foreground">Every amount carries its own working, before you sign.</p>
                 <div className={`mt-6 ${lift}`}>
-                  <TraceVisual />
+                  <TraceVisual compact />
                 </div>
               </li>
             </ul>
@@ -212,7 +211,6 @@ export default function LandingPage() {
               ))}
             </ol>
           </div>
-          <p className="mx-auto mt-16 max-w-7xl text-sm text-muted-foreground">Illustrative renderings with synthetic data; the transaction hash is a placeholder.</p>
         </section>
 
         {/* Desire: scrubbed principles statement */}

@@ -30,9 +30,15 @@ it("keeps the waitlist anchor, form and public links", () => {
   for (const id of ["how-it-works", "proof", "safety", "who-its-for", "faq"]) expect(html).toContain(`id="${id}"`);
 });
 
-it("labels illustrative content and stays honest", () => {
-  expect(text).toContain("Illustrative rendering with synthetic workers");
-  expect(text).toContain("no real funds");
+it("renders product-style samples without captions, and stays honest", () => {
+  // Owner (LP.1 fix 3): no "illustrative/synthetic/placeholder" captions; the renderings copy the product mockups instead.
+  expect(text).not.toMatch(/illustrative|synthetic|placeholder/i);
+  expect(text).toContain("SIMULATION");
+  expect(text).toContain("Arc testnet USDC, no real funds");
+  expect(text).toContain("Matched 12 of 14");
+  for (const header of ["Name", "Check", "Pay type", "Monthly pay"]) expect(html).toContain(`>${header}</th>`);
+  // Wallets and transactions only as short fragments, never a full address or hash.
+  expect(text).not.toMatch(/0x[0-9a-f]{40}/i);
   expect(text).not.toMatch(/SECTION\s*\d|QUESTION\s*\d|testimonial|trusted by/i);
   // CSP img-src is 'self' data: blob:, so no remote images (picsum or otherwise).
   expect(html).not.toMatch(/<img[^>]+src="https?:/);
