@@ -53,4 +53,22 @@ it("closed-month commands dedupe, fence provider stages/late usage, retain UNKNO
   expect((await admin.from("billing_collection_events").update({ status: "DONE" }).eq("command_id", commandId)).error).not.toBeNull();
   expect((await admin.from("billing_collection_commands").update({ status: "DONE" }).eq("id", commandId)).error).not.toBeNull();
   expect((await admin.from("obligations").select("id").eq("company_id", company.id)).data).toEqual([]);
+  // Real SQL cancellation/failure observations preserve the already reviewed payroll and usage.
+  const retainedTables = ["workers", "payroll_runs", "calculations", "payroll_review_events", "billing_worker_usage", "billing_company_events"];
+  const retained = [];
+  for (const table of retainedTables) { const result = await admin.from(table).select("*").eq("company_id", company.id); expect(result.error).toBeNull(); retained.push(result.data); }
+  const cancelId = randomUUID(), cancelKey = randomUUID(), cancelToken = randomUUID();
+  expect((await admin.rpc("prepare_billing_collection", { ...prepare, p_id: cancelId, p_action: "cancel", p_month: null, p_key: cancelKey, p_hash: "e".repeat(64) })).data).toMatchObject({ code: "OK", id: cancelId });
+  expect((await admin.rpc("claim_billing_collection", { p_company: company.id, p_actor: actor, p_id: cancelId, p_token: cancelToken })).data).toMatchObject({ code: "OK", stage: 0 });
+  expect((await admin.rpc("finish_billing_collection", { p_company: company.id, p_actor: actor, p_id: cancelId, p_token: cancelToken, p_stage: 0, p_refs: { subscriptionId: `sub_${suffix}` }, p_done: true, p_correlation: randomUUID() })).data).toMatchObject({ code: "OK" });
+  // A completed request is not a provider lifecycle observation.
+  expect((await admin.from("billing_provider_state").select("status,cancel_at_period_end").eq("company_id", company.id).single()).data).toEqual({ status: "active", cancel_at_period_end: false });
+  for (const [status, invoiceStatus] of [["past_due", "open"], ["unpaid", "uncollectible"], ["canceled", "void"]]) {
+    const observedToken = randomUUID();
+    expect((await admin.rpc("claim_stripe_test_reconciliation", { p_company: company.id, p_actor: actor, p_token: observedToken })).data).toMatchObject({ code: "OK" });
+    expect((await admin.rpc("finish_stripe_test_reconciliation", { p_company: company.id, p_actor: actor, p_token: observedToken, p_seq: 0, p_correlation: randomUUID(), p_observation: { intentId: intent, checkoutId: `cs_test_${suffix}`, customerId: `cus_${suffix}`, subscriptionId: `sub_${suffix}`, status, cancelAtPeriodEnd: true, collectionPaused: false, invoiceId: `in_${suffix}`, invoiceStatus } })).data).toMatchObject({ code: "OK" });
+    expect((await admin.from("billing_provider_state").select("status,invoice_status,cancel_at_period_end").eq("company_id", company.id).single()).data).toEqual({ status, invoice_status: invoiceStatus, cancel_at_period_end: true });
+    for (const [index, table] of retainedTables.entries()) { const result = await admin.from(table).select("*").eq("company_id", company.id); expect(result.error).toBeNull(); expect(result.data).toEqual(retained[index]); }
+    expect((await admin.from("obligations").select("id").eq("company_id", company.id)).data).toEqual([]);
+  }
 });
