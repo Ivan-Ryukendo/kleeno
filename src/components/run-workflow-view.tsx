@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { StatusPill } from "@/components/status-pill";
-import { RunViewNavigation } from "@/components/run-view-navigation";
 import type { PeriodStep } from "@/server/db/views";
 import type { ReadinessResult } from "@/core/workflow/readiness";
 import type { ReviewView } from "@/core/workflow/review";
@@ -59,7 +58,6 @@ export function RunWorkflowView({ data }: { data: RunWorkflowData }) {
       <p className="font-medium break-words">{data.company.name}</p>{ref("Company ID", data.company.id)}<p className="mt-2">Period {run.periodStart} to {run.periodEnd}</p>{ref("Run ID", run.id)}
       <div className="mt-3 flex flex-wrap gap-2"><StatusPill status={run.mode} /><StatusPill status={run.status} /></div>
     </div>
-    <RunViewNavigation runId={run.id} current="workflow" mode={run.mode} canPay={data.canPay} />
     <section className="mt-6" aria-labelledby="payroll-workflow-heading"><h2 id="payroll-workflow-heading" className="text-lg font-medium">Payroll workflow</h2><p className="mt-2 text-sm text-muted-foreground">Inspect each recorded stage. This view cannot approve, change or execute the run.</p><WorkflowNodes nodes={payrollNodes} label="Recorded payroll workflow steps" /></section>
     <section className="mt-8" aria-labelledby="review-workflow-heading"><h2 id="review-workflow-heading" className="text-lg font-medium">Review-only handoff</h2><p className="mt-2 text-sm text-muted-foreground">This separate evidence flow grants no payroll or payment authority.</p>{!data.financial ? <p className="mt-4 rounded-card border p-4">Your role cannot inspect private review evidence.</p> : !review ? <p role="status" className="mt-4 rounded-card border p-4">Review evidence unavailable. Readiness, sign-off and handoff facts could not be loaded; no completion is inferred.</p> : <WorkflowNodes nodes={reviewNodes} label="Recorded review and handoff steps" />}</section>
   </div>;

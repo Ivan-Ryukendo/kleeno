@@ -18,7 +18,7 @@ interface Who {
 }
 
 /** Policy text -> clauses -> AI proposal -> validate/repair -> AIExecution -> config in HUMAN_REVIEW (never approved by AI, rule 2). */
-export async function proposeConfig(who: Who, policyText: string, provider: AiProvider = defaultProvider(), documents: PolicyDocuments = []) {
+export async function proposeConfig(who: Who, policyText: string, provider: AiProvider = defaultProvider(who.companyId), documents: PolicyDocuments = []) {
   if (!isPayrollRole(who.roles)) throw new WorkflowError("FORBIDDEN", "only the payroll side edits configuration");
   const clauses = documents.length ? validatedPolicyDocuments(policyText, documents).clauses : splitPolicy(policyText);
   const ref = canonicalHash(clauses);
@@ -35,7 +35,7 @@ export async function proposeConfig(who: Who, policyText: string, provider: AiPr
     }
   }
   result ??= await runValidated(provider, spec, policyInput(clauses, ref));
-  const executionId = await recordExecution(who, { operation: "POLICY_INTERPRET", inputRef: ref, schemaVersion: POLICY_SCHEMA_VERSION, promptVersion: POLICY_PROMPT_VERSION, provider: provider.name, result, ...(cached && cacheHit ? { cacheExecutionId: cached.executionId } : {}) });
+  const executionId = await recordExecution(who, { operation: "POLICY_INTERPRET", inputRef: ref, schemaVersion: POLICY_SCHEMA_VERSION, promptVersion: POLICY_PROMPT_VERSION, provider: provider.name, telemetry: provider.telemetry?.(), result, ...(cached && cacheHit ? { cacheExecutionId: cached.executionId } : {}) });
   if (result.status === "NEEDS_HUMAN_REVIEW" || !result.output?.params) return { status: result.status, executionId, problems: result.problems, config: null };
   if (!cached && context.models.length) await savePolicyProposal(context, executionId, result);
   const warnings = await policyDuplicateWarnings(who.companyId, clauses);

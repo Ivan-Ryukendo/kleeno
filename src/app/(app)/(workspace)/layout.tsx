@@ -34,6 +34,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   return (
     <AppShell
       roles={[...actor.roles]}
+      email={actor.email}
       companies={companies.map((c) => ({ id: c.companyId, name: c.name }))}
       activeId={actor.companyId}
       canCreate={isOwner(actor.roles)}

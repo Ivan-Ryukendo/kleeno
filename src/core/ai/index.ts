@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AiInput } from "./inputs";
+import { AiBudgetExhausted, type AiTelemetry } from "./budget";
 
 // Validate-repair pipeline (rule 1, ARCHITECTURE 7): parse -> schema -> semantic -> evidence -> ACCEPTED / REPAIRED,
 // else repair (max 2 retries), else NEEDS_HUMAN_REVIEW. AI output is never a best-effort answer.
@@ -17,6 +18,7 @@ export interface AiRequest {
 export interface AiProvider {
   readonly name: string;
   readonly models?: readonly string[]; // configured routing identity; absent means cache disabled
+  telemetry?(): AiTelemetry;
   complete(req: AiRequest): Promise<{ text: string; model: string }>;
 }
 
@@ -69,8 +71,8 @@ export async function runValidated<T>(provider: AiProvider, spec: AiSpec<T>, inp
     let text: string;
     try {
       ({ text, model } = await provider.complete({ system: spec.system, input, repair, schemaName: spec.schemaName, jsonSchema }));
-    } catch {
-      return { status: "NEEDS_HUMAN_REVIEW", output: null, problems: ["the AI service is unavailable"], flags: [], repairs, retries: attempt, model };
+    } catch (error) {
+      return { status: "NEEDS_HUMAN_REVIEW", output: null, problems: [error instanceof AiBudgetExhausted ? error.message : "the AI service is unavailable"], flags: [], repairs, retries: attempt, model };
     }
     let parsed: unknown;
     try {
