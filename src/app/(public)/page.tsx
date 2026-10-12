@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { WaitlistForm } from "@/components/waitlist-form";
+import { FaqItem } from "@/components/landing-faq";
 import { LandingMotion, ScrubWords } from "@/components/landing-motion";
 import { LandingSteps, type LandingStep } from "@/components/landing-steps";
 import {
@@ -264,13 +265,7 @@ export default function LandingPage() {
             <h2 id="faq-title" data-rise className={h2}>Questions, answered plainly.</h2>
             <div className="space-y-3">
               {faqs.map((f) => (
-                <details key={f.q} className="group rounded-[1.25rem] bg-white px-6 py-5 transition-shadow duration-200 open:pb-6 hover:shadow-nav">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-[1.25rem] text-lg font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
-                    <h3>{f.q}</h3>
-                    <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background text-2xl leading-none transition-transform duration-200 group-open:rotate-45 motion-reduce:transition-none">+</span>
-                  </summary>
-                  <p className="mt-3 leading-relaxed text-muted-foreground">{f.a}</p>
-                </details>
+                <FaqItem key={f.q} question={f.q} answer={f.a} />
               ))}
             </div>
           </div>
