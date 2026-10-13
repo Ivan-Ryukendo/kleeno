@@ -7,29 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { describeFacts, type ReconCategory, type ResolutionAction } from "@/core/reconciliation";
 import { postJson } from "@/lib/api";
+import { ACTION_LABEL, CATEGORY_LABEL } from "@/components/exception-labels";
 
 const big = "h-9 rounded-field px-4 text-sm";
 const select = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 
-export const CATEGORY_LABEL: Record<ReconCategory, string> = {
-  DUPLICATE_TIMESHEET: "Duplicate timesheet lines",
-  LEAVE_WORK_CONFLICT: "Leave and work on the same day",
-  UNAPPROVED_OVERTIME: "Hours above the limit without approval",
-  UNEXPLAINED_MISSING_HOURS: "Unexplained missing hours",
-};
 
-const ACTION_LABEL: Record<ResolutionAction, string> = {
-  KEEP_FIRST: "Keep the first line",
-  KEEP_LATEST: "Keep the latest line",
-  KEEP_ALL: "Keep all lines (separate shifts)",
-  KEEP_WORK: "Keep the work, drop the leave",
-  KEEP_LEAVE: "Keep the leave, drop the work",
-  KEEP_BOTH: "Keep both (they fit in one day)",
-  APPROVE_HOURS: "Approve these hours (they are paid)",
-  EXCLUDE_HOURS: "Do not pay these hours",
-  TREAT_AS_PAID_LEAVE: "Treat as paid leave (no deduction)",
-  TREAT_AS_UNPAID_LEAVE: "Treat as unpaid leave (deducts pay)",
-};
+
+
 
 export interface ExceptionRow {
   id: string;
@@ -177,7 +162,7 @@ function SingleDecision({ row, busy, onSave }: { row: ExceptionRow; busy: boolea
   const [action, setAction] = useState<string>(row.suggestion?.action ?? "");
   const [note, setNote] = useState("");
   return (
-    <div className="grid w-full gap-3 sm:w-96">
+    <div className="grid w-full gap-3 sm:max-w-96">
       <select aria-label={`Decision for ${row.worker}`} className={select} value={action} onChange={(e) => setAction(e.target.value)}>
         <option value="">Choose a decision…</option>
         {row.options.map((a) => (
@@ -190,6 +175,31 @@ function SingleDecision({ row, busy, onSave }: { row: ExceptionRow; busy: boolea
       <Button type="button" disabled={busy || !action || note.trim().length < 3} className="h-9 rounded-field px-4 text-sm" onClick={() => onSave(action, note)}>
         Save decision
       </Button>
+    </div>
+  );
+}
+
+/** The inspector's decision form: one decision and a note for the selected item (same endpoint as the category list). */
+export function ResolveException({ row }: { row: ExceptionRow }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="mt-4">
+      <SingleDecision
+        key={row.id}
+        row={row}
+        busy={busy}
+        onSave={async (action, note) => {
+          setBusy(true);
+          setError(null);
+          const r = await postJson(`/api/exceptions/${row.id}`, { action, note });
+          if (r.ok) router.refresh();
+          else setError(r.error ?? "Could not save the decision");
+          setBusy(false);
+        }}
+      />
+      {error && <p role="alert" className="mt-3 text-sm font-medium text-signal">{error}</p>}
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 **Drafted, waits on R3.7.** Source-reviewed procedure; no funded run or provider interaction was performed while writing it. R3.7 must supply the first independently matched Arc receipt and two different human approvals before this becomes a reviewed repeat procedure. R10.1 stays open. Every live step below is OWNER-operated and requires explicit owner authorization; this document grants an agent no authority to execute it.
 
+Start provider setup with the [owner checklist](promotion.md#8-start-here-when-provider-setup-is-still-pending-r37--r39); it also covers Circle signed delivery and Stripe TEST acceptance. Owner approved the rule 26/S28 same-command recovery clarification on 2026-10-13; provider setup and funded evidence remain pending.
+
 ## Preconditions and stop conditions
 
 Read [wallet provisioning and funding](circle-wallets.md), [architecture rules](../../ARCHITECTURE-ESSENTIALS.md) 17-31 and [security controls](../security.md) S05, S26-S30 and S66. Use synthetic records only, the approved test database/company, Circle TEST credentials and Arc testnet chain **5042002**. Never use production, demo/sandbox companies, a mainnet key, real payroll, or unreviewed recipient details. Keep secrets in ignored env files; no values in commands, screenshots, evidence or chat.

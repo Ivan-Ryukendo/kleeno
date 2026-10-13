@@ -78,8 +78,13 @@ test("reviewed policy and browser CSV/XLSX intake produce traceable simulation p
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Check the file", exact: true }).click();
   expect((await download).suggestedFilename()).toBe("kleeno-name-key.json");
-  await expect(page.getByText("1 of 2 rows look valid.")).toBeVisible();
-  await expect(page.getByText(/Line 3, currency: not USD/)).toBeVisible();
+  const localChecks = page.getByRole("region", { name: "Local check results", exact: true });
+  for (const [label, count] of [["Rows in file", "2"], ["Valid format", "1"], ["Rejected locally", "1"]]) {
+    await expect(localChecks.getByText(label, { exact: true }).locator("..").getByText(count, { exact: true })).toBeVisible();
+  }
+  const rejectedRow = page.getByRole("region", { name: "Rejected rows", exact: true }).getByRole("row").filter({ has: page.getByRole("rowheader", { name: "3", exact: true }) });
+  await expect(rejectedRow.getByRole("cell", { name: "currency", exact: true })).toBeVisible();
+  await expect(rejectedRow.getByRole("cell", { name: "not USD (only USD is supported)", exact: true })).toBeVisible();
   const xlsxResponse = page.waitForResponse(r => r.url().endsWith("/api/imports") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Send to Kleeno", exact: true }).click();
   const xlsx = await xlsxResponse;

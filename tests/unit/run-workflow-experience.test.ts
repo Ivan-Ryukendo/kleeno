@@ -34,7 +34,7 @@ it("shows connected semantic native disclosures and separates simulation from hu
   expect(navigation).toContain(`href="/runs/${id}"`);
   expect(html).toContain('aria-label="Recorded payroll workflow steps"');
   expect(html).toContain('aria-label="Recorded review and handoff steps"');
-  expect(html.match(/<details/g)).toHaveLength(10);
+  expect(html.match(/<details/g)).toHaveLength(11); // 6 payroll + 4 handoff steps + the period menu
   expect(html).toContain("Synthetic workspace"); expect(html).toContain("2026-10-01"); expect(html).toContain("Company ID");
   expect(html).toContain("Worker coverage is unavailable; it is not zero");
   expect(html).toContain("Simulation cannot create obligations or pay");
@@ -44,7 +44,7 @@ it("shows connected semantic native disclosures and separates simulation from hu
   expect(html).toContain("&lt;script&gt;PRIVATE-manual-evidence&lt;/script&gt;"); expect(html).not.toContain("<script>");
   expect(html).toContain(`href="/runs/${id}#calculation-trace"`);
   expect(html).toContain(`href="/runs/${id}#review-tasks-heading"`);
-  expect(html).not.toContain("<form"); expect(html).not.toContain("<button");
+  expect(html).not.toContain("<form"); expect(html).not.toContain('type="submit"'); // step cards only select, they never submit
   expect(state.runView.mock.calls[0].slice(1)).toEqual(["company-1", id, ["HR_APPROVER"]]);
   expect(state.steps).toHaveBeenCalledWith("CALCULATION_VALIDATED", "SIMULATION", 1, false);
 });

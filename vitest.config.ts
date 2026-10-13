@@ -9,5 +9,5 @@ export default defineConfig({
       "server-only": path.resolve(__dirname, "tests/stubs/server-only.ts"),
     },
   },
-  test: { include: ["tests/**/*.test.ts"], exclude: ["tests/db/**", "node_modules/**"], testTimeout: 30_000 },
+  test: { include: ["tests/**/*.test.ts"], exclude: ["tests/db/**", "tests/migrations/**", "node_modules/**"], testTimeout: 30_000 },
 });

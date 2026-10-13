@@ -78,6 +78,11 @@ jobs:
             echo "WAITLIST_SECRET=$TEST_WAITLIST_SECRET"
             echo "SITE_MODE=app"
           } >> "$GITHUB_ENV"
+      - name: Verify populated local schema upgrades and safe migration replay
+        run: npx vitest run --config vitest.migrations.config.ts
+        env:
+          MIGRATION_UPGRADE_TEST: "1"
+          SUPABASE_TEST_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       - run: npm run test:db
       - name: Stop disposable Supabase stack
         if: always()

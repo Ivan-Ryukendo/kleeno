@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { PageHeader } from "@/components/shell/page-header";
+import { RunFrame } from "@/components/payroll/run-frame";
+import { loadFrameData } from "@/components/payroll/frame-data";
 import { ApproveRunForm, CalculateButton, ResumeObligationsButton, RetryReconciliationButton, SubmitForApprovalButton } from "@/components/run-actions";
 import { TableView } from "@/components/table-view";
 import { StatusPill } from "@/components/status-pill";
@@ -16,7 +17,6 @@ import { loadRunAdjustments } from "@/server/db/calculate";
 import { PayrollReviewPanel } from "@/components/payroll-review-panel";
 import { reviewerWorkspace } from "@/server/db/reviewer-workspace";
 import { ReviewTaskPanel } from "@/components/review-task-panel";
-import { RunViewNavigation } from "@/components/run-view-navigation";
 import { isPaymentRole } from "@/core/tenancy";
 import { viewerTimeZone } from "@/server/display-timezone";
 
@@ -47,22 +47,23 @@ export default async function RunPage({ params, searchParams }: { params: Promis
   const timeZone = reviewData?.readiness?.cutoff ? await viewerTimeZone(actor) : "UTC"; // display only
   const link = "underline underline-offset-4";
 
+  const frame = await loadFrameData(client, actor, run.id);
+
   return (
     <>
-      <PageHeader title={`Pay run ${run.period_start} to ${run.period_end}`} description={<span className="font-mono text-xs break-all">{run.id}</span>} actions={<RunViewNavigation runId={run.id} current="table" mode={run.mode} canPay={isPaymentRole(actor.roles)} canReview={payrollSide(actor.roles)} />} />
-      <div className="mt-6 flex flex-wrap items-center gap-3">
-        <StatusPill status={run.mode} />
-        <StatusPill status={run.status} />
-        <span className="text-sm text-muted-foreground">config v{run.config_version}</span>
-      </div>
-      {canInspect && calculationHash && (
-        <p className="mt-4 break-all text-sm text-muted-foreground">
-          calculation hash <span className="font-mono">{calculationHash}</span>
-        </p>
+      <RunFrame run={{ id: run.id, mode: run.mode, status: run.status, periodStart: run.period_start, periodEnd: run.period_end }} current="table" data={frame} canPayroll={payrollSide(actor.roles)} canPay={isPaymentRole(actor.roles)} hrefFor={(id) => `/runs/${id}`} hint="Open a pay-summary number to see how it is calculated" />
+
+      {summary ? (
+        <section aria-labelledby="pay-summary-heading" className="mt-5 min-w-0">
+          <h2 id="pay-summary-heading" className="sr-only">Pay summary</h2>
+          <TableView {...summary} />
+        </section>
+      ) : (
+        canInspect && <p className="mt-6 rounded-card border border-dashed p-4 text-sm text-muted-foreground">{lines.length ? "The pay summary is unavailable." : "Nothing is calculated for this run yet, so there is no pay table. The next step is below."}</p>
       )}
 
-      <section className="mt-6 panel">
-        <h2 className="text-lg">Next step</h2>
+      <section id="next-step" aria-labelledby="next-step-heading" className="mt-6 scroll-mt-20 panel">
+        <h2 id="next-step-heading" className="text-lg">Next step</h2>
         {run.status === "DRAFT" && (
           <p className="mt-3">
             This run has no data yet. <Link href="/import" className={link}>Import timesheets and leave</Link>.
@@ -117,13 +118,6 @@ export default async function RunPage({ params, searchParams }: { params: Promis
       {canAdjust && <section className="mt-6 panel"><h2 className="text-lg">One-off pay inputs</h2><p className="mt-2 text-sm text-muted-foreground">Review bonuses, commissions, reimbursements and fixed deductions before calculation. Every input needs a reason.</p><RunAdjustmentsForm key={run.id} runId={run.id} workers={adjustmentWorkers.map((w) => ({ id: w.id, pseudonym: w.pseudonym }))} initial={adjustments} /></section>}
 
       {reviewData ? <PayrollReviewPanel key={`${run.id}:${reviewData.review.calculationId ?? "uncalculated"}:${reviewData.review.revision}:${reviewData.settings?.revision ?? 0}:${reviewData.selectedBaselineId ?? "none"}`} runId={run.id} data={reviewData} timeZone={timeZone} /> : <section className="mt-6 panel"><h2 className="text-lg">Review workspace unavailable</h2><p role="alert" className="mt-3 text-sm text-signal">Readiness and review evidence could not be loaded. No review action is available until the evidence loads.</p><Link href={`/runs/${run.id}`} className="mt-3 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Reload this run</Link></section>}
-
-      {summary && (
-        <section className="mt-6 panel">
-          <h2 className="text-lg">Pay summary</h2>
-          <TableView {...summary} />
-        </section>
-      )}
 
       <section id="calculation-trace" className="mt-6 scroll-mt-20 panel">
         <h2 className="text-lg">Calculation and trace</h2>
@@ -240,6 +234,10 @@ export default async function RunPage({ params, searchParams }: { params: Promis
           </div>
         ))}
       </section>
+      <p className="mt-6 break-all text-xs text-muted-foreground">
+        Run <span className="font-mono">{run.id}</span> · config v{run.config_version} · {run.mode}
+        {calculationHash && <> · calculation hash <span className="font-mono">{calculationHash}</span></>}
+      </p>
       </> : <section className="mt-6 panel"><h2 className="text-lg">Financial details unavailable</h2><p className="mt-3 text-sm text-muted-foreground">Your role cannot inspect calculation amounts or review evidence. Ask the company owner for access.</p></section>}
     </>
   );
