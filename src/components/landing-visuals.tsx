@@ -5,7 +5,7 @@
 // Product look on purpose (DESIGN.md §11: white surface, hairlines, 13px text, 4px chips, 8px corners) so visitors see the
 // real app. Pure markup, no hooks, so these stay server-rendered. Colours come from tokens only.
 
-import { CalendarDays, Check, ChevronDown, CircleAlert, CirclePause } from "lucide-react";
+import { Check, CircleAlert, CirclePause } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const text13 = "text-[0.8125rem] leading-5";
@@ -40,103 +40,12 @@ function Status({ kind, children }: { kind: StatusKind; children: React.ReactNod
   );
 }
 
-/** Top-bar run mode badge (product shell). */
-function ModeChip() {
-  return <span className="rounded-[0.25rem] border border-foreground/15 px-1.5 py-0.5 text-xs font-semibold tracking-[0.02em]">SIMULATION</span>;
-}
-
 function Person({ name, code }: { name: string; code: string }) {
   return (
     <span className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-2">
       <b className="font-medium">{name}</b>
       <span className="text-xs text-muted-foreground">{code}</span>
     </span>
-  );
-}
-
-const runRows: { name: string; code: string; status: [StatusKind, string]; job: [TagTone, string]; dept: [TagTone, string]; type: [TagTone, string]; pay: string }[] = [
-  { name: "Ava Chen", code: "W001", status: ["matched", "Matched"], job: ["pink", "CEO & Co-founder"], dept: ["green", "Management"], type: ["blue", "Salaried"], pay: "$9,000.00" },
-  { name: "Marcus Bell", code: "W002", status: ["matched", "Matched"], job: ["gray", "CTO"], dept: ["blue", "Engineering"], type: ["blue", "Salaried"], pay: "$8,500.00" },
-  { name: "Sofia Ramos", code: "W003", status: ["matched", "Matched"], job: ["green", "Head of Sales"], dept: ["pink", "Sales"], type: ["brown", "Retainer"], pay: "$6,000.00" },
-  { name: "Kenji Watanabe", code: "W004", status: ["review", "Needs review"], job: ["brown", "Front-end developer"], dept: ["blue", "Engineering"], type: ["purple", "Hourly"], pay: "$6,390.00" },
-  { name: "Lena Fischer", code: "W005", status: ["matched", "Matched"], job: ["blue", "HR lead"], dept: ["brown", "People"], type: ["blue", "Salaried"], pay: "$5,200.00" },
-  { name: "Noah Kim", code: "W014", status: ["hold", "On hold"], job: ["purple", "DevOps engineer"], dept: ["blue", "Engineering"], type: ["purple", "Hourly"], pay: "$7,800.00" },
-];
-
-/** Hero: the Payroll page, Table tab, as a reviewer sees it before approving (mockups/payroll-table.html). */
-export function RunReviewVisual() {
-  const th = cn("h-9 border-b px-2 text-left font-medium text-muted-foreground sm:px-2.5", hair);
-  const td = cn("h-10 border-b px-2 py-1.5 sm:px-2.5 sm:py-0", hair);
-  return (
-    <figure className={cn("w-full overflow-hidden rounded-[0.5rem] bg-white text-left text-foreground", text13)}>
-      <div className={cn("flex items-center justify-between gap-3 border-b px-4 py-2.5 sm:px-5", hair)}>
-        <p className="truncate text-muted-foreground">
-          Northwind Remote <span aria-hidden>/</span> Payroll <span aria-hidden>/</span> <span className="text-foreground">October 2026</span>
-        </p>
-        <ModeChip />
-      </div>
-      <div className="px-4 pt-4 sm:px-5">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <p className="text-xl font-medium tracking-tight sm:text-2xl">Payroll</p>
-          <span className={cn("inline-flex h-8 items-center gap-2 rounded-[0.375rem] border px-3 font-medium", hair)}>
-            <CalendarDays aria-hidden className="size-4 text-muted-foreground" />
-            October 2026 · Run 10
-            <ChevronDown aria-hidden className="size-4 text-muted-foreground" />
-          </span>
-        </div>
-        <div className={cn("mt-3 flex gap-0.5 overflow-hidden border-b", hair)}>
-          {["Table", "Workflow", "Payments", "Activity"].map((t, i) => (
-            <span key={t} className={cn("-mb-px border-b-2 px-2.5 py-2 font-medium", i === 0 ? "border-foreground text-foreground" : "border-transparent text-muted-foreground")}>{t}</span>
-          ))}
-        </div>
-        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-          <span><b className={cn("font-medium text-foreground", num)}>14</b> workers</span>
-          <span><b className={cn("font-medium text-foreground", num)}>12</b> matched automatically</span>
-          <span className="font-medium text-signal">1 needs review</span>
-          <span className="font-medium text-signal">1 on hold</span>
-          <span className="hidden lg:inline">Click any number to see how it is calculated</span>
-        </p>
-      </div>
-      <div className="mt-3 overflow-hidden">
-        <table className={cn("w-full border-separate border-spacing-0", num)}>
-          <caption className="sr-only">Payroll table for October 2026, sample company Northwind Remote</caption>
-          <thead>
-            <tr>
-              <th scope="col" className={cn(th, "pl-3 sm:pl-5")}>Name</th>
-              <th scope="col" className={th}>Check</th>
-              <th scope="col" className={cn(th, "hidden lg:table-cell")}>Job title</th>
-              <th scope="col" className={cn(th, "hidden xl:table-cell")}>Department</th>
-              <th scope="col" className={cn(th, "hidden md:table-cell")}>Pay type</th>
-              <th scope="col" className={cn(th, "pr-3 text-right sm:pr-5")}>Monthly pay</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runRows.map((r) => (
-              <tr key={r.code} className={r.status[0] !== "matched" ? "bg-signal/[0.03]" : undefined}>
-                <th scope="row" className={cn(td, "pl-3 text-left font-normal sm:pl-5")}>
-                  <Person name={r.name} code={r.code} />
-                </th>
-                <td className={td}><Status kind={r.status[0]}>{r.status[1]}</Status></td>
-                <td className={cn(td, "hidden lg:table-cell")}><Tag tone={r.job[0]}>{r.job[1]}</Tag></td>
-                <td className={cn(td, "hidden xl:table-cell")}><Tag tone={r.dept[0]}>{r.dept[1]}</Tag></td>
-                <td className={cn(td, "hidden md:table-cell")}><Tag tone={r.type[0]}>{r.type[1]}</Tag></td>
-                <td className={cn(td, "whitespace-nowrap pr-3 text-right sm:pr-5")}>{r.pay}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="font-medium">
-              <td className="h-9 py-1.5 pl-3 sm:pl-5">Count 14</td>
-              <td className="h-9 px-2 py-1.5 sm:px-2.5">Matched 12 of 14</td>
-              <td className="hidden lg:table-cell" />
-              <td className="hidden xl:table-cell" />
-              <td className="hidden md:table-cell" />
-              <td className="h-9 whitespace-nowrap pr-3 text-right sm:pr-5"><span className="hidden font-normal text-muted-foreground sm:inline">Sum </span>$79,102.00</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </figure>
   );
 }
 

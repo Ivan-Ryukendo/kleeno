@@ -4,6 +4,7 @@ import { GlowSurface } from "@/components/glow-surface";
 import { FaqItem } from "@/components/landing-faq";
 import { LandingMotion, ScrubWords } from "@/components/landing-motion";
 import { LandingSteps, type LandingStep } from "@/components/landing-steps";
+import { PayrollDemo } from "@/components/landing-payroll-demo";
 import {
   ApprovalsVisual,
   HoursCheckVisual,
@@ -11,7 +12,6 @@ import {
   InlinePill,
   PolicyRuleVisual,
   ReceiptVisual,
-  RunReviewVisual,
   TraceVisual,
   WalletChangeVisual,
 } from "@/components/landing-visuals";
@@ -99,7 +99,7 @@ export default function LandingPage() {
           </div>
 
           <GlowSurface className="mx-auto mt-16 w-full max-w-6xl rounded-[0.75rem] p-2 sm:p-4 md:mt-24 md:p-10">
-            <RunReviewVisual />
+            <PayrollDemo />
           </GlowSurface>
         </section>
 
