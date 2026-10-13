@@ -1,5 +1,5 @@
 // S42: the name key file is encrypted in the browser and fails closed; codes stay stable across imports.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mapRows, missingRequired, normalizeDate, suggestMapping } from "@/core/ingest/map";
 import { codeFor, emptyNameKey, KDF_ITERATIONS, namesByCode, NameKeyError, openNameKey, sealNameKey } from "@/core/ingest/name-key";
 import { parseCsv } from "@/core/ingest/csv";
@@ -37,9 +37,12 @@ describe("S42 name key file", () => {
   it("the file holds no plaintext name, and states a strong KDF", async () => {
     const key = emptyNameKey();
     codeFor(key, "Jane Doe");
-    const file = await sealNameKey(key, PASS);
-    expect(file.toLowerCase()).not.toContain("jane");
-    expect(JSON.parse(file)).toMatchObject({ kdf: "PBKDF2-SHA256", iter: KDF_ITERATIONS });
+    const salt = "djanex9iphtzxow5lcw5yg==";
+    const random = vi.spyOn(crypto, "getRandomValues").mockReturnValueOnce(Uint8Array.from(atob(salt), char => char.charCodeAt(0)));
+    const file = await sealNameKey(key, PASS).finally(() => random.mockRestore());
+    expect(salt.toLowerCase()).toContain("jane");
+    expect(file.toLowerCase()).not.toContain("jane doe");
+    expect(JSON.parse(file)).toEqual({ format: "kleeno-name-key", v: 1, kdf: "PBKDF2-SHA256", iter: KDF_ITERATIONS, salt, iv: expect.any(String), ct: expect.any(String) });
     expect(KDF_ITERATIONS).toBeGreaterThanOrEqual(600_000);
   });
 
