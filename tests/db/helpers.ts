@@ -48,8 +48,8 @@ export interface TestCompany {
 }
 
 export async function makeCompany(opts: { live?: boolean; mfa?: boolean } = {}): Promise<TestCompany> {
-  const { data, error } = await admin.from("companies").insert({ name: `dbtest-${uniq()}`, is_demo: false, live_payments_enabled: opts.live ?? false, mfa_required: opts.mfa ?? false, per_payment_ceiling: 1_000_000_000_000_000, live_status: opts.live ? "PROVISIONED" : "NOT_REQUESTED" }).select("id").single(); // test amounts are large; the ceiling has its own test
-  if (error) throw new Error("company insert failed");
+  const { data, error, status } = await admin.from("companies").insert({ name: `dbtest-${uniq()}`, is_demo: false, live_payments_enabled: opts.live ?? false, mfa_required: opts.mfa ?? false, per_payment_ceiling: 1_000_000_000_000_000, live_status: opts.live ? "PROVISIONED" : "NOT_REQUESTED" }).select("id").single(); // test amounts are large; the ceiling has its own test
+  if (error) throw new Error(`company insert failed (code=${error.code.match(/^(?:[A-Z0-9]{5}|PGRST[0-9]{3})$/)?.[0] ?? "unknown"}, status=${Number(status)})`);
   const mk = async (roles: Role[]): Promise<TestUser> => {
     const email = `dbtest-${uniq()}@example.com`;
     const password = `pw-${randomUUID()}`;

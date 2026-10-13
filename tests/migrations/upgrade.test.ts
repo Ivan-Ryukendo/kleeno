@@ -6,12 +6,12 @@ import { assertMigrationUpgradeTarget } from "../../scripts/migration-upgrade-ta
 import { openField, openJson, sealField } from "@/server/crypto";
 import { listExceptions } from "@/server/db/reconciliation";
 import { createWorker, listWorkers } from "@/server/db/workers";
-import { activeConfig, admin, asOwner, makeCompany } from "../db/helpers";
+import { activeConfig, admin, asOwner, makeCompany, userClient } from "../db/helpers";
 
 function migrate(args: string[]) {
   assertMigrationUpgradeTarget(process.env);
   // Explicit --local ignores any linked remote project; never replay non-idempotent SQL directly.
-  execFileSync("supabase", args, { stdio: "pipe", timeout: 120_000 });
+  execFileSync("supabase", args, { stdio: "inherit", timeout: 120_000 });
 }
 async function history() {
   return (await asOwner("select version,name from supabase_migrations.schema_migrations order by version")).rows;
@@ -33,12 +33,14 @@ it("upgrades populated October 8 payroll records without rewriting encrypted dat
   const exception = await admin.from("exceptions").insert({ company_id: company.id, run_id: run.data!.id, worker_id: worker.id, category: "DUPLICATE_TIMESHEET", severity: "HIGH", dedupe_key: "migration-check", options: ["KEEP_FIRST", "KEEP_LATEST"] }).select("id").single();
   expect(exception.error).toBeNull();
   const tables = ["memberships", "workers", "compensations", "payroll_configurations", "payroll_runs", "exceptions", "audit_events"];
+  const reader = await userClient(company.payroll, company.id);
+  expect((await listWorkers(reader, company.id)).map(row => row.id)).toEqual([worker.id]);
   const before = await Promise.all(tables.map(table => rows(table, company.id)));
   migrate(["migration", "up", "--local"]);
   expect(await Promise.all(tables.map(table => rows(table, company.id)))).toEqual(before);
   const migrations = await history();
   expect(migrations.map(row => row.version)).toEqual(readdirSync("supabase/migrations").filter(file => file.endsWith(".sql")).sort().map(file => file.slice(0, 14)));
-  const loaded = await listWorkers(admin, company.id);
+  const loaded = await listWorkers(reader, company.id);
   expect(loaded).toHaveLength(1);
   expect(loaded[0]).toMatchObject({ id: worker.id, pseudonym: "W001", compensation: { baseAmount: 123450000n, hourlyRate: 0n } });
   const configuration = before[tables.indexOf("payroll_configurations")][0];
@@ -50,7 +52,7 @@ it("upgrades populated October 8 payroll records without rewriting encrypted dat
   const stored = (await rows("exceptions", company.id))[0];
   expect(stored).toMatchObject({ id, run_id: run.data!.id, worker_id: worker.id, status: "RESOLVED", resolution_action: "KEEP_FIRST", resolved_by: who.userId });
   expect(await openField(company.id, "exceptions", "resolution", id, stored.resolution)).toBe(note);
-  expect((await listExceptions(admin, company.id, run.data!.id))[0]).toMatchObject({ id, note, decision: "KEEP_FIRST" });
+  expect((await listExceptions(reader, company.id, run.data!.id))[0]).toMatchObject({ id, note, decision: "KEEP_FIRST" });
   const audit = await rows("audit_events", company.id);
   expect(audit.filter(row => row.event === "exception.resolve")).toHaveLength(1);
   expect(audit.filter(row => row.event === "exception.resolve")[0]).toMatchObject({ entity_id: id, correlation_id: who.correlationId, refs: { action: "KEEP_FIRST", runId: run.data!.id } });
