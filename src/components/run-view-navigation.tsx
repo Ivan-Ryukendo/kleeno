@@ -10,7 +10,7 @@ const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visi
  * control of plain links. Payments keeps its gate (never in SIMULATION, payment approvers only); when it is closed it shows
  * why and links nowhere. "Needs review" opens this run's exceptions for the payroll roles that resolve them.
  */
-export function RunViewNavigation({ runId, current, mode, canPay, canReview = false }: { runId: string; current: RunViewId; mode: string; canPay: boolean; canReview?: boolean }) {
+export function RunViewNavigation({ runId, current, mode, canPay, canReview = false }: { runId: string; current: RunViewId | null; mode: string; canPay: boolean; canReview?: boolean }) {
   return (
     <>
       <nav aria-label="Run views" className="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-field border border-border bg-background p-0.5 [scrollbar-width:none]">

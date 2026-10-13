@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { RunWorkflowView } from "@/components/run-workflow-view";
-import { RunViewNavigation } from "@/components/run-view-navigation";
+import { RunFrame } from "@/components/payroll/run-frame";
+import { loadFrameData } from "@/components/payroll/frame-data";
 import { isPaymentRole, isPayrollRole } from "@/core/tenancy";
 import { payrollSide } from "@/components/shell/nav-config";
 import { pageSession } from "@/server/auth/page-session";
@@ -37,5 +38,6 @@ export default async function RunWorkflowPage({ params }: { params: Promise<{ ru
     } catch { /* Unavailable private evidence never becomes a ready/completed handoff. */ }
   }
   const { run } = view;
-  return <><PageHeader title="Run workflow" description="Follow the recorded stages and inspect their evidence." actions={<RunViewNavigation runId={run.id} current="workflow" mode={run.mode} canPay={isPaymentRole(actor.roles)} canReview={payrollSide(actor.roles)} />} /><RunWorkflowView data={{ company: { id: actor.companyId, name: companyRead.data.name }, run: { id: run.id, mode: run.mode, status: run.status, periodStart: run.period_start, periodEnd: run.period_end, configVersion: run.config_version }, steps: periodSteps(run.status, run.mode, facts.openExceptions, companyRead.data.live_payments_enabled), facts, financial: view.financial, canPayroll: isPayrollRole(actor.roles), canPay: isPaymentRole(actor.roles), calculationHash: view.financial ? view.calculationHash : null, review }} /></>;
+  const frame = await loadFrameData(client, actor, runId, { workers: facts.workers, autoMatched: facts.autoMatched, openExceptions: facts.openExceptions });
+  return <><RunFrame run={{ id: run.id, mode: run.mode, status: run.status, periodStart: run.period_start, periodEnd: run.period_end }} current="workflow" data={frame} canPayroll={payrollSide(actor.roles)} canPay={isPaymentRole(actor.roles)} hrefFor={(id) => `/runs/${id}/workflow`} hint="Read-only: steps show the run's recorded state" /><RunWorkflowView data={{ company: { id: actor.companyId, name: companyRead.data.name }, run: { id: run.id, mode: run.mode, status: run.status, periodStart: run.period_start, periodEnd: run.period_end, configVersion: run.config_version }, steps: periodSteps(run.status, run.mode, facts.openExceptions, companyRead.data.live_payments_enabled), facts, financial: view.financial, canPayroll: isPayrollRole(actor.roles), canPay: isPaymentRole(actor.roles), calculationHash: view.financial ? view.calculationHash : null, review }} /></>;
 }

@@ -77,13 +77,13 @@ test("desktop 1280: sidebar, run tabs, settings sections, account chip and searc
   await shot(page, "run-1280");
   await tabs.getByRole("link", { name: "Workflow" }).click();
   await expect(page).toHaveURL(new RegExp(`/runs/${runId}/workflow$`));
-  await expect(page.getByRole("heading", { name: "Run workflow" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payroll workflow" })).toBeVisible();
   await expect(crumb(page)).toContainText("Workflow");
   await page.getByRole("navigation", { name: "Run views" }).getByRole("link", { name: "Activity" }).click();
   await expect(page).toHaveURL(new RegExp(`/audit\\?run=${runId}$`));
   await expect(crumb(page)).toContainText("Activity");
   await page.goto(`/runs/${runId}`);
-  await page.getByRole("link", { name: "Needs review" }).click();
+  await page.getByRole("link", { name: /needs review$/i }).click();
   await expect(page).toHaveURL(new RegExp(`/exceptions\\?run=${runId}$`));
   await expect(page.getByText("Duplicate timesheet lines").first()).toBeVisible();
 
