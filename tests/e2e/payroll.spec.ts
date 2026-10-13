@@ -58,7 +58,7 @@ test("human resolutions lead to checked simulation pay and cannot authorize paym
     await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
     await page.goto(`/runs/${demo.runId}`);
     await expect(page.getByRole("heading", { name: "Payroll", exact: true })).toBeVisible();
-    expect(await page.locator("#main").innerText()).not.toMatch(/NaN|undefined|[object Object]/);
+    expect(await page.locator("#main").innerText()).not.toMatch(/\bNaN\b|\bundefined\b|\[object Object\]/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     if (process.env.TAB_SHOTS_DIR) await page.screenshot({ path: `${process.env.TAB_SHOTS_DIR}/table-calculated-${width}.png`, fullPage: true });
     for (const hash of ["review-heading", "readiness-heading"]) {
