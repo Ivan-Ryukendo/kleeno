@@ -59,7 +59,8 @@ it("exposes the how-it-works accordion as buttons with aria-expanded", () => {
 });
 
 it("follows DESIGN.md §13: small corners, orange only as black-surface gradients (no orbit arcs), no GitHub link, no invented claims", () => {
-  expect(html).not.toMatch(/rounded-full|rounded-\[(1\.25|2|2\.5)rem\]/);
+  // Owner (2026-10-13): worker profile pictures in the demo are circles. Everything else keeps the small-corner rule.
+  expect(html.replace(/<img[^>]*>/g, "")).not.toMatch(/rounded-full|rounded-\[(1\.25|2|2\.5)rem\]/);
   expect(html).not.toMatch(/stroke-orbit|<svg[^>]*viewBox="0 0 1200 400"/);
   expect(html).toMatch(/var\(--orbit\)/); // glow surfaces exist on the hero
   expect(html).toMatch(/rounded-\[0\.75rem\]/); // outer frame stays 12px
