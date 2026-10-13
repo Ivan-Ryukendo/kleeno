@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 
 type Step = { kind: "email" } | { kind: "survey"; token: string } | { kind: "done"; surveyed: boolean };
 
-const ink = "inline-flex h-12 items-center justify-center rounded-[1.25rem] bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-50";
-const outline = "inline-flex h-12 items-center justify-center rounded-[1.25rem] border-[1.5px] border-primary bg-white px-7 text-base font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-50";
-const select = "h-11 w-full rounded-full border border-primary/50 bg-white px-5 text-base outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
+const ink = "inline-flex h-12 items-center justify-center rounded-[0.375rem] bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-50";
+const outline = "inline-flex h-12 items-center justify-center rounded-[0.375rem] border-[1.5px] border-primary bg-white px-7 text-base font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-50";
+const select = "h-11 w-full rounded-[0.375rem] border border-primary/50 bg-white px-5 text-base outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
 
 /** Attribution from the URL and the referring site (hostname only). Nothing identifies the visitor. */
 function attribution() {
@@ -34,7 +34,7 @@ function Choices<T extends string>({ name, legend, hint, labels, value, onChange
         {(Object.keys(labels) as T[]).map((k) => (
           <label
             key={k}
-            className="cursor-pointer rounded-full border border-primary/40 bg-white px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/40"
+            className="cursor-pointer rounded-[0.375rem] border border-primary/40 bg-white px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/40"
           >
             <input type="radio" name={name} value={k} checked={value === k} onChange={() => onChange(k)} className="sr-only" />
             {labels[k]}
@@ -93,7 +93,7 @@ export function WaitlistForm() {
   }
 
   const errorBox = error && (
-    <p role="alert" className="rounded-[1.25rem] border border-primary bg-white px-4 py-3 text-sm font-medium">
+    <p role="alert" className="rounded-[0.375rem] border border-primary bg-white px-4 py-3 text-sm font-medium">
       {error}
     </p>
   );
@@ -150,7 +150,7 @@ export function WaitlistForm() {
           </div>
           <div>
             <Label htmlFor="companyName">Company</Label>
-            <Input id="companyName" name="companyName" maxLength={120} autoComplete="organization" />
+            <Input id="companyName" name="companyName" maxLength={120} autoComplete="organization" className="rounded-[0.375rem]" />
           </div>
           <div>
             <Label htmlFor="companySize">Team size</Label>
@@ -178,7 +178,7 @@ export function WaitlistForm() {
     <form onSubmit={join} className="space-y-5" noValidate={false}>
       <div>
         <Label htmlFor="email" className="text-base">Work email</Label>
-        <Input id="email" name="email" type="email" required maxLength={254} autoComplete="email" inputMode="email" placeholder="you@company.com" className="h-12" />
+        <Input id="email" name="email" type="email" required maxLength={254} autoComplete="email" inputMode="email" placeholder="you@company.com" className="h-12 rounded-[0.375rem]" />
       </div>
       {/* Honeypot (S55): hidden from people and screen readers; bots tend to fill every field. */}
       <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
