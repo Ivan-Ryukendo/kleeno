@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ roles: ["OWNER"] as string[], select: vi.fn(), from: vi.fn(), settlement: vi.fn(), standing: vi.fn(), live: true }));
+vi.mock("@/components/payroll/frame-data", () => ({ loadFrameData: vi.fn() }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({ actor: { companyId: "company", userId: "actor", roles: state.roles }, client: { from: state.from } }) }));

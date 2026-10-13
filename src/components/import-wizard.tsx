@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Check, FileSpreadsheet, LockKeyhole } from "lucide-react";
 import { LocalNameUnlock } from "@/components/local-name-unlock";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import { parseXlsx, type ImportSheet } from "@/core/ingest/xlsx";
 import { postJson } from "@/lib/api";
 
 const select = "h-(--field-height) w-full rounded-field border border-field-border bg-white px-(--field-px) text-(length:--field-text) leading-(--field-leading) outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40";
-const big = "h-9 rounded-field px-4 text-sm";
+const big = "min-h-11 rounded-field px-4 text-sm sm:min-h-9";
 const TYPE_LABEL: Record<ImportType, string> = { TIMESHEETS: "Timesheets (hours worked)", LEAVE: "Leave (paid or unpaid)", ACTUAL_PAID: "Amounts actually paid (for the variance report)" };
 const REJECT_TEXT: Record<string, string> = {
   MISSING: "a required value is missing",
@@ -39,6 +40,7 @@ interface Prepared {
   items: RowItem[];
   localRejected: Rejected[];
   unknownCodes: string[];
+  valid: RowItem[];
 }
 
 function download(name: string, text: string) {
@@ -51,14 +53,11 @@ function download(name: string, text: string) {
 }
 
 const RejectList = ({ rejected }: { rejected: Rejected[] }) => (
-  <ul className="mt-2 max-h-48 list-disc space-y-1 overflow-auto pl-5 text-sm">
-    {rejected.slice(0, 100).map((r) => (
-      <li key={`${r.row}-${r.field}`}>
-        Line {r.row}, {r.field}: {REJECT_TEXT[r.code]}
-      </li>
-    ))}
-    {rejected.length > 100 && <li>…and {rejected.length - 100} more</li>}
-  </ul>
+  <div className="mt-3 overflow-x-auto" role="region" aria-label="Rejected rows" tabIndex={0}>
+    <table className="w-full min-w-[24rem] text-left text-sm"><caption className="sr-only">Rejected rows with reasons; no original cell text</caption><thead className="bg-sidebar text-xs text-muted-foreground"><tr><th scope="col" className="p-2 font-medium">Line</th><th scope="col" className="p-2 font-medium">Field</th><th scope="col" className="p-2 font-medium">Why rejected</th></tr></thead><tbody>
+      {rejected.slice(0, 100).map(r => <tr key={`${r.row}-${r.field}`} className="border-b"><th scope="row" className="p-2 font-medium tabular-nums">{r.row}</th><td className="p-2">{r.field}</td><td className="p-2 text-signal">{REJECT_TEXT[r.code]}</td></tr>)}
+    </tbody></table>{rejected.length > 100 && <p className="mt-2 text-xs text-muted-foreground">…and {rejected.length - 100} more rejected rows.</p>}
+  </div>
 );
 
 /** Parse, map and anonymise in the browser. Only mapped, typed fields are sent; names and the raw file never leave this computer (S25, rule 35). */
@@ -66,6 +65,7 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
   const router = useRouter();
   const [runId, setRunId] = useState(runs[0]?.id ?? "");
   const [type, setType] = useState<ImportType>("TIMESHEETS");
+  const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedCsv | null>(null);
   const [mapping, setMapping] = useState<Mapping>({});
   const [keyFile, setKeyFile] = useState<string | null>(null);
@@ -91,6 +91,7 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
   async function onFile(file: File | undefined) {
     reset();
     setParsed(null);
+    setFileName(null);
     setSheets([]);
     setSheetIndex(0);
     if (!file) return;
@@ -112,6 +113,7 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
         p = parseCsv(text);
       }
       if (ticket !== generation.current) return;
+      setFileName(file.name);
       setParsed(p);
       setMapping(suggestMapping(type, p.headers));
     } catch (e) {
@@ -142,7 +144,7 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
       const { good, rejected } = validateRows(type, items);
       const codes = new Set(workerCodes);
       const unknownCodes = [...new Set(good.map((g) => (g.value as { workerRef: string }).workerRef))].filter((c) => !codes.has(c));
-      setPrepared({ items, localRejected: rejected, unknownCodes });
+      setPrepared({ items, localRejected: rejected, unknownCodes, valid: good.map(g => ({ row: g.row, data: g.value })) });
     } catch (e) {
       if (ticket === generation.current) setError(e instanceof NameKeyError ? e.message : "Could not prepare the file.");
     }
@@ -167,8 +169,13 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
   if (runs.length === 0) return <p className="mt-6 text-muted-foreground">No run is open for data yet. Start one on Home first.</p>;
 
   const needsPassphrase = parsed && mapping.workerRef !== undefined && parsed.rows.some((r) => !WORKER_CODE.test((r[mapping.workerRef] ?? "").trim().toUpperCase()));
+  const step = result ? 4 : prepared ? 3 : parsed ? 2 : 1;
   return (
-    <div className="mt-6 space-y-6">
+    <div className="space-y-6">
+      <section aria-label="Import progress" className="rounded-card border">
+        <ol className="grid grid-cols-2 gap-y-3 p-4 sm:grid-cols-4">{["Choose file", "Map columns", "Check", "Import"].map((label, index) => <li key={label} aria-current={step === index + 1 ? "step" : undefined} className="flex items-center gap-2 text-sm"><span aria-hidden="true" className={`grid size-6 shrink-0 place-items-center rounded-full border text-xs ${step > index + 1 || result ? "border-primary bg-primary text-primary-foreground" : step === index + 1 ? "border-primary font-medium" : "text-muted-foreground"}`}>{step > index + 1 || result ? <Check className="size-3.5" /> : index + 1}</span><span className={step === index + 1 ? "font-medium" : "text-muted-foreground"}>{label}{step > index + 1 && <span className="sr-only"> (done)</span>}</span></li>)}</ol>
+        {fileName && parsed && <p className="flex flex-wrap items-center gap-2 border-t px-4 py-3 text-xs text-muted-foreground"><FileSpreadsheet aria-hidden="true" className="size-4" /><span className="break-all font-medium text-foreground">{fileName}</span><span>{parsed.rows.length} rows · {parsed.headers.length} columns · read locally</span></p>}
+      </section>
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <Label htmlFor="run">Payroll run</Label>
@@ -214,8 +221,9 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
 
       {parsed && (
         <>
-          <div>
-            <h3 className="text-lg">Which column is which?</h3>
+          <details open={!prepared && !result} className="rounded-card border p-4">
+            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">Column mapping · Edit mapped fields</summary>
+            <h3 className="mt-3 text-sm font-medium">Which column is which?</h3>
             <p className="text-sm text-muted-foreground">{parsed.rows.length} rows. Leave optional ones unmapped to ignore them.</p>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               {FIELDS[type].map((f) => (
@@ -248,11 +256,11 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
                 </div>
               ))}
             </div>
-          </div>
+          </details>
 
           {needsPassphrase && (
             <div className="rounded-box border border-border p-4">
-              <h3 className="text-lg">Names stay on this computer</h3>
+              <h3 className="flex items-center gap-2 text-sm font-medium"><LockKeyhole aria-hidden="true" className="size-4" />Names stay on this computer</h3>
               <p className="mt-1 text-sm text-muted-foreground">Names in your file become worker codes (W001…). A name key file remembers which code is whom so codes stay the same next time. It is encrypted with your passphrase and saved to your computer, never uploaded. Keep both safe: without them the codes cannot be matched back to names.</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
@@ -267,7 +275,7 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
             </div>
           )}
 
-          {!prepared && (
+          {!prepared && !result && (
             <Button type="button" disabled={busy} className={big} onClick={prepare}>
               {busy ? "Preparing…" : "Check the file"}
             </Button>
@@ -276,17 +284,17 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
       )}
 
       {prepared && (
-        <div className="rounded-box border border-border p-4">
-          <h3 className="text-lg">Ready to send</h3>
-          <p className="mt-1 text-sm">
-            {prepared.items.length - prepared.localRejected.length} of {prepared.items.length} rows look valid.
-          </p>
+        <div className="space-y-4">
+          <section aria-label="Local check results" className="grid gap-3 sm:grid-cols-3">{[{ label: "Rows in file", value: prepared.items.length, hint: "Header row not counted" }, { label: "Valid format", value: prepared.valid.length, hint: "Worker and period checked on import" }, { label: "Rejected locally", value: prepared.localRejected.length, hint: "Skipped by the server", risk: true }].map(stat => <div key={stat.label} className="rounded-card border p-4"><p className="text-xs text-muted-foreground">{stat.label}</p><p className={`mt-2 text-xl font-medium tabular-nums ${stat.risk && stat.value ? "text-signal" : ""}`}>{stat.value}</p><p className="mt-1 text-xs text-muted-foreground">{stat.hint}</p></div>)}</section>
+          <h3 className="text-sm font-medium">Check before importing</h3>
+          <p className="text-sm text-muted-foreground">Review the worker codes and mapped fields below. Only these typed fields are sent. Duplicate, worker and period checks run on the server.</p>
           {prepared.unknownCodes.length > 0 && (
             <p className="mt-2 text-sm font-medium text-signal">
               Not set up as workers yet: {prepared.unknownCodes.join(", ")}. Add them on the Workers page first, or those rows will be rejected.
             </p>
           )}
-          {prepared.localRejected.length > 0 && <RejectList rejected={prepared.localRejected} />}
+          {prepared.localRejected.length > 0 && <section aria-label="Local rejected rows" className="rounded-card border p-4"><h4 className="text-sm font-medium">Rejected rows</h4><RejectList rejected={prepared.localRejected} /></section>}
+          <div className="overflow-x-auto rounded-card border" role="region" aria-label="Valid mapped rows" tabIndex={0}><table className="w-full min-w-[32rem] text-left text-sm"><caption className="sr-only">Valid mapped fields, first 100 rows; worker names replaced by codes</caption><thead className="bg-sidebar text-xs text-muted-foreground"><tr><th scope="col" className="p-3 font-medium">Line</th>{FIELDS[type].filter(f => mapping[f.name] !== undefined).map(f => <th key={f.name} scope="col" className="p-3 font-medium">{f.label}</th>)}</tr></thead><tbody>{prepared.valid.slice(0, 100).map(row => <tr key={row.row} className="border-t"><th scope="row" className="p-3 font-medium tabular-nums">{row.row}</th>{FIELDS[type].filter(f => mapping[f.name] !== undefined).map(f => <td key={f.name} className="p-3 tabular-nums">{String((row.data as Record<string, unknown>)[f.name] ?? "—")}</td>)}</tr>)}</tbody></table>{prepared.valid.length > 100 && <p className="border-t p-3 text-xs text-muted-foreground">Showing the first 100 of {prepared.valid.length} valid rows.</p>}</div>
           <Button type="button" disabled={busy} className={`mt-4 ${big}`} onClick={send}>
             {busy ? "Sending…" : "Send to Kleeno"}
           </Button>
@@ -301,7 +309,7 @@ export function ImportWizard({ runs, workerCodes, nextCode, contextKey }: { runs
 
       {result && (
         <div role="status" className="rounded-box border border-border p-4">
-          <h3 className="text-lg">{result.alreadyImported ? "Already imported" : "Imported"}</h3>
+          <h3 className="text-sm font-medium">{result.alreadyImported ? "Already imported" : "Imported"}</h3>
           <p className="mt-1 text-sm">
             {result.alreadyImported ? "This data was already in the run; nothing changed." : `${result.newRecords} new records stored from ${result.accepted} accepted rows (${result.rows} in the file).`}
           </p>

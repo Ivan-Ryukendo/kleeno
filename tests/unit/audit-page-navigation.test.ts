@@ -6,12 +6,13 @@ const runId = "10000000-0000-4000-8000-000000000001";
 const eventId = "20000000-0000-4000-8000-000000000002";
 const before = `2026-10-10T12:00:00Z~${eventId}`;
 const state = vi.hoisted(() => ({ exists: true, failed: false, next: null as string | null, eq: vi.fn(), audit: vi.fn() }));
+vi.mock("@/components/payroll/frame-data", () => ({ loadFrameData: async () => ({ facts: { workers: null, autoMatched: null, openExceptions: null }, runs: [] }) }));
 vi.mock("next/server", () => ({ connection: async () => undefined }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("@/server/auth/page-session", () => ({ pageSession: async () => ({
-  actor: { companyId: "session-company" },
+  actor: { companyId: "session-company", userId: "actor", roles: ["HR_APPROVER"] },
   client: { from: () => {
-    const query = { select: () => query, eq: (...args: unknown[]) => { state.eq(...args); return query; }, maybeSingle: async () => ({ data: state.exists ? { id: "10000000-0000-4000-8000-000000000001" } : null, error: state.failed ? { code: "PRIVATE_DATABASE_ERROR" } : null }) };
+    const query = { select: () => query, eq: (...args: unknown[]) => { state.eq(...args); return query; }, maybeSingle: async () => ({ data: state.exists ? { id: "10000000-0000-4000-8000-000000000001", mode: "SIMULATION", status: "DRAFT", period_start: "2026-10-01", period_end: "2026-10-31" } : null, error: state.failed ? { code: "PRIVATE_DATABASE_ERROR" } : null }) };
     return query;
   } },
 }) }));
@@ -27,6 +28,8 @@ beforeEach(() => { state.exists = true; state.failed = false; state.next = null;
 
 it("returns to the selected run and retains its entity filter when showing newest events", async () => {
   const html = await page({ run: runId, entity: "exceptions", before });
+  expect(html).toContain("Payroll</h1>");
+  expect(html).toContain("Run views");
   expect(hrefFor(html, "Back to run")).toBe(`/runs/${runId}`);
   const newest = new URL(hrefFor(html, "Newest events")!, "https://example.invalid");
   expect(newest.pathname).toBe("/audit");
