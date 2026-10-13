@@ -12,3 +12,14 @@ export function assertMigrationUpgradeTarget(env: Record<string, string | undefi
   if (browser.origin !== api.origin || !["postgres:", "postgresql:"].includes(db.protocol) || db.port !== "54322" || db.pathname !== "/postgres") fail();
   if (env.DB_TEST_FORBIDDEN_URL && (!URL.canParse(env.DB_TEST_FORBIDDEN_URL) || new URL(env.DB_TEST_FORBIDDEN_URL).origin === api.origin)) fail();
 }
+
+/** Retry only read probes while the disposable API reconnects after a database reset. */
+export async function waitForMigrationApi(probe: () => PromiseLike<{ error: unknown; status: number }>) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const result = await probe();
+    if (!result.error) return;
+    if (result.status !== 0) throw new Error("Migration API readiness check failed");
+    if (attempt < 19) await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  throw new Error("Migration API transport unavailable after reset");
+}

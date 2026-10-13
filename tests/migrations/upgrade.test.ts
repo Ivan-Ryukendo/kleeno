@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
-import { assertMigrationUpgradeTarget } from "../../scripts/migration-upgrade-target";
+import { assertMigrationUpgradeTarget, waitForMigrationApi } from "../../scripts/migration-upgrade-target";
 import { openField, openJson, sealField } from "@/server/crypto";
 import { listExceptions } from "@/server/db/reconciliation";
 import { createWorker, listWorkers } from "@/server/db/workers";
@@ -24,6 +24,7 @@ async function rows(table: string, company: string) {
 
 it("upgrades populated October 8 payroll records without rewriting encrypted data or prior audit", async () => {
   migrate(["db", "reset", "--local", "--version", "20261008000007", "--no-seed"]);
+  await waitForMigrationApi(() => admin.from("companies").select("id").limit(0).retry(false).abortSignal(AbortSignal.timeout(1000)));
   expect((await history()).at(-1)?.version).toBe("20261008000007");
   const company = await makeCompany(), cfg = await activeConfig(company);
   const who = { companyId: company.id, userId: company.payroll.id, roles: company.payroll.roles, correlationId: randomUUID() };
@@ -68,6 +69,7 @@ it("upgrades populated October 8 payroll records without rewriting encrypted dat
 
 it("moves populated AI budgets into the private schema without resetting their counters", async () => {
   migrate(["db", "reset", "--local", "--version", "20261011000004", "--no-seed"]);
+  await waitForMigrationApi(() => admin.from("companies").select("id").limit(0).retry(false).abortSignal(AbortSignal.timeout(1000)));
   const company = await makeCompany();
   const reservation = await admin.rpc("reserve_ai_tokens", { p_company_id: company.id, p_tokens: 123 });
   expect(reservation.error).toBeNull(); expect(reservation.data).toBe(123);

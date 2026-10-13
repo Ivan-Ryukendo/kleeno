@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { assertMigrationUpgradeTarget } from "../../scripts/migration-upgrade-target";
+import { afterEach, expect, it, vi } from "vitest";
+import { assertMigrationUpgradeTarget, waitForMigrationApi } from "../../scripts/migration-upgrade-target";
 
 const local = { CI: "true", MIGRATION_UPGRADE_TEST: "1", SUPABASE_URL: "http://127.0.0.1:54321", NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", SUPABASE_TEST_DB_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres" };
 
@@ -26,4 +26,30 @@ it.each([
     expect(String(error)).not.toContain("secret");
     expect(String(error)).not.toContain("invalid-sensitive-url");
   }
+});
+
+afterEach(() => vi.useRealTimers());
+
+it("probes only reads after reset until a transport failure recovers", async () => {
+  vi.useFakeTimers();
+  const probe = vi.fn().mockResolvedValueOnce({ error: {}, status: 0 }).mockResolvedValue({ error: null, status: 200 });
+  const pending = waitForMigrationApi(probe);
+  await vi.runAllTimersAsync();
+  await pending;
+  expect(probe).toHaveBeenCalledTimes(2);
+});
+
+it("refuses semantic or HTTP errors immediately instead of retrying", async () => {
+  const probe = vi.fn().mockResolvedValue({ error: { code: "42501" }, status: 403 });
+  await expect(waitForMigrationApi(probe)).rejects.toThrow("Migration API readiness check failed");
+  expect(probe).toHaveBeenCalledTimes(1);
+});
+
+it("bounds repeated transport failures without proceeding to fixture writes", async () => {
+  vi.useFakeTimers();
+  const probe = vi.fn().mockResolvedValue({ error: {}, status: 0 });
+  const pending = expect(waitForMigrationApi(probe)).rejects.toThrow("Migration API transport unavailable after reset");
+  await vi.runAllTimersAsync();
+  await pending;
+  expect(probe).toHaveBeenCalledTimes(20);
 });
