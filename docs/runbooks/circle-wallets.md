@@ -9,6 +9,8 @@ Rules for this runbook:
 - Never run this against `kleeno-prod`. Step 1 makes you check which database `.env` points at, because the scripts write wallet rows to it.
 - Run from the repo root. Commands are POSIX shell (Git Bash); in PowerShell use the same `npm run script -- ...` lines.
 
+For the full owner sequence through funded payroll and Circle/Stripe delivery acceptance, see the [setup checklist](promotion.md#8-start-here-when-provider-setup-is-still-pending-r37--r39). No provider setup or funded acceptance is claimed by these instructions.
+
 ## What gets created
 
 | Thing | Where | Role |
@@ -105,7 +107,7 @@ Record for R3.7 evidence: the two wallet addresses, the guard address, the Arcsc
 
 ## Known gaps (do not improvise around them)
 
-- The scripts act on one fixed company, the synthetic dev "Pilot Co". No script provisions another demo company, and no app route calls `provisionWallets` today. Provisioning additional demo companies needs a small parameterised script or the in-app activation after platform-admin approval: a separate ledger task, not part of this runbook.
+- These CLI scripts act on one fixed company, synthetic dev "Pilot Co". The existing admin live-payments approval route can provision an approved non-demo/non-sandbox company through `provisionCompany`; this runbook does not operate that route or provision another target. Demo/sandbox companies cannot activate live payments.
 - Testnet only: the `TEST_API_KEY:` check and `ARC-TESTNET` are hard-coded. Production wallets are out of scope.
 - Faucet amounts and limits are set by Circle and change; follow what the faucet page shows.
 - This runbook was written from the code and docs only. No wallet was created and no Circle call was made while writing it; the reviewer should confirm the commands against a first real run (R3.7 prep).

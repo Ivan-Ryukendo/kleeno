@@ -48,12 +48,12 @@ async function describeWorkers(page: Page) {
   }
 }
 
-async function signIn(page: Page, user: { email: string; password: string }) {
+async function signIn(page: Page, user: { email: string; password: string }, expectedRoute: "/dashboard" | "/onboarding" = "/dashboard") {
   await page.goto("/login");
   await page.getByLabel("Email", { exact: true }).fill(user.email);
   await page.getByLabel("Password", { exact: true }).fill(user.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page).toHaveURL(new URL(expectedRoute, page.url()).href);
 }
 const noSidewaysScroll = async (page: Page, width: number) => expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 
@@ -280,7 +280,7 @@ test("Onboarding: three numbered steps, then the dashboard", async ({ page }) =>
   const fresh = await makeCompany();
   try {
     await page.setViewportSize(DESKTOP);
-    await signIn(page, fresh.payroll);
+    await signIn(page, fresh.payroll, "/onboarding");
     await page.goto("/onboarding");
     await expect(page.getByRole("heading", { name: "Secure your account" })).toBeVisible();
     await expect(page.getByRole("list", { name: "Setup progress" })).toContainText("Company basics");

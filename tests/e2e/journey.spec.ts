@@ -43,7 +43,12 @@ test("owner signs in, walks a seeded SIMULATION run, and no live payment path op
   await page.goto(`/exceptions?run=${demo.runId}`);
   await expect(page.getByText("Duplicate timesheet lines").first()).toBeVisible();
   await page.goto(`/settlement?run=${demo.runId}`);
-  await expect(page.getByRole("heading", { name: "Payments", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payroll", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payments unavailable for this run", exact: true })).toBeVisible();
+  await expect(page.getByText("Only eligible live testnet runs appear in the payment view. This run is not in the current payment list. Simulation never pays.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to selected run", exact: true })).toHaveAttribute("href", `/runs/${demo.runId}`);
+  await page.goto("/settlement");
+  await expect(page.getByRole("heading", { name: "Payroll", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Live payments" }).first()).toBeVisible(); // the live-payments row and guard moved here from the dashboard
   await expect(page.getByText("OFF", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Guard contract")).toBeVisible();
