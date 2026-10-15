@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { GlowSurface } from "@/components/glow-surface";
 import { FaqItem } from "@/components/landing-faq";
+import { FlowBackground } from "@/components/landing-flow-background";
 import { LandingMotion, ScrubWords } from "@/components/landing-motion";
 import { LandingSteps, type LandingStep } from "@/components/landing-steps";
 import { PayrollDemo } from "@/components/landing-payroll-demo";
@@ -18,41 +19,44 @@ import {
 import { env } from "@/server/env";
 
 export const metadata: Metadata = {
-  title: { absolute: "Kleeno · AI payroll reconciliation for teams that pay contractors" },
+  title: { absolute: "Kleeno · AI payroll that measures every hire and shows its working" },
   alternates: { canonical: "/" },
   // A page-level openGraph replaces the layout's, so repeat the site fields and name the share card (app/opengraph-image.tsx) here.
-  openGraph: { url: "/", siteName: "Kleeno", type: "website", locale: "en_US", images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Kleeno: AI payroll reconciliation for teams that pay contractors" }] },
+  openGraph: { url: "/", siteName: "Kleeno", type: "website", locale: "en_US", images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Kleeno: AI payroll that measures every hire and shows its working" }] },
   twitter: { card: "summary_large_image", images: ["/opengraph-image"] },
 };
 
 const steps: LandingStep[] = [
-  { title: "Policy", body: "Paste your pay policy. AI proposes structured pay rules, each linked to the sentence it came from.", detail: "Validation checks every rule for clashes and gaps. Nothing applies until an HR approver accepts a version." },
-  { title: "Check", body: "Import timesheets and pay data. Kleeno reconciles them and flags every discrepancy with the rows that prove it.", detail: "Names are replaced by worker codes in your browser before anything is uploaded. You resolve each exception." },
-  { title: "Approve", body: "Plain, deterministic code calculates pay. Every amount has a line-by-line trace you can read before you sign off.", detail: "The same inputs always give the same result. Payroll approval asks for your password again." },
-  { title: "Pay", body: "A different person approves payment. A smart contract pays exactly what was approved, once, and the receipt is matched back.", detail: "Today this runs in simulation or on Arc testnet with test USDC: no real money moves." },
+  { title: "Read", body: "Give Kleeno your pay policy and records. AI turns them into structured rules, each linked to its source.", detail: "Policies and CSV timesheets or pay data today; more systems connect next. Nothing applies until an approver accepts it." },
+  { title: "Measure", body: "Kleeno reconciles every record against your rules and approvals, and flags each mismatch with the rows that show it.", detail: "Names become worker codes in your browser before upload. People resolve each exception." },
+  { title: "Calculate", body: "Fixed rules, not AI, work out each amount. The same inputs always give the same result, and every amount shows its working.", detail: "Each line records its source, rule, version and step. Payroll approval asks for your password again." },
+  { title: "Approve and pay", body: "A different person approves payment. It is paid exactly as approved, then matched back to the record.", detail: "Today this runs in simulation or on Arc testnet with test USDC. No real money moves." },
 ];
 
 const audiences = [
-  { title: "US businesses paying remote contractors", body: "Hourly, salaried or fixed-retainer contractors across borders, without spreadsheet guesswork." },
-  { title: "Payroll and finance leads", body: "Controllers and heads of finance who need to explain every payroll number to an auditor." },
-  { title: "Payroll bureaus and accounting firms", body: "Teams running payroll for many clients who need consistent rules and a clean audit trail." },
-  { title: "Founders and operations", body: "Small teams where payroll is one job among many and mistakes are expensive." },
+  { title: "Recruiters and staffing agencies", body: "Pay placed talent on the rules, with a record of how each amount was reached." },
+  { title: "Payroll and accounting firms", body: "Run many clients to one standard, with a clean trail for each." },
+  { title: "Finance and HR leads", body: "Explain any payroll number to an auditor, a manager or a worker." },
+  { title: "Founders and operations teams", body: "Payroll is one job among many. Kleeno does the measuring, so you only approve." },
 ];
 
 const proofs = [
   { title: "The rule cites its sentence", body: "Each pay rule points back to the policy clause it came from, with the approved version.", visual: <PolicyRuleVisual /> },
-  { title: "The data is reconciled", body: "Timesheets, approvals and pay records are compared before anything is calculated.", visual: <ImportVisual /> },
-  { title: "The amount is traced", body: "Deterministic code shows every input, rate and step behind each amount, with the clause it came from.", visual: <TraceVisual /> },
+  { title: "Every source is reconciled", body: "Timesheets, approvals and pay records are measured against each other before anything is calculated.", visual: <ImportVisual /> },
+  { title: "The amount explains itself", body: "Fixed rules show every input, rate and step behind each amount, with the clause it came from.", visual: <TraceVisual /> },
   { title: "Two different people sign", body: "One person approves payroll; another approves payment. Neither can do both.", visual: <ApprovalsVisual /> },
-  { title: "The receipt proves it", body: "Payment settles on Arc and is matched back to the obligation it paid.", visual: <ReceiptVisual /> },
+  { title: "The receipt closes the loop", body: "Payment settles on Arc and is matched back to the obligation it paid. The result stays on record for the next period.", visual: <ReceiptVisual /> },
 ];
 
 const chain = ["Policy", "Pay rules", "Validation", "HR approval", "Import", "Reconciliation", "Exceptions", "Calculation trace", "Payroll approval", "Payment plan", "Payment approval", "Arc receipt", "Audit trail"];
 
 const faqs = [
-  { q: "What is Kleeno?", a: "Kleeno is AI-assisted payroll software for configuration and reconciliation. It turns your pay policy into structured rules, reconciles timesheets and pay data, flags discrepancies with evidence, and explains every calculated amount line by line." },
+  { q: "What is Kleeno?", a: "Kleeno is AI-assisted payroll that measures, then pays. It reads your pay policy and records, turns them into structured rules, reconciles the data, calculates each amount with fixed rules, and explains every result line by line." },
   { q: "Is Kleeno available now?", a: "Not yet. Kleeno is in development. Joining the waitlist gets you updates and a chance at early access; it does not guarantee access." },
   { q: "Does the AI calculate pay?", a: "No. AI reads your policy and messy data and proposes rules and flags. Plain, deterministic code does every calculation, and a person approves the result. The AI never sets an amount or approves anything." },
+  { q: "What sources can Kleeno read?", a: "Today: pay policies you paste, and CSV imports of timesheets and pay data. More systems are planned. Every source is treated as evidence, never as an authority." },
+  { q: "Can I see why an amount is what it is?", a: "Yes. Every amount records its source, the rule and version applied, its inputs and each step, so you can open it and read the working." },
+  { q: "Can Kleeno get a calculation wrong?", a: "Calculations are deterministic: the same inputs and approved rules always give the same result, and the working is recorded so any figure can be checked. Results are only as good as the rules and data people approve, which is why people approve both." },
   { q: "How does payroll reconciliation work in Kleeno?", a: "Kleeno compares timesheets, approvals and pay records and raises an exception for anything that does not match, such as unexplained missing hours, a duplicate timesheet, unapproved overtime or leave that overlaps with work. Each exception shows the source rows, and a person resolves it." },
   { q: "How will contractor payments work?", a: "After two different people approve payroll and payment, payments go out exactly as approved and are matched back to each line. Today Kleeno is tested with USDC stablecoin payments on a test network, which moves no real money." },
   { q: "Does Kleeno keep an audit trail?", a: "Yes. Every step, from policy to rules, data, exceptions, calculation, approval and payment, is recorded in an append-only audit trail that you can review." },
@@ -81,15 +85,16 @@ export default function LandingPage() {
     <main id="main" className="w-full max-w-full overflow-x-hidden">
       {/* React escapes "</script" inside script text, so this needs no raw-HTML injection (S24). */}
       <script type="application/ld+json">{JSON.stringify(jsonLd)}</script>
+      <FlowBackground />
       <LandingMotion>
         {/* Attention */}
         <section aria-labelledby="hero-title" className="relative px-5 pb-32 pt-16 sm:px-8 md:pb-48 md:pt-24">
           <div className="mx-auto flex w-full max-w-6xl flex-col items-center text-center">
             <h1 id="hero-title" className="w-full max-w-6xl text-balance text-[clamp(2.75rem,6vw,6rem)] font-medium leading-[0.98] tracking-[-0.02em]">
-              Payroll that can&apos;t pay the wrong person.
+              AI that reads every source, measures every hire, and shows its working.
             </h1>
             <p className="mt-8 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl">
-              AI reads your pay policy and messy timesheets. Plain code does the maths. Two different people approve. A smart contract pays exactly what they approved, in USDC on Arc.
+              Kleeno turns your policies, timesheets and pay records into a calculated, traceable payroll, then pays exactly what you approve. AI understands the data. Fixed rules do the maths.
             </p>
             <div className="mt-10 flex w-full flex-col items-stretch justify-center gap-3 sm:w-auto sm:flex-row sm:items-center">
               <a href="#join" className={ink}>Join the waitlist</a>
@@ -101,41 +106,44 @@ export default function LandingPage() {
           <GlowSurface className="mx-auto mt-16 w-full max-w-6xl rounded-[0.75rem] p-2 sm:p-4 md:mt-24 md:p-10">
             <PayrollDemo />
           </GlowSurface>
+          <p className="mx-auto mt-4 max-w-6xl text-center text-sm text-muted-foreground">
+            Interactive preview with sample data. Open Workflow to see where each figure came from.
+          </p>
         </section>
 
         {/* Interest: the failure modes, as a gapless bento */}
         <section id="problems" aria-labelledby="problems-title" className={section}>
           <div className="mx-auto max-w-7xl">
             <h2 id="problems-title" data-rise className={`${h2} max-w-5xl`}>
-              Payroll errors hide in spreadsheets until someone is paid wrong.
+              Pay is only as good as the way it&apos;s measured.
             </h2>
             <ul className="mt-16 grid grid-flow-dense grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 md:mt-24">
               <li data-rise className={`${card} bg-card md:col-span-2 md:row-span-2`}>
-                <h3 className="text-3xl font-medium tracking-[-0.02em] sm:text-4xl">Hours that don&apos;t add up</h3>
-                <p className="mt-4 max-w-md text-lg leading-relaxed text-muted-foreground">Missed, unapproved or duplicated timesheet hours slip into pay. Kleeno flags each one with the rows that prove it.</p>
+                <h3 className="text-3xl font-medium tracking-[-0.02em] sm:text-4xl">Hours, measured against approvals</h3>
+                <p className="mt-4 max-w-md text-lg leading-relaxed text-muted-foreground">Missed, duplicate or unapproved hours are caught before calculation, each with the rows that show why.</p>
                 <div className={`mt-10 ${lift}`}>
                   <HoursCheckVisual />
                 </div>
               </li>
               <li data-rise className="md:col-span-2">
                 <GlowSurface strength="soft" className={`${card} h-full text-white`}>
-                  <h3 className="text-2xl font-medium tracking-[-0.02em] sm:text-3xl">Paying the wrong person</h3>
-                  <p className="mt-3 max-w-lg leading-relaxed text-white/75">A changed wallet looks like any other row. Kleeno holds it until a second person confirms the new recipient.</p>
+                  <h3 className="text-2xl font-medium tracking-[-0.02em] sm:text-3xl">Recipients, confirmed</h3>
+                  <p className="mt-3 max-w-lg leading-relaxed text-white/75">A changed payment detail is held until a second person confirms it.</p>
                   <div className={`mt-8 ${lift}`}>
                     <WalletChangeVisual />
                   </div>
                 </GlowSurface>
               </li>
               <li data-rise className={`${card} bg-white`}>
-                <h3 className="text-2xl font-medium tracking-[-0.02em]">Rules in formulas</h3>
-                <p className="mt-3 leading-relaxed text-muted-foreground">Overtime and rates nobody can explain when a number is questioned.</p>
+                <h3 className="text-2xl font-medium tracking-[-0.02em]">Rules, in plain sight</h3>
+                <p className="mt-3 leading-relaxed text-muted-foreground">Every rate and overtime rule links to the policy sentence it came from.</p>
                 <div className={`mt-6 ${lift}`}>
                   <PolicyRuleVisual compact />
                 </div>
               </li>
               <li data-rise className={`${card} bg-white`}>
-                <h3 className="text-2xl font-medium tracking-[-0.02em]">Answers after payday</h3>
-                <p className="mt-3 leading-relaxed text-muted-foreground">Every amount carries its own working, before you sign.</p>
+                <h3 className="text-2xl font-medium tracking-[-0.02em]">Answers before payday</h3>
+                <p className="mt-3 leading-relaxed text-muted-foreground">Every amount carries its working before anyone signs.</p>
                 <div className={`mt-6 ${lift}`}>
                   <TraceVisual compact />
                 </div>
@@ -164,10 +172,10 @@ export default function LandingPage() {
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-8 lg:grid-cols-[1.3fr_1fr] lg:items-end">
               <h2 id="how-title" data-rise className={h2}>
-                From pay policy to an explained, approved payroll.
+                One loop, every pay period: read, measure, calculate, pay.
               </h2>
               <p data-rise className="max-w-md text-lg leading-relaxed text-muted-foreground">
-                AI understands. Evidence grounds. Validation verifies. People approve. Deterministic code executes. The audit trail proves it.
+                AI understands. Evidence grounds. Validation checks. People approve. Fixed rules calculate. The audit trail proves it.
               </p>
             </div>
             <div className="mt-16 md:mt-24">
@@ -181,10 +189,10 @@ export default function LandingPage() {
           <div data-pin-section className="mx-auto grid max-w-7xl gap-16 lg:grid-cols-[1fr_1.15fr] lg:gap-24">
             <div data-pin className="lg:self-start">
               <h2 id="proof-title" className={h2}>
-                Every number carries its proof.
+                Every amount can answer “why?”
               </h2>
               <p className="mt-6 max-w-md text-lg leading-relaxed text-muted-foreground">
-                From the sentence in your policy to the receipt on Arc, each step links to the one before it. Ask “why this amount?” and the answer is already written down.
+                From the sentence in your policy to the receipt on Arc, each step links to the one before it. Open any amount and see where it came from, which rule produced it, and who approved it.
               </p>
             </div>
             <ol className="space-y-6">
@@ -204,7 +212,7 @@ export default function LandingPage() {
           <div className="mx-auto max-w-6xl">
             <h2 id="safety-title" className="sr-only">Safety</h2>
             <p data-scrub className="text-[clamp(2rem,4.6vw,4.25rem)] font-medium leading-[1.08] tracking-[-0.02em]">
-              <ScrubWords text="AI proposes. You decide. Plain code calculates. The contract pays only what two different people approved, and every step is on record." />
+              <ScrubWords text="AI reads and proposes. Fixed rules calculate. Two different people approve. Every step, and every “why”, is on record." />
             </p>
             <ul className="mt-20 grid gap-10 md:grid-cols-3 md:mt-28">
               <li data-rise>
