@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 // Share card for LinkedIn, X and Slack (DESIGN.md: cream canvas, ink type, an orbit arc). Colours mirror the globals.css tokens.
-export const alt = "Kleeno: AI payroll reconciliation for teams that pay contractors";
+export const alt = "Kleeno: AI payroll that measures every hire and shows its working";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -19,8 +19,8 @@ export default function OpengraphImage() {
           Kleeno
         </div>
         <div style={{ display: "flex", flexDirection: "column", maxWidth: 760 }}>
-          <div style={{ fontSize: 68, fontWeight: 600, lineHeight: 1.05, letterSpacing: -1.5 }}>AI payroll reconciliation for teams that pay contractors.</div>
-          <div style={{ marginTop: 28, fontSize: 30, color: "#565656" }}>Every discrepancy flagged. Every amount explained. Join the waitlist.</div>
+          <div style={{ fontSize: 68, fontWeight: 600, lineHeight: 1.05, letterSpacing: -1.5 }}>AI that reads every source, measures every hire, and shows its working.</div>
+          <div style={{ marginTop: 28, fontSize: 30, color: "#565656" }}>Every amount traced to its source. Join the waitlist.</div>
         </div>
       </div>
     ),

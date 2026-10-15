@@ -381,6 +381,7 @@ The source site barely moves, so this section is Kleeno's own. Motion helps peop
   - *Status:* a status pill crossfades when its state changes (e.g. PENDING → SETTLED); a new exception gets a single Signal Orange pulse.
 - **Never:** delay or hide an approval button, an amount or a DO NOT PAY; animate money while a user is deciding; move layout under the pointer; use parallax or orbit animation on working screens (landing page only).
 - **Accessibility:** under `prefers-reduced-motion: reduce`, every transition becomes an instant change and shimmer stops.
+- **Landing background (owner decision 2026-10-16, LP.3):** the public landing page carries one decorative "Flow" canvas (`src/components/landing-flow-background.tsx`): thin ink contour waves in the side margins that ripple under the pointer, and an orange laser (`--orbit`) that rides a wave line and moves with scroll. The centre stays clear for the headline; it is `aria-hidden`, has no text, and paints one still frame under reduced motion. Landing page only: never on signed-in screens, working tables, money or approval surfaces. This supersedes the earlier removal of orange arcs (LP.1) for this one element.
 - **Implementation:** CSS transitions and `tw-animate-css` (already installed) first; add the `motion` library only if a pattern above can't be done in CSS. Tokens (durations, easing) live in `globals.css` with the other design tokens.
 
 ## 11. Product UI (Kleeno addition, user 2026-10-03: "Calm workspace")

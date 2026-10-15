@@ -8,9 +8,9 @@ const sofia = Sofia_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.SITE_URL),
-  title: { default: "Kleeno · AI payroll reconciliation for teams that pay contractors", template: "%s · Kleeno" },
+  title: { default: "Kleeno · AI payroll that measures every hire and shows its working", template: "%s · Kleeno" },
   description:
-    "AI payroll reconciliation for teams that pay remote contractors. Every discrepancy flagged, every amount explained. Join the waitlist.",
+    "AI payroll that reads your policies, timesheets and pay records, calculates with fixed rules, and explains every amount. Join the waitlist.",
   applicationName: "Kleeno",
   openGraph: { siteName: "Kleeno", type: "website", locale: "en_US" },
   twitter: { card: "summary_large_image" },

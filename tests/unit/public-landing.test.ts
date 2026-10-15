@@ -9,11 +9,24 @@ const html = renderToStaticMarkup(createElement(LandingPage));
 const text = html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
 
 it("keeps the SEO metadata and FAQ structured data", () => {
-  expect(metadata.title).toEqual({ absolute: "Kleeno · AI payroll reconciliation for teams that pay contractors" });
+  expect(metadata.title).toEqual({ absolute: "Kleeno · AI payroll that measures every hire and shows its working" });
   expect(metadata.alternates).toEqual({ canonical: "/" });
   const ld = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1]);
   const faq = ld["@graph"].find((g: { "@type": string }) => g["@type"] === "FAQPage");
   expect(faq.mainEntity.length).toBeGreaterThanOrEqual(8);
+});
+
+it("leads with the approved measuring-loop headline and makes no zero-error claim (LP.3)", () => {
+  expect(text).toContain("AI that reads every source, measures every hire, and shows its working.");
+  expect(text).toContain("Interactive preview with sample data");
+  expect(text).not.toMatch(/pay the wrong person|zero (calculation )?errors|never (make|get) (a )?(calculation|it) wrong|error-free/i);
+  expect(text).not.toMatch(/US businesses/);
+});
+
+it("draws the Flow background as one decorative canvas, with no text of its own (LP.3)", () => {
+  expect(html.match(/<canvas/g)).toHaveLength(1);
+  expect(html).toMatch(/<canvas[^>]*aria-hidden="true"[^>]*data-flow-background/);
+  expect(html).toMatch(/<canvas[^>]*pointer-events-none[^>]*-z-10/);
 });
 
 it("has one h1 inside a horizontally clipped main landmark", () => {
