@@ -27,7 +27,6 @@
 
 <p align="center">
   <a href="https://kleeno.orclide.com">Website</a> ·
-  <a href="#demo">Demo</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#safety-model">Safety model</a> ·
   <a href="#running-locally">Run locally</a> ·
@@ -42,12 +41,10 @@ AI reads your pay policy and messy timesheets. Plain code does the maths. People
 > [!IMPORTANT]
 > **Arc testnet only: no real funds move.** Kleeno is in active development for the Tameion Agents Hackathon (Canteen × Arc), 2026. Worker wallets are custodial (company-managed). Net amounts and recipient addresses are public on-chain by nature; names and payroll detail never go on-chain.
 
+<!-- Demo section hidden until the demo is ready. To restore: remove these comment markers and re-add the Demo link to the nav above.
 ## Demo
 
-<!-- Replace docs/media/demo-video.svg with a thumbnail and the href with the Loom/YouTube/Vimeo link. -->
-<p align="center">
-  <a href="#demo"><img src="docs/media/demo-video.svg" alt="Demo video (coming soon)" width="80%"></a>
-</p>
+Demo video and screenshots: docs/media/demo-video.svg (replace with a thumbnail and link the Loom/YouTube/Vimeo video), docs/media/screenshot-*.svg.
 
 | | |
 |---|---|
@@ -59,6 +56,7 @@ AI reads your pay policy and messy timesheets. Plain code does the maths. People
 | **Payment plan and settlement:** signed plan, guarded payment, Arc receipt match | |
 
 Screenshots use synthetic demo data only.
+-->
 
 ## Why
 
