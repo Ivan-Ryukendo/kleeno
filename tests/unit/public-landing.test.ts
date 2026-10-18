@@ -18,8 +18,7 @@ it("keeps the SEO metadata and FAQ structured data", () => {
 
 it("leads with the approved measuring-loop headline and makes no zero-error claim (LP.3)", () => {
   expect(text).toContain("AI that reads every source, measures every hire, and shows its working.");
-  // The landing payroll demo is hidden for the submission. Restore the positive check when PayrollDemo is mounted again.
-  expect(text).not.toContain("Interactive preview with sample data");
+  expect(text).toContain("Interactive preview with sample data");
   expect(text).not.toMatch(/pay the wrong person|zero (calculation )?errors|never (make|get) (a )?(calculation|it) wrong|error-free/i);
   expect(text).not.toMatch(/US businesses/);
 });
@@ -47,9 +46,10 @@ it("keeps the waitlist anchor, form and public links", () => {
 it("renders product-style samples without captions, and stays honest", () => {
   // Owner (LP.1 fix 3): no "illustrative/synthetic/placeholder" captions; the renderings copy the product mockups instead.
   expect(text).not.toMatch(/illustrative|synthetic|placeholder/i);
-  // The payroll demo table is hidden for the submission. Restore the SIMULATION, "Matched 12 of 14" and header checks with it.
-  expect(text).not.toContain("Matched 12 of 14");
-  expect(html).not.toContain(">Monthly pay</th>");
+  expect(text).toContain("SIMULATION");
+  expect(text).toContain("Arc testnet USDC, no real funds");
+  expect(text).toContain("Matched 12 of 14");
+  for (const header of ["Name", "Check", "Pay type", "Monthly pay"]) expect(html).toContain(`>${header}</th>`);
   // Wallets and transactions only as short fragments, never a full address or hash.
   expect(text).not.toMatch(/0x[0-9a-f]{40}/i);
   expect(text).not.toMatch(/SECTION\s*\d|QUESTION\s*\d|testimonial|trusted by/i);
