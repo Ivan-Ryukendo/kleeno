@@ -1,0 +1,14 @@
+# Gitleaks config. Extends the default rules.
+[extend]
+useDefault = true
+
+# Fake or placeholder values, not credentials, flagged in history (scan 2026-10-18).
+# The receipts value is a fake test secret, marked gitleaks:allow in HEAD. Keep this list minimal.
+[allowlist]
+description = "Placeholder and fake test values (not credentials)"
+regexTarget = "secret"
+regexes = [
+  '''^payroll/intake$''',
+  '''^r0-verifier-synthetic-anon-key$''',
+  '''^db-test-receipt-secret-0123456789abcdef$''',
+]
