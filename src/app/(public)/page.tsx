@@ -5,6 +5,7 @@ import { FaqItem } from "@/components/landing-faq";
 import { FlowBackground } from "@/components/landing-flow-background";
 import { LandingMotion, ScrubWords } from "@/components/landing-motion";
 import { LandingSteps, type LandingStep } from "@/components/landing-steps";
+import { PayrollDemo } from "@/components/landing-payroll-demo";
 import {
   ApprovalsVisual,
   HoursCheckVisual,
@@ -102,6 +103,12 @@ export default function LandingPage() {
             <p className="mt-6 text-sm text-muted-foreground">In development · Arc testnet only, no real funds</p>
           </div>
 
+          <GlowSurface className="mx-auto mt-16 w-full max-w-6xl rounded-[0.75rem] p-2 sm:p-4 md:mt-24 md:p-10">
+            <PayrollDemo />
+          </GlowSurface>
+          <p className="mx-auto mt-4 max-w-6xl text-center text-sm text-muted-foreground">
+            Interactive preview with sample data. Open Workflow to see where each figure came from.
+          </p>
         </section>
 
         {/* Interest: the failure modes, as a gapless bento */}
