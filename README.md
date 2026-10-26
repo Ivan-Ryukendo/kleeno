@@ -10,7 +10,7 @@
   <a href="https://github.com/Ivan-Ryukendo/kleeno/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ivan-Ryukendo/kleeno/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white" alt="CI status"></a>
   <a href="https://github.com/Ivan-Ryukendo/kleeno/stargazers"><img src="https://img.shields.io/github/stars/Ivan-Ryukendo/kleeno?style=flat&logo=github&label=Stars" alt="GitHub stars"></a>
   <a href="https://github.com/Ivan-Ryukendo/kleeno/commits/main"><img src="https://img.shields.io/github/last-commit/Ivan-Ryukendo/kleeno?label=Last%20commit" alt="Last commit"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-All%20rights%20reserved-141413" alt="License: all rights reserved"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-141413" alt="License: AGPL-3.0-only"></a>
   <a href="https://kleeno.orclide.com"><img src="https://img.shields.io/badge/Website-kleeno.orclide.com-CF4500" alt="Website"></a>
 </p>
 
@@ -150,10 +150,12 @@ Questions, feedback or permission requests: open an issue or contact [@Ivan-Ryuk
 
 ## License
 
-Copyright (c) 2026 Mirza Gamal Abdel Nasser. All rights reserved. This is proprietary, source-visible code, not open source.
+Copyright (c) 2026 Mirza Gamal Abdel Nasser.
 
-- You may view and read it here. Hackathon organisers and judges may clone and run it locally only to evaluate the submission.
-- You may not copy, modify, distribute, sell, host or deploy it, build on it, or use it to train AI models, without written permission.
-- Testnet only: it is not meant to move real funds and is not payroll, tax, legal or financial advice.
+Kleeno is open-source software licensed under the **GNU Affero General Public License v3.0 only** (SPDX: `AGPL-3.0-only`). See [LICENSE](LICENSE) for the complete terms.
 
-See [`LICENSE`](LICENSE) for the full terms. Third-party components keep their own licenses. Permission requests: via [GitHub](https://github.com/Ivan-Ryukendo).
+Commercial use, paid hosting, modification and redistribution are permitted under the license. If you modify the program and let users interact with it over a network, you must prominently offer those users access to the corresponding source of your version under AGPL-3.0. Distribution also carries source and notice obligations.
+
+Third-party components, including dependencies, bundled fonts and `contracts/lib/forge-std`, retain their own licenses and notices. The software license does not grant trademark rights to Kleeno's name or logo. For separate commercial licensing inquiries, contact [@Ivan-Ryukendo](https://github.com/Ivan-Ryukendo).
+
+This remains a testnet prototype, not intended to move real funds or run real payroll, and provides no payroll, tax, legal or financial advice.
